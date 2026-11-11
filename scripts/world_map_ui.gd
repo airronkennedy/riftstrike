@@ -1,6 +1,6 @@
 extends RefCounted
-# Full-region map screen. Two tabs: REGION (whole planned graph: every named area, links,
-# branches, rec levels, story gates, player position) and LOCAL (built tiles, player dot).
+# Full-region map screen. Two tabs: REGION (the same geographic terrain as Local, plus
+# rec levels, story-gate locks, and the YOU marker) and LOCAL (built tiles, player dot).
 # Drawn with the game node's helpers; pan by drag, zoom with +/-; tap an area for details.
 
 var W = null # world.gd instance
@@ -122,10 +122,6 @@ func draw(g: Object, vw: float, vh: float, now: float, px: float, py: float) -> 
 	_draw_info(g, pr, info_w == 0.0)
 
 
-func _map_size() -> Vector2:
-	var ms: Array = W.data.get("map_size", [1280, 700])
-	return Vector2(float(ms[0]), float(ms[1]))
-
 
 var legend_h := 0.0
 
@@ -136,204 +132,143 @@ func _plot_rect() -> Rect2:
 	return mr
 
 
-func _scale() -> float:
+func _view() -> Dictionary:
 	var mr := _plot_rect()
-	var ms := _map_size()
-	return minf(mr.size.x / ms.x, mr.size.y / ms.y) * zoom
+	var s: float = minf(mr.size.x / float(W.W), mr.size.y / float(W.H)) * zoom
+	var sz := Vector2(W.W * s, W.H * s)
+	var o: Vector2 = mr.get_center() - sz / 2.0 + pan
+	return {"o": o, "s": s, "sz": sz}
 
 
-func _to_screen(m: Vector2) -> Vector2:
-	var ms := _map_size()
-	var s: float = _scale()
-	return _plot_rect().get_center() + (m - ms / 2.0) * s + pan
+func _big_rects(rects: Array) -> Array:
+	var big: Array = []
+	for q in rects:
+		var qq: Array = q
+		var cells: int = (int(qq[2]) - int(qq[0]) + 1) * (int(qq[3]) - int(qq[1]) + 1)
+		if cells >= 8:
+			big.append(qq)
+	return big if not big.is_empty() else rects.duplicate()
 
 
-func _box_rect(a: Dictionary) -> Rect2:
-	if a.has("box"):
-		var b: Array = a.box
-		var p0: Vector2 = _to_screen(Vector2(float(b[0]), float(b[1])))
-		var s: float = _scale()
-		return Rect2(p0, Vector2(float(b[2]), float(b[3])) * s)
-	var ms := _map_size()
-	var c: Vector2 = _to_screen(Vector2(float(a.map[0]) / 100.0 * ms.x, float(a.map[1]) / 100.0 * ms.y))
-	return Rect2(c - Vector2(30, 20), Vector2(60, 40))
+func _union_q(rects: Array) -> Array:
+	var qs: Array = _big_rects(rects)
+	var x0 := 100000
+	var y0 := 100000
+	var x1 := -1
+	var y1 := -1
+	for q in qs:
+		var qq: Array = q
+		x0 = mini(x0, int(qq[0]))
+		y0 = mini(y0, int(qq[1]))
+		x1 = maxi(x1, int(qq[2]))
+		y1 = maxi(y1, int(qq[3]))
+	return [x0, y0, x1, y1]
 
 
-# Where the segment from the box centre toward `to` leaves the box.
-func _edge(r: Rect2, to: Vector2) -> Vector2:
-	var c: Vector2 = r.get_center()
-	var d: Vector2 = to - c
-	if d.length() < 0.01:
-		return c
-	var tx: float = (r.size.x / 2.0) / absf(d.x) if absf(d.x) > 0.001 else 1e9
-	var ty: float = (r.size.y / 2.0) / absf(d.y) if absf(d.y) > 0.001 else 1e9
-	return c + d * minf(1.0, minf(tx, ty))
-
-
-# Liang-Barsky clip of a segment to the map panel. Returns [] when fully outside.
-func _clip_seg(a: Vector2, b: Vector2) -> Array:
-	var r := _map_rect.grow(-4)
-	var t0 := 0.0
-	var t1 := 1.0
-	var d: Vector2 = b - a
-	var ps: Array = [-d.x, d.x, -d.y, d.y]
-	var qs: Array = [a.x - r.position.x, r.end.x - a.x, a.y - r.position.y, r.end.y - a.y]
-	for i in 4:
-		var pp: float = ps[i]
-		var qq: float = qs[i]
-		if absf(pp) < 0.0001:
-			if qq < 0.0:
-				return []
-		else:
-			var t: float = qq / pp
-			if pp < 0.0:
-				t0 = maxf(t0, t)
-			else:
-				t1 = minf(t1, t)
-	if t0 > t1:
-		return []
-	return [a + d * t0, a + d * t1]
-
-
-# A point between two boxes for a gate's lock that is not on top of another place.
-func _lock_spot(ea: Vector2, eb: Vector2, ida: String, idb: String) -> Vector2:
-	var ts: Array = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.12, 0.88, 0.05, 0.95]
-	for t in ts:
-		var p: Vector2 = ea.lerp(eb, float(t))
-		var hit := false
-		for id in W.area_order:
-			if id == ida or id == idb:
-				continue
-			if _box_rect(W.area(id)).grow(6.0).has_point(p):
-				hit = true
-				break
-		if not hit:
-			return p
-	return ea.lerp(eb, 0.5)
+func _q_screen(q: Array, o: Vector2, s: float) -> Rect2:
+	return Rect2(o + Vector2(float(q[0]) * s, float(q[1]) * s), Vector2((float(q[2]) - float(q[0]) + 1.0) * s, (float(q[3]) - float(q[1]) + 1.0) * s))
 
 
 func _draw_region(g: Object, now: float, px: float, py: float) -> void:
-	var s: float = _scale()
+	if local_tex == null:
+		return
+	var v: Dictionary = _view()
+	var o: Vector2 = v.o
+	var s: float = v.s
+	var sz: Vector2 = v.sz
 	var clip := _map_rect.grow(-4)
-	var nfs: float = clampf(15.0 * s / 0.55, 9.0, 22.0)
-	# whole-region land plate
-	var ms := _map_size()
-	var plate := Rect2(_to_screen(Vector2.ZERO), ms * s).intersection(clip)
-	if plate.size.x > 0 and plate.size.y > 0:
-		g.rbox(plate, 18.0, Color(0.2, 0.42, 0.42, 0.55))
-	# links (under the blocks)
+	g.draw_texture_rect(local_tex, Rect2(o, sz), false)
+	var nfs: float = clampf(s * 1.7, 10.0, 16.0)
+	# area outlines, hit targets, and labels
+	var you_pt := Vector2(-1, -1)
+	for a in W.tiles_cfg.get("areas", []):
+		var ad: Dictionary = a
+		var id: String = str(ad.id)
+		var a2: Dictionary = W.area(id)
+		var qs: Array = _big_rects(ad.get("rects", []))
+		for q in qs:
+			var br: Rect2 = _q_screen(q, o, s)
+			_node_rects.append([br, id])
+			var vis: Rect2 = br.intersection(clip)
+			if vis.size.x <= 1.0 or vis.size.y <= 1.0:
+				continue
+			var built: String = str(a2.get("built", "planned"))
+			var border: Color = Color(1, 1, 1, 0.55) if built == "walkable" else Color(1, 1, 1, 0.22)
+			g.rbox(vis, 0.0, Color(0, 0, 0, 0), border, 1.2)
+			if id == sel:
+				g.rbox(vis.grow(2.0), 0.0, Color(0, 0, 0, 0), Color("#ffe27a"), 2.5)
+			if id == W.cur_area:
+				var pulse: float = 0.5 + 0.5 * sin(now / 220.0)
+				g.rbox(vis.grow(3.0 + pulse * 2.0), 0.0, Color(0, 0, 0, 0), Color(0.45, 0.92, 1.0, 0.9), 2.4)
+		if id == W.cur_area:
+			you_pt = o + Vector2(px / W.TILE * s, py / W.TILE * s)
+		# labels at the union of the real land, not 1-tile crumbs
+		var uq: Array = _union_q(ad.get("rects", []))
+		var ur: Rect2 = _q_screen(uq, o, s).intersection(clip)
+		if ur.size.y < nfs * 2.2 or ur.size.x < 40.0:
+			continue
+		var c: Vector2 = ur.get_center()
+		var nm: String = W.area_name(id)
+		var lv: String = W.rec_text(id) + ("  · optional" if bool(a2.get("optional", false)) else "")
+		var lm: String = str(a2.get("landmark", ""))
+		var show_lm: bool = lm != "" and ur.size.y > nfs * 4.4
+		var lines: int = 3 if show_lm else 2
+		var y0: float = c.y - (lines - 1) * nfs * 0.58
+		g.text(nm, c.x, y0, g.fit_size(nm, nfs, ur.size.x - 8.0, 8.0), Color.WHITE, "center", 3.0, Color(0, 0, 0, 0.9))
+		g.text(lv, c.x, y0 + nfs * 1.05, g.fit_size(lv, nfs * 0.8, ur.size.x - 8.0, 7.0), Color("#ffe6a8"), "center", 2.5, Color(0, 0, 0, 0.9))
+		if show_lm:
+			g.text(lm, c.x, y0 + nfs * 2.05, g.fit_size(lm, nfs * 0.7, ur.size.x - 8.0, 7.0), Color("#dce8e8"), "center", 2.0, Color(0, 0, 0, 0.9))
+		for z in ad.get("zones", []):
+			var zd: Dictionary = z
+			var zqs: Array = _big_rects(zd.get("rects", []))
+			var zu: Array = _union_q(zqs)
+			# skip a zone that is basically the whole area
+			if (int(zu[2]) - int(zu[0])) * (int(zu[3]) - int(zu[1])) > (int(uq[2]) - int(uq[0])) * (int(uq[3]) - int(uq[1])) * 0.85:
+				continue
+			var zr: Rect2 = _q_screen(zu, o, s).intersection(clip)
+			if zr.size.x < 36.0 or zr.size.y < nfs:
+				continue
+			var zc: Vector2 = zr.get_center() + Vector2(0, nfs * 0.55)
+			g.text(str(zd.name), zc.x, zc.y, g.fit_size(str(zd.name), nfs * 0.72, zr.size.x - 6.0, 7.0), Color("#ffe6a8"), "center", 2.5, Color(0, 0, 0, 0.9))
+	# story-gate locks on the real tiles
 	var locks: Array = []
-	for l in W.links:
-		var ld: Dictionary = l
-		var a: Dictionary = W.area(str(ld.from))
-		var b: Dictionary = W.area(str(ld.to))
-		if a.is_empty() or b.is_empty():
-			continue
-		var ra: Rect2 = _box_rect(a)
-		var rb: Rect2 = _box_rect(b)
-		var gid: String = str(ld.get("gate", ""))
-		var seg: Array = _clip_seg(ra.get_center(), rb.get_center())
-		if seg.is_empty():
-			continue
-		var optional: bool = bool(a.get("optional", false)) or bool(b.get("optional", false))
-		var col := Color(1, 0.96, 0.84, 0.95)
-		if gid != "":
-			col = Color("#ff8a7a") if not W.gate_open(gid) else Color("#8ff0b0")
-		elif optional:
-			col = Color(0.82, 0.92, 1.0, 0.8)
-		var lw: float = clampf(7.0 * s / 0.55, 4.0, 10.0)
-		g.draw_line(seg[0], seg[1], Color(0.02, 0.1, 0.1, 0.55), lw + 4.0, true)
-		if gid != "":
-			g.draw_dashed_line(seg[0], seg[1], col, lw, lw * 2.2, true)
-		else:
-			g.draw_line(seg[0], seg[1], col, lw, true)
-		if gid != "":
-			var ea: Vector2 = _edge(ra, rb.get_center())
-			var eb: Vector2 = _edge(rb, ra.get_center())
-			var mid: Vector2 = _lock_spot(ea, eb, str(ld.from), str(ld.to))
+	for gt in W.tiles_cfg.get("gates", []):
+		var gd: Dictionary = gt
+		var gid: String = str(gd.id)
+		var open: bool = W.gate_open(gid)
+		for q in gd.get("rects", []):
+			var mid: Vector2 = _q_screen(q, o, s).get_center()
 			var dup := false
 			for lk0 in locks:
-				if (lk0[0] as Vector2).distance_to(mid) < 18.0:
+				if (lk0[0] as Vector2).distance_to(mid) < 14.0:
 					dup = true
 			if clip.has_point(mid) and not dup:
-				locks.append([mid, W.gate_open(gid)])
-	# territory blocks
-	var you_pt := Vector2(-1, -1)
-	var you_r := Rect2()
-	for id in W.area_order:
-		var a2: Dictionary = W.area(id)
-		var br: Rect2 = _box_rect(a2)
-		_node_rects.append([br, id])
-		var vis: Rect2 = br.intersection(clip)
-		if vis.size.x <= 1.0 or vis.size.y <= 1.0:
-			continue
-		var kcol: Color = KIND_COL.get(str(a2.kind), Color.WHITE)
-		var built: String = str(a2.get("built", "planned"))
-		var rad: float = clampf(18.0 * s / 0.55, 8.0, 26.0)
-		var fill: Color = Color(kcol.r, kcol.g, kcol.b, 1.0) if built != "planned" else kcol.lerp(Color(0.13, 0.3, 0.32), 0.5)
-		var border: Color = Color(1, 1, 1, 0.95) if built == "walkable" else Color(1, 1, 1, 0.35)
-		var bw: float = 3.0 if built == "walkable" else 1.5
-		g.rbox(vis, rad, fill, border, bw, 4.0)
-		if built == "stub":
-			g.rbox(vis.grow(-5.0), maxf(4.0, rad - 4.0), Color(0, 0, 0, 0), Color(1, 1, 1, 0.55), 1.5)
-		if id == sel:
-			g.rbox(vis.grow(4.0), rad + 4.0, Color(0, 0, 0, 0), Color("#ffe27a"), 3.5)
-		if id == W.cur_area:
-			var pulse: float = 0.5 + 0.5 * sin(now / 220.0)
-			g.rbox(vis.grow(6.0 + pulse * 3.0), rad + 6.0, Color(0, 0, 0, 0), Color(0.45, 0.92, 1.0, 0.9), 3.0)
-			var fr: Vector2 = W.area_frac(id, px, py)
-			you_pt = br.position + Vector2(br.size.x * (0.12 + 0.76 * fr.x), br.size.y * (0.12 + 0.76 * fr.y))
-			you_r = br
-		# labels
-		# keep labels inside the visible part of the block (and inside the panel)
-		if vis.size.y < nfs * 2.4 or vis.size.x < 48.0:
-			continue
-		var c: Vector2 = vis.get_center()
-		var ink: Color = Color("#1d2a2a") if built != "planned" else Color(1, 1, 1, 0.95)
-		var halo: Color = Color(1, 1, 1, 0.55) if built != "planned" else Color(0, 0, 0, 0.6)
-		var nm: String = str(a2.name)
-		var f1: float = g.fit_size(nm, nfs, vis.size.x - 10.0, 8.0)
-		var lines: int = 2
-		var lm: String = str(a2.get("landmark", ""))
-		var show_lm: bool = lm != "" and vis.size.y > nfs * 4.6
-		if show_lm:
-			lines = 3
-		var y0: float = c.y - (lines - 1) * nfs * 0.55
-		g.text(nm, c.x, y0, f1, ink, "center", 2.5, halo)
-		var lv: String = W.rec_text(id) + ("  · optional" if bool(a2.get("optional", false)) else "")
-		g.text(lv, c.x, y0 + nfs * 1.05, g.fit_size(lv, nfs * 0.78, vis.size.x - 10.0, 7.0), Color("#5a3d00") if built != "planned" else Color("#ffe6a8"), "center", 2.0, halo)
-		if show_lm:
-			g.text(lm, c.x, y0 + nfs * 2.05, g.fit_size(lm, nfs * 0.7, vis.size.x - 10.0, 7.0), ink, "center", 2.0, halo)
+				locks.append([mid, open])
 	for lk in locks:
-		_lock_icon(g, lk[0], bool(lk[1]), clampf(s / 0.55, 0.9, 1.6))
-	# YOU marker
+		_lock_icon(g, lk[0], bool(lk[1]), clampf(s / 2.2, 0.85, 1.5))
+	# YOU marker on the real tile
 	if you_pt.x >= 0 and clip.has_point(you_pt):
 		var pulse2: float = 0.5 + 0.5 * sin(now / 200.0)
 		g.draw_circle(you_pt, 9.0 + pulse2 * 5.0, Color(0.4, 0.9, 1.0, 0.35))
 		g.draw_circle(you_pt, 7.0, Color(0.02, 0.1, 0.1, 0.9))
 		g.draw_circle(you_pt, 5.0, Color("#9ff0ff"))
-		var ty: float = you_pt.y - 18.0
-		g.chip("YOU", you_pt.x, ty, 11.0, Color("#0e3b40"), Color("#9ff0ff"), "center")
+		g.chip("YOU", you_pt.x, you_pt.y - 18.0, 11.0, Color("#0e3b40"), Color("#9ff0ff"), "center")
 	# legend
 	var lx: float = _map_rect.position.x + 22
 	var ly: float = _map_rect.end.y - 22
-	var items: Array = [["town", "Town"], ["wild", "Wild"], ["dungeon", "Dungeon"], ["final", "Final"], ["postgame", "Post-game"]]
-	var lwid: float = 30.0
-	for it in items:
-		lwid += 26.0 + g.text_w(it[1], 11)
-	lwid += 30.0 + g.text_w("Story gate", 11) + 30.0 + g.text_w("Walkable", 11)
+	var lwid: float = 20.0 + 30.0 + g.text_w("Story gate", 11) + 36.0 + g.text_w("Open gate", 11) + 36.0 + g.text_w("You", 11)
 	legend_h = 30.0 if lwid < _map_rect.size.x - 20 else 0.0
 	if lwid < _map_rect.size.x - 20:
 		g.rbox(Rect2(_map_rect.position.x + 10, ly - 14, lwid, 28), 14.0, Color(0.03, 0.1, 0.11, 0.78))
-		for it in items:
-			g.rbox(Rect2(lx, ly - 6, 12, 12), 4.0, KIND_COL[it[0]])
-			g.text(it[1], lx + 17, ly, 11, Color.WHITE, "left", 2, Color(0, 0, 0, 0.9))
-			lx += 26 + g.text_w(it[1], 11)
 		_lock_icon(g, Vector2(lx + 6, ly), false, 1.0)
 		g.text("Story gate", lx + 16, ly, 11, Color.WHITE, "left", 2, Color(0, 0, 0, 0.9))
 		lx += 30 + g.text_w("Story gate", 11)
-		g.rbox(Rect2(lx, ly - 6, 12, 12), 4.0, Color(0, 0, 0, 0), Color.WHITE, 2.0)
-		g.text("Walkable", lx + 17, ly, 11, Color.WHITE, "left", 2, Color(0, 0, 0, 0.9))
+		_lock_icon(g, Vector2(lx + 6, ly), true, 1.0)
+		g.text("Open gate", lx + 16, ly, 11, Color.WHITE, "left", 2, Color(0, 0, 0, 0.9))
+		lx += 30 + g.text_w("Open gate", 11)
+		g.draw_circle(Vector2(lx + 6, ly), 5.0, Color("#9ff0ff"))
+		g.text("You", lx + 16, ly, 11, Color.WHITE, "left", 2, Color(0, 0, 0, 0.9))
+
 
 
 func _lock_icon(g: Object, p: Vector2, open: bool, k: float = 1.0) -> void:

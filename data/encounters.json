@@ -348,7 +348,72 @@
       27
      ]
     }
-   ]
+   ],
+   "zones": {
+    "Redcap Burrows": {
+     "rate": 0.065,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        26,
+        26
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        26,
+        27
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        26,
+        27
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        27,
+        27
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        27,
+        27
+       ]
+      }
+     ]
+    }
+   }
   },
   "kindlegrass_steppe": {
    "rate": 0.045,
@@ -1184,7 +1249,72 @@
       45
      ]
     }
-   ]
+   ],
+   "zones": {
+    "Rime Cave": {
+     "rate": 0.06,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        44,
+        44
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        44,
+        45
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        44,
+        45
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        45,
+        45
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        45,
+        45
+       ]
+      }
+     ]
+    }
+   }
   },
   "kingshold": {
    "rate": 0.045,
@@ -1371,6 +1501,69 @@
        "level": [
         48,
         49
+       ]
+      }
+     ]
+    },
+    "Royal Crypt": {
+     "rate": 0.06,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        49,
+        50
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        49,
+        50
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        50,
+        51
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        50,
+        51
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        51,
+        51
        ]
       }
      ]
@@ -1751,6 +1944,52 @@
        "level": [
         87,
         90
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "emberfall": {
+   "rate": 0.0,
+   "groups": [],
+   "_note": "town: encounters only in the mine adits",
+   "zones": {
+    "Emberfall Mines": {
+     "rate": 0.05,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        14,
+        15
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        14,
+        16
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        15,
+        16
        ]
       }
      ]

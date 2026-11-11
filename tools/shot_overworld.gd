@@ -5,15 +5,15 @@ var out := "/tmp/ow"
 var only := ""
 const SPOTS := [
 	["a1_rivenbrook", 20, 16], ["a1_fort_courtyard", 212, 57], ["a1_fort_span", 226, 54], ["a1_royal_causeway", 211, 84],
-	["a2_emberfall_plaza", 252, 55], ["a2_emberfall_mines", 254, 44], ["a2_redcap_tarn", 298, 22], ["a2_redcap_camp", 316, 30],
-	["a2_steppe", 304, 50], ["a2_glasswind_canyon", 312, 72], ["a2_sunken_abbey", 301, 90], ["a2_abbey_crypt", 304, 100],
-	["a2_mirefen_bog", 380, 30], ["a2_foxglove_hamlet", 360, 48], ["a2_mirefen_deep", 390, 22], ["a2_lanternkeep_hall", 375, 72],
-	["a2_underroot_catacomb", 375, 92], ["a2_caldera_lake", 418, 80], ["a2_caldera_bridge", 404, 98],
-	["a3_frostveil_bridge", 330, 113], ["a3_frostveil_plaza", 330, 140], ["a3_frostveil_gate", 330, 126], ["a3_frostveil_east", 356, 140],
-	["a3_moonlit_terraces", 410, 128], ["a3_seers_spire", 428, 160], ["a3_spire_sanctum", 428, 184], ["a3_deepvault_prison", 394, 164],
-	["a3_molten_capital", 394, 190], ["a3_hoarfrost_pass", 340, 182],
-	["a4_kingshold_approach", 230, 112], ["a4_crown_market", 236, 103], ["a4_citadel", 236, 172], ["a4_withered_garden", 172, 160],
-	["a4_drakespire", 122, 162], ["a4_starfall_archive", 108, 122], ["a4_rift_heart", 34, 124], ["a5_riftsea", 40, 175], ["a5_riftsea_depths", 70, 194],
+	["a2_emberfall_plaza", 252, 55], ["a2_emberfall_mines", 254, 44], ["a2_redcap_tarn", 297, 22], ["a2_redcap_camp", 316, 25],
+	["a2_steppe", 304, 50], ["a2_glasswind_canyon", 313, 72], ["a2_sunken_abbey", 301, 90], ["a2_abbey_crypt", 304, 100],
+	["a2_mirefen_bog", 379, 29], ["a2_foxglove_hamlet", 360, 48], ["a2_mirefen_deep", 390, 22], ["a2_lanternkeep_hall", 375, 72],
+	["a2_underroot_catacomb", 375, 94], ["a2_caldera_lake", 418, 80], ["a2_caldera_bridge", 402, 98],
+	["a3_frostveil_bridge", 330, 113], ["a3_frostveil_plaza", 329, 139], ["a3_frostveil_gate", 330, 126], ["a3_frostveil_east", 356, 140],
+	["a3_moonlit_terraces", 410, 128], ["a3_seers_spire", 428, 160], ["a3_spire_sanctum", 428, 184], ["a3_deepvault_prison", 391, 162],
+	["a3_molten_capital", 392, 187], ["a3_hoarfrost_pass", 340, 182],
+	["a4_kingshold_approach", 230, 110], ["a4_crown_market", 236, 103], ["a4_citadel", 236, 172], ["a4_withered_garden", 172, 160],
+	["a4_drakespire", 122, 164], ["a4_starfall_archive", 106, 124], ["a4_rift_heart", 34, 124], ["a5_riftsea", 39, 177], ["a4_citadel_keep", 237, 179], ["a2_redcap_burrows", 336, 16], ["a3_rime_cave", 362, 189], ["a4_royal_crypt", 166, 190], ["a2_abbey_garth", 318, 96], ["a2_emberfall_lane", 252, 64], ["a5_riftsea_depths", 69, 194],
 ]
 func _init() -> void:
 	for a in OS.get_cmdline_user_args():
