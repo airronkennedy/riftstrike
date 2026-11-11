@@ -103,19 +103,56 @@ var ROSTER_BLUE := [["warrior", "Airron", 360, 265], ["warrior", "Christian", 36
 	["pawn", "Lanning", 315, 185], ["pawn", "Rico", 315, 470],
 	["archer", "Weston", 205, 265], ["archer", "Wiesen", 205, 395]]
 var GOB_NAMES := ["Rusk", "Kael", "Sable", "Drenn", "Voss", "Iven"]
+var HERO_NAMES := ["Airron", "Christian", "Weston", "Wiesen", "Lanning", "Rico"]
+# Personal cores — class and subclass bonuses stack on top.
+var HERO_BASE := {
+	"Airron": {"hp": 220, "atk": 64, "def": 26, "armor": 8, "crit": 8, "mana": 6, "speed": 14},
+	"Christian": {"hp": 260, "atk": 50, "def": 36, "armor": 10, "crit": 6, "mana": 5, "speed": 12},
+	"Weston": {"hp": 210, "atk": 58, "def": 18, "armor": 4, "crit": 10, "mana": 6, "speed": 18},
+	"Wiesen": {"hp": 200, "atk": 68, "def": 16, "armor": 3, "crit": 12, "mana": 5, "speed": 16},
+	"Lanning": {"hp": 300, "atk": 38, "def": 40, "armor": 12, "crit": 4, "mana": 8, "speed": 8},
+	"Rico": {"hp": 240, "atk": 48, "def": 24, "armor": 8, "crit": 8, "mana": 6, "speed": 16},
+}
+# Classes: big, focused packages + a combat kit. Subclasses: smaller mix-and-match bonuses.
+var CLASS_DEFS := {
+	"Knight": {"kind": "warrior", "blurb": "Heavy blows and thick armor",
+		"hp": 40, "atk": 22, "def": 8, "armor": 14, "crit": 0, "mana": 2, "speed": 0},
+	"Warrior": {"kind": "warrior", "blurb": "Aggressive melee pressure",
+		"hp": 16, "atk": 20, "def": 4, "armor": 6, "crit": 8, "mana": 2, "speed": 12},
+	"Ranger": {"kind": "archer", "blurb": "Fast shots and sharp crits",
+		"hp": 16, "atk": 14, "def": 0, "armor": 2, "crit": 16, "mana": 2, "speed": 16},
+	"Marksman": {"kind": "archer", "blurb": "Precision damage from the back line",
+		"hp": 8, "atk": 20, "def": 2, "armor": 4, "crit": 12, "mana": 4, "speed": 8},
+	"Guardian": {"kind": "pawn", "blurb": "Stands firm and soaks hits",
+		"hp": 80, "atk": 0, "def": 22, "armor": 16, "crit": 0, "mana": 4, "speed": 0},
+	"Warden": {"kind": "pawn", "blurb": "Steady defense and mana",
+		"hp": 50, "atk": 4, "def": 16, "armor": 8, "crit": 0, "mana": 14, "speed": 2},
+}
+var CLASS_IDS := ["Knight", "Warrior", "Ranger", "Marksman", "Guardian", "Warden"]
+var SUB_DEFS := {
+	"Riftblade": {"blurb": "A little extra cut", "atk": 8, "crit": 6},
+	"Vanguard": {"blurb": "Front-line bulk", "hp": 24, "def": 4, "armor": 6},
+	"Scout": {"blurb": "Gets there first", "speed": 8, "crit": 4},
+	"Sharpshot": {"blurb": "Keener eyes", "atk": 6, "crit": 6},
+	"Ironhide": {"blurb": "Harder to break", "armor": 8, "def": 4, "hp": 16},
+	"Raider": {"blurb": "Hits and moves", "atk": 6, "speed": 6},
+	"Sage": {"blurb": "Mana between turns", "mana": 8, "def": 3},
+	"Duelist": {"blurb": "Pick your opening", "crit": 6, "atk": 4, "speed": 3},
+}
+var SUB_IDS := ["Riftblade", "Vanguard", "Scout", "Sharpshot", "Ironhide", "Raider", "Sage", "Duelist"]
 var CHAR := {
-	"Airron": {"cls": "Knight", "sub": "Riftblade", "atk": 88, "def": 42},
-	"Christian": {"cls": "Warrior", "sub": "Vanguard", "atk": 70, "def": 58},
-	"Weston": {"cls": "Ranger", "sub": "Scout", "atk": 79, "def": 28},
-	"Wiesen": {"cls": "Archer", "sub": "Marksman", "atk": 92, "def": 24},
-	"Lanning": {"cls": "Guardian", "sub": "Warden", "atk": 54, "def": 64},
-	"Rico": {"cls": "Fighter", "sub": "Raider", "atk": 66, "def": 40},
+	"Airron": {"cls": "Knight", "sub": "Riftblade"},
+	"Christian": {"cls": "Warrior", "sub": "Vanguard"},
+	"Weston": {"cls": "Ranger", "sub": "Scout"},
+	"Wiesen": {"cls": "Marksman", "sub": "Sharpshot"},
+	"Lanning": {"cls": "Guardian", "sub": "Ironhide"},
+	"Rico": {"cls": "Warrior", "sub": "Raider"},
 }
 var GOB_CLASS := {
-	"torch": {"cls": "Skirmisher", "sub": "Emberblade", "atk": 72, "def": 36},
-	"tnt": {"cls": "Bomber", "sub": "Demolitionist", "atk": 84, "def": 22},
-	"barrel": {"cls": "Bruiser", "sub": "Powderguard", "atk": 58, "def": 52},
-	"necro": {"cls": "Boss", "sub": "Necromancer", "atk": 72, "def": 40},
+	"torch": {"cls": "Skirmisher", "sub": "Emberblade", "atk": 72, "def": 36, "armor": 8, "crit": 8, "mana": 6, "speed": 14},
+	"tnt": {"cls": "Bomber", "sub": "Demolitionist", "atk": 84, "def": 22, "armor": 4, "crit": 10, "mana": 4, "speed": 12},
+	"barrel": {"cls": "Bruiser", "sub": "Powderguard", "atk": 58, "def": 52, "armor": 14, "crit": 6, "mana": 5, "speed": 8},
+	"necro": {"cls": "Boss", "sub": "Necromancer", "atk": 72, "def": 40, "armor": 12, "crit": 8, "mana": 10, "speed": 10},
 }
 var GOB_FLAVOR := {
 	"Rusk": {"atk": 0.98, "def": 1.08}, "Kael": {"atk": 1.10, "def": 0.88}, "Sable": {"atk": 0.92, "def": 1.18},
@@ -123,10 +160,36 @@ var GOB_FLAVOR := {
 }
 func hp_from_atk(atk: float) -> int: return int(roundf((108.0 - atk) * 6.5 + 120.0))
 func clamp_stat(n: float) -> int: return int(maxf(1, minf(100, roundf(n))))
+func clamp_range(n: float, lo: float, hi: float) -> int: return int(maxf(lo, minf(hi, roundf(n))))
+
+func pack_add(d: Dictionary, pack: Dictionary) -> void:
+	for k in ["hp", "atk", "def", "armor", "crit", "mana", "speed"]:
+		d[k] = int(d.get(k, 0)) + int(pack.get(k, 0))
+
+func compute_hero_stats(name: String) -> Dictionary:
+	var loadout: Dictionary = CHAR[name]
+	var cls: String = loadout.cls
+	var sub: String = loadout.sub
+	if not CLASS_DEFS.has(cls): cls = "Knight"
+	if not SUB_DEFS.has(sub): sub = "Riftblade"
+	var d: Dictionary = HERO_BASE[name].duplicate()
+	pack_add(d, CLASS_DEFS[cls])
+	pack_add(d, SUB_DEFS[sub])
+	return {
+		"hp": clamp_range(d.hp, 140, 620),
+		"atk": clamp_stat(d.atk),
+		"def": clamp_stat(d.def),
+		"armor": clamp_range(d.armor, 0, 40),
+		"crit": clamp_range(d.crit, 1, 50),
+		"mana": clamp_range(d.mana, 0, 25),
+		"speed": clamp_range(d.speed, 1, 40),
+		"cls": cls, "sub": sub, "kind": CLASS_DEFS[cls].kind,
+		"blurb": CLASS_DEFS[cls].blurb, "sub_blurb": SUB_DEFS[sub].blurb, "scale": 1.0,
+	}
+
 func char_stats(name: String, kind: String, team: String, n_red: int) -> Dictionary:
 	if team == "blue":
-		var c: Dictionary = CHAR[name]
-		return {"hp": hp_from_atk(c.atk), "atk": c.atk, "def": c.def, "cls": c.cls, "sub": c.sub, "scale": 1.0}
+		return compute_hero_stats(name)
 	var g: Dictionary = GOB_CLASS[kind]
 	var f: Dictionary = GOB_FLAVOR.get(name, {"atk": 1.0, "def": 1.0})
 	var hpM := 4.2 if n_red == 1 else (2.2 if n_red == 2 else 1.25)
@@ -135,8 +198,13 @@ func char_stats(name: String, kind: String, team: String, n_red: int) -> Diction
 	return {
 		"hp": int(roundf(hp_from_atk(g.atk) * hpM)),
 		"atk": clamp_stat(g.atk * f.atk * atkM), "def": clamp_stat(g.def * f.def * defM),
+		"armor": clamp_range(g.get("armor", 8) * defM, 0, 40),
+		"crit": clamp_range(g.get("crit", 8), 1, 50),
+		"mana": clamp_range(g.get("mana", 6), 0, 25),
+		"speed": clamp_range(g.get("speed", 12), 1, 40),
 		"cls": "Boss" if n_red == 1 else ("Elite" if n_red == 2 else g.cls),
 		"sub": (g.sub if kind == "necro" else "Rift Tyrant") if n_red == 1 else g.sub,
+		"kind": kind,
 		"scale": 1.4 if n_red == 1 else (1.12 if n_red == 2 else 1.0),
 	}
 func def_mit(d: float) -> float: return 100.0 / (100.0 + maxf(0.0, d))
@@ -201,6 +269,10 @@ class Unit:
 	var shown_hp := 0.0
 	var atk := 0
 	var def := 0
+	var armor := 0
+	var crit := 10
+	var mana_regen := 0
+	var speed := 12
 	var cls := ""
 	var sub := ""
 	var scale := 1.0
@@ -279,6 +351,10 @@ var params := {}
 var sfx
 var results_t := 0.0
 var res := {}
+var char_sel := 0
+var char_prev := {}
+var char_bar := {}
+var char_delta_t := 0.0
 
 func new_battle(n: int = 0) -> void:
 	if G != null:
@@ -298,10 +374,14 @@ func new_battle(n: int = 0) -> void:
 			var r: Array = roster[i]
 			var p := mp(r[2], r[3])
 			var st := char_stats(r[1], r[0], team, n)
+			var kind: String = st.get("kind", r[0])
+			if not KINDS.has(kind): kind = r[0]
 			var u := Unit.new()
-			u.id = team + str(i); u.team = team; u.kind = r[0]; u.K = KINDS[r[0]]; u.name = r[1]
+			u.id = team + str(i); u.team = team; u.kind = kind; u.K = KINDS[kind]; u.name = r[1]
 			u.x = p.x; u.y = p.y; u.hx = p.x; u.hy = p.y
 			u.hp = st.hp; u.maxhp = st.hp; u.shown_hp = st.hp; u.atk = st.atk; u.def = st.def
+			u.armor = st.get("armor", 0); u.crit = st.get("crit", 10)
+			u.mana_regen = st.get("mana", 0); u.speed = st.get("speed", 12)
 			u.cls = st.cls; u.sub = st.sub; u.scale = st.scale
 			u.gauge = rand(0, 30); u.facing = 1 if team == "blue" else -1; u.at = rand(0, 1000)
 			units.append(u)
@@ -434,7 +514,7 @@ func move_to(u, gx: float, gy: float, sp: float, dt: float) -> bool:
 	var dx: float = gx - u.x
 	var dy: float = gy - u.y
 	var d := sqrt(dx * dx + dy * dy)
-	var st := sp * dt / 1000.0
+	var st := sp * (0.88 + float(u.speed) / 140.0) * dt / 1000.0
 	if d <= st + 0.5:
 		u.x = gx; u.y = gy; return true
 	u.x += dx / d * st; u.y += dy / d * st
@@ -506,7 +586,7 @@ func resolve_sync_group(group: Array) -> void:
 		var sum := 0
 		for u in units:
 			sum += u.atk
-		var dmg := maxi(1, int(roundf(sum * 3.0 * surge_mult() * def_mit(t.def))))
+		var dmg := mitigate_raw(sum * 3.0 * surge_mult(), t)
 		deal_damage(group[group.size() - 1].u, t, dmg, {"combo": true, "members": units, "n": units.size()})
 	else:
 		for h in group:
@@ -576,11 +656,16 @@ func hit(u, t, mult: float, special: bool, is_splash: bool = false, color: Strin
 		return
 	sync_pending.append({"u": u, "t": t, "mult": mult, "special": special, "color": color, "age": 0.0})
 
+func mitigate_raw(raw: float, t) -> int:
+	var cut: float = raw * def_mit(t.def) - float(t.armor)
+	return maxi(1, int(roundf(cut)))
+
 func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "") -> void:
 	if t == null or t.dead: return
-	var crit := not special and not is_splash and randf() < 0.1
-	var dmg := maxi(1, int(roundf(u.atk * rand(0.85, 1.15) * mult * (1.5 if crit else 1.0) * surge_mult() * def_mit(t.def))))
-	deal_damage(u, t, dmg, {"special": special, "isSplash": is_splash, "crit": crit, "color": color})
+	var crit_p: float = clampf(float(u.crit) / 100.0, 0.0, 0.6)
+	var crit := not special and not is_splash and randf() < crit_p
+	var raw: float = u.atk * rand(0.85, 1.15) * mult * (1.5 if crit else 1.0) * surge_mult()
+	deal_damage(u, t, mitigate_raw(raw, t), {"special": special, "isSplash": is_splash, "crit": crit, "color": color})
 
 func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 	if t.dead: return
@@ -680,8 +765,14 @@ func busy() -> bool:
 		if u.act != null: return true
 	return false
 
+func apply_mana_regen(team: String) -> void:
+	for u in alive(team):
+		if u.mana_regen <= 0: continue
+		u.gauge = minf(100.0, u.gauge + u.mana_regen)
+
 func begin_player_turn() -> void:
 	G.side = "blue"; G.mode = "select"; G.queue = []; G.qi = 0; G.turn += 1
+	apply_mana_regen("blue")
 	banner = {"text": "YOUR TURN", "sub": "Tap knights to set the attack order" if G.turn == 1 else "Turn %d" % G.turn, "t": 0.0, "life": 1000.0, "color": "blue"}
 	if G.turn == 4: banner.sub = "RIFT SURGE — damage rising!"
 	sfx.tone(523, 0.08, "square", 0.04)
@@ -698,6 +789,7 @@ func execute_orders() -> void:
 func begin_enemy_turn() -> void:
 	G.side = "red"; G.mode = "enemyIntro"; G.gap = 520; G.qi = 0; G.cur = null
 	G.queue = shuffled(alive("red"))
+	apply_mana_regen("red")
 	plan_actions(G.queue)
 	banner = {"text": "ENEMY TURN", "sub": "", "t": 0.0, "life": 850.0, "color": "red"}
 	sfx.tone(220, 0.15, "sawtooth", 0.04, 0.8)
@@ -1275,6 +1367,233 @@ func link_text(prefix: String, link: String, suffix: String, url: String, cx: fl
 		x += part[2]
 	add_btn(id, Rect2(cx - (w1 + w2 + w3) / 2 + w1 - 4, y - size, w2 + 8, size * 2), func(): OS.shell_open(url))
 
+func save_cfg() -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("rs", "muted", muted)
+	for name in HERO_NAMES:
+		cf.set_value("loadout", name, "%s|%s" % [CHAR[name].cls, CHAR[name].sub])
+	cf.save("user://riftstrike.cfg")
+
+func load_cfg() -> void:
+	var cf := ConfigFile.new()
+	if cf.load("user://riftstrike.cfg") != OK:
+		return
+	muted = bool(cf.get_value("rs", "muted", muted))
+	for name in HERO_NAMES:
+		var raw = cf.get_value("loadout", name, "")
+		if typeof(raw) != TYPE_STRING or raw == "":
+			continue
+		var parts: PackedStringArray = raw.split("|")
+		if parts.size() < 2:
+			continue
+		if CLASS_DEFS.has(parts[0]):
+			CHAR[name].cls = parts[0]
+		if SUB_DEFS.has(parts[1]):
+			CHAR[name].sub = parts[1]
+
+func open_chars() -> void:
+	char_sel = 0
+	char_prev = {}
+	char_bar = {}
+	char_delta_t = 0.0
+	screen = "chars"
+	sfx.tone(660, 0.06, "square", 0.035)
+
+func selected_hero() -> String:
+	return HERO_NAMES[clampi(char_sel, 0, HERO_NAMES.size() - 1)]
+
+func apply_loadout_preview(name: String) -> void:
+	if G == null:
+		return
+	var st := compute_hero_stats(name)
+	for u in G.units:
+		if u.team != "blue" or u.name != name:
+			continue
+		var kind: String = st.kind
+		u.kind = kind
+		u.K = KINDS[kind]
+		u.hp = st.hp
+		u.maxhp = st.hp
+		u.shown_hp = st.hp
+		u.atk = st.atk
+		u.def = st.def
+		u.armor = st.armor
+		u.crit = st.crit
+		u.mana_regen = st.mana
+		u.speed = st.speed
+		u.cls = st.cls
+		u.sub = st.sub
+		u.anim = "idle"
+		return
+
+func select_hero(i: int) -> void:
+	char_sel = clampi(i, 0, HERO_NAMES.size() - 1)
+	char_prev = {}
+	char_bar = {}
+	char_delta_t = 0.0
+	sfx.tone(523, 0.05, "square", 0.03)
+
+func cycle_class(dir: int) -> void:
+	var name := selected_hero()
+	char_prev = compute_hero_stats(name)
+	var i := CLASS_IDS.find(CHAR[name].cls)
+	if i < 0:
+		i = 0
+	CHAR[name].cls = CLASS_IDS[(i + dir + CLASS_IDS.size()) % CLASS_IDS.size()]
+	char_delta_t = 900.0
+	save_cfg()
+	apply_loadout_preview(name)
+	sfx.tone(784 if dir > 0 else 659, 0.05, "square", 0.03)
+
+func cycle_sub(dir: int) -> void:
+	var name := selected_hero()
+	char_prev = compute_hero_stats(name)
+	var i := SUB_IDS.find(CHAR[name].sub)
+	if i < 0:
+		i = 0
+	CHAR[name].sub = SUB_IDS[(i + dir + SUB_IDS.size()) % SUB_IDS.size()]
+	char_delta_t = 900.0
+	save_cfg()
+	apply_loadout_preview(name)
+	sfx.tone(880 if dir > 0 else 698, 0.045, "triangle", 0.025)
+
+func tick_char_ui(dt: float) -> void:
+	if screen != "chars":
+		return
+	if char_delta_t > 0:
+		char_delta_t = maxf(0.0, char_delta_t - dt)
+	var st := compute_hero_stats(selected_hero())
+	var k := minf(1.0, dt / 90.0)
+	for key in ["hp", "atk", "def", "armor", "crit", "mana", "speed"]:
+		var target := float(st[key])
+		if not char_bar.has(key):
+			char_bar[key] = target
+		else:
+			char_bar[key] = float(char_bar[key]) + (target - float(char_bar[key])) * k
+
+func stat_delta(key: String, cur: int) -> int:
+	if char_delta_t <= 0 or char_prev.is_empty() or not char_prev.has(key):
+		return 0
+	return cur - int(char_prev[key])
+
+func draw_stat_bar(x: float, y: float, w: float, h: float, label: String, value: float, vmax: float, shown: String, delta: int, col: Color) -> void:
+	text(label, x, y + 8, 11, Color("#5b3b20"), "left")
+	var bx := x + 82
+	var bw: float = maxf(64.0, w - 82 - 72)
+	draw_rect(Rect2(bx, y + 3, bw, h), Color("#2a1a10"))
+	var fill := clampf(value / maxf(1.0, vmax), 0.0, 1.0)
+	draw_rect(Rect2(bx, y + 3, bw * fill, h), col)
+	text(shown, bx + bw + 8, y + 9, 13, Color("#2a1a10"), "left")
+	if delta != 0:
+		var ds := "%+d" % delta
+		if shown.ends_with("%"):
+			ds += "%"
+		var dc := Color("#1a7a32") if delta > 0 else Color("#a4321a")
+		dc.a = clampf(char_delta_t / 400.0, 0.0, 1.0)
+		text(ds, bx + bw + 8 + text_w(shown, 13) + 6, y + 9, 13, dc, "left")
+
+func draw_cycle_row(id: String, x: float, y: float, w: float, tag: String, value: String, hint: String, on_prev: Callable, on_next: Callable) -> float:
+	var ah := 42.0
+	var aw := 46.0
+	text(tag, x, y + 2, 11, Color("#5b3b20"), "left")
+	var row_y := y + 10
+	ui_button(id + "_l", Rect2(x, row_y, aw, ah), "<", true, 20, 20, on_prev)
+	ui_button(id + "_r", Rect2(x + w - aw, row_y, aw, ah), ">", true, 20, 20, on_next)
+	var mid := Rect2(x + aw + 6, row_y, w - aw * 2 - 12, ah)
+	var fsz := clampf3(14, mid.size.x / maxf(7.0, float(value.length()) * 0.62), 20)
+	ui_button(id + "_n", mid, value, false, fsz, 26, on_next)
+	var h := 10 + ah
+	if hint != "":
+		text(hint, x + w / 2, row_y + ah + 12, 11, Color("#7a5a32"))
+		h += 16
+	return h + 6
+
+func draw_hero_sprite(kind: String, x: float, y: float, scl: float) -> void:
+	var K: Dictionary = KINDS[kind]
+	var idle: Dictionary = K.idle
+	var fr := int(floorf(now * idle.fps / 1000.0)) % int(idle.n)
+	draw_frame(IMG[K.img], K.f.fw, K.f.fh, fr, idle.r, x, y, K.f.ax, K.f.ay, float(K.f.s) * scl, false)
+
+func draw_chars() -> void:
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(8 / 255.0, 18 / 255.0, 22 / 255.0, 0.72))
+	var short := VHc <= 430
+	var pad := 8.0 if short else 12.0
+	var panel := Rect2(pad, pad, VWc - pad * 2, VHc - pad * 2)
+	css9(IMG.carved, panel.position.x, panel.position.y, panel.size.x, panel.size.y, 24.0 if short else 32.0)
+	var inner := Rect2(panel.position.x + (16 if short else 22), panel.position.y + (12 if short else 16), panel.size.x - (32 if short else 44), panel.size.y - (24 if short else 32))
+	var name := selected_hero()
+	var st := compute_hero_stats(name)
+	var back_w := 110.0 if short else 130.0
+	var bh := 40.0 if short else 48.0
+	ui_button("chars_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): to_title())
+	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Characters", 20.0 if short else 26.0, bh, minf(280, inner.size.x * 0.46), 40, bh - 10)
+	text("Saved for Play", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
+	var top: float = inner.position.y + bh + (4.0 if short else 8.0)
+	var body_h: float = inner.position.y + inner.size.y - top
+	var left_w := clampf3(148.0, inner.size.x * 0.28, 220.0)
+	var row_h: float = body_h / 6.0
+	for i in HERO_NAMES.size():
+		var hn: String = HERO_NAMES[i]
+		var hs := compute_hero_stats(hn)
+		var ry: float = top + i * row_h
+		var rr := Rect2(inner.position.x, ry, left_w - 8, row_h - 3)
+		var sel := i == char_sel
+		if sel:
+			draw_rect(rr, Color("#c8a05a"))
+			draw_rect(Rect2(rr.position.x + 2, rr.position.y + 2, rr.size.x - 4, rr.size.y - 4), Color("#3a2412"))
+		var idx := i
+		add_btn("hero_%d" % i, rr, func(): select_hero(idx))
+		var sy: float = rr.position.y + rr.size.y - 2
+		draw_hero_sprite(hs.kind, rr.position.x + 26, sy, 0.40 if short else 0.48)
+		var tx: float = rr.position.x + 50
+		text(hn, tx, ry + (13 if short else 15), 14.0 if short else 16.0, Color("#ffe27a") if sel else Color("#2a1a10"), "left")
+		text(hs.cls + " · " + hs.sub, tx, ry + (26 if short else 30), 10.0 if short else 11.0, Color("#c8a06a") if sel else Color("#7a5a32"), "left")
+	var dx: float = inner.position.x + left_w + 4
+	var dw: float = inner.position.x + inner.size.x - dx
+	var y: float = top
+	var spr_h: float = 88.0 if short else 120.0
+	draw_hero_sprite(st.kind, dx + 44, y + spr_h - 4, 0.82 if short else 1.05)
+	text(name, dx + 88, y + 18, 24.0 if short else 30.0, Color("#2a1a10"), "left")
+	text(st.cls + "  ·  " + st.sub, dx + 88, y + (40 if short else 48), 13.0 if short else 15.0, Color("#7a5a32"), "left")
+	y += spr_h + (2 if short else 6)
+	y += draw_cycle_row("cls", dx, y, dw, "CLASS", st.cls, st.blurb, func(): cycle_class(-1), func(): cycle_class(1))
+	var sub_hint := "" if short else String(st.sub_blurb)
+	y += draw_cycle_row("sub", dx, y, dw, "SUBCLASS", st.sub, sub_hint, func(): cycle_sub(-1), func(): cycle_sub(1))
+	var rows := [
+		["hp", "HP", 620.0, Color("#4fd36b"), ""],
+		["atk", "ATK", 100.0, Color("#e85a3a"), ""],
+		["def", "Defense", 100.0, Color("#3d8adf"), ""],
+		["armor", "Armor", 40.0, Color("#8a8f9a"), ""],
+		["crit", "Crit", 50.0, Color("#e6b422"), "%"],
+		["mana", "Mana Regen", 25.0, Color("#9b6bdb"), ""],
+		["speed", "Speed", 40.0, Color("#3ec8c8"), ""],
+	]
+	var two_col := dw > 360
+	var col_w: float = (dw - 12) / 2.0 if two_col else dw
+	var sh: float = 16.0 if short else 18.0
+	var gap: float = 2.0 if short else 3.0
+	for ri in rows.size():
+		var row: Array = rows[ri]
+		var key: String = row[0]
+		var cur: int = int(st[key])
+		var shown: String = str(cur) + str(row[4])
+		if key == "mana":
+			shown = "+" + str(cur)
+		var vx: float = dx
+		var vy: float = y
+		if two_col:
+			vx = dx + (col_w + 12) * (ri % 2)
+			vy = y + int(ri / 2) * (sh + gap)
+		else:
+			vy = y + ri * (sh + gap)
+		var bar_v := float(char_bar[key]) if char_bar.has(key) else float(cur)
+		draw_stat_bar(vx, vy, col_w, sh, row[1], bar_v, row[2], shown, stat_delta(key, cur), row[3])
+	var footer_y: float = inner.position.y + inner.size.y - 6
+	if not short:
+		text("Defense cuts a percent of a hit. Armor subtracts a flat amount. Mana returns each turn.", dx + dw / 2, footer_y, 10, Color("#7a5a32"))
+		text("Tap the arrows — or the name — to swap and watch the stats move.", dx + dw / 2, footer_y - 14, 10, Color("#7a5a32"))
+
+
 func draw_title() -> void:
 	draw_rect(Rect2(0, 0, VWc, VHc), Color(10 / 255.0, 25 / 255.0, 28 / 255.0, 0.5))
 	var short := VHc <= 430
@@ -1302,9 +1621,10 @@ func draw_title() -> void:
 	var hint_fs := clampf3(13, vw * 0.036, 16)
 	var hint_lines := []
 	if not short:
-		for para in ["Tap your team in attack order, then Execute. Same target = COMBO (combined ATK × 3).", "Each hero has a class, subclass, and their own HP, attack, and defense."]:
+		for para in ["Open Characters to swap class and subclass, then pick a raid. Hits that land together COMBO."]:
 			hint_lines += wrap_words(para, hint_fs, vw - 24)
-	var total := L + 10 + rib_h + mtop + rib_h + mbot + rows.size() * bh + (rows.size() - 1) * 10 + 2
+	var ch_w := minf(280.0, vw * 0.62)
+	var total := L + 10 + rib_h + mtop + rib_h + mbot + bh + 10 + rows.size() * bh + (rows.size() - 1) * 10 + 2
 	if hint_lines.size() > 0: total += 12 + hint_lines.size() * hint_fs * 1.2
 	var y := maxf(12, (VHc - total) / 2 - (10.0 if USE_NECRO else 0.0))
 	var cx := VWc / 2
@@ -1329,6 +1649,8 @@ func draw_title() -> void:
 	text("VS", x0 + lw + 10 + vsw / 2, y + rib_h / 2, vs_fs, Color.WHITE, "center", 4, Color.BLACK)
 	ribbon(IMG.ribbonRed, x0 + lw + 20 + vsw + rw / 2, y, "Pick a raid", side_fs, rib_h, 0, 40, rib_h - 8)
 	y += rib_h + mbot + 2
+	ui_button("chars", Rect2(cx - ch_w / 2, y, ch_w, bh), "CHARACTERS", false, bfs, 40, func(): open_chars())
+	y += bh + 10
 	for row in rows:
 		var bx: float = cx - row[1] / 2
 		for it in row[0]:
@@ -1530,6 +1852,7 @@ func _draw() -> void:
 	set_xf(base)
 	draw_hud(); draw_banner()
 	if screen == "title": draw_title()
+	elif screen == "chars": draw_chars()
 	elif screen == "results": draw_results()
 	elif phase == "battle" or phase == "ending": draw_battle_ui()
 
@@ -1588,9 +1911,7 @@ func toggle_pause() -> void:
 func toggle_mute() -> void:
 	muted = not muted
 	sfx.muted = muted
-	var cf := ConfigFile.new()
-	cf.set_value("rs", "muted", muted)
-	cf.save("user://riftstrike.cfg")
+	save_cfg()
 func toggle_speed() -> void:
 	speed = 2 if speed == 1 else 1
 
@@ -1658,6 +1979,20 @@ func canvas_tap(cx: float, cy: float) -> void:
 	if best != null: toggle_queue(best)
 
 func on_key(k: int) -> void:
+	if screen == "chars":
+		if k == KEY_ESCAPE or k == KEY_P:
+			to_title()
+		elif k == KEY_LEFT:
+			cycle_class(-1)
+		elif k == KEY_RIGHT:
+			cycle_class(1)
+		elif k == KEY_UP:
+			cycle_sub(-1)
+		elif k == KEY_DOWN:
+			cycle_sub(1)
+		elif k >= KEY_1 and k <= KEY_6:
+			select_hero(k - KEY_1)
+		return
 	if k == KEY_SPACE or k == KEY_ENTER or k == KEY_KP_ENTER:
 		if phase == "title" or phase == "results": start_fight(last_raid)
 		else: execute_orders()
@@ -1676,8 +2011,7 @@ func _ready() -> void:
 	randomize()
 	sfx = preload("res://scripts/sfx.gd").new()
 	add_child(sfx)
-	var cf := ConfigFile.new()
-	if cf.load("user://riftstrike.cfg") == OK: muted = bool(cf.get_value("rs", "muted", false))
+	load_cfg()
 	sfx.muted = muted
 	if OS.has_feature("web"):
 		var q = JavaScriptBridge.eval("location.search", true)
@@ -1709,6 +2043,7 @@ func _process(delta: float) -> void:
 			var s := minf(total, 17.0)
 			step(s); total -= s
 	if screen == "results": results_t += dt
+	if screen == "chars": tick_char_ui(dt)
 	queue_redraw()
 
 # ---------------------------------------------------------------- headless test hooks (desktop only)
