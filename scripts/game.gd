@@ -27,6 +27,7 @@ var SRC := {
 	"warrior": "units/Warrior_Blue.png", "archer": "units/Archer_Blue.png", "pawn": "units/Pawn_Blue.png",
 	"torch": "units/Torch_Red.png", "tnt": "units/TNT_Red.png", "barrel": "units/Barrel_Red.png",
 	"necro": "necromancer/Necromancer.png",
+	"paladin": "heroes/christian-paladin.png",
 	"dead": "units/Dead.png", "dynamite": "fx/Dynamite.png", "arrow": "fx/Arrow.png",
 	"explosion": "fx/Explosions.png", "fire": "fx/Fire.png",
 	"flat": "terrain/Tilemap_Flat.png", "foam": "terrain/Foam.png",
@@ -60,7 +61,7 @@ func load_all() -> void:
 		SRC["deco" + d] = "deco/" + d + ".png"
 	for k in SRC:
 		IMG[k] = load("res://assets/" + SRC[k])
-	for k in ["warrior", "archer", "pawn", "torch", "tnt", "barrel", "necro"]:
+	for k in ["warrior", "archer", "pawn", "torch", "tnt", "barrel", "necro", "paladin"]:
 		WHITE[k] = load("res://assets/sil/%s_white.png" % k)
 		CYAN[k] = load("res://assets/sil/%s_cyan.png" % k)
 	FONT = load("res://fonts/LilitaOne-Regular.ttf")
@@ -86,6 +87,12 @@ func build_kinds() -> void:
 			"atk": [A(2, 6, 10, 3, 160), A(3, 6, 10, 3, 180)],
 			"atkDown": [A(4, 6, 10, 3, 160), A(5, 6, 10, 3, 180)], "atkUp": [A(6, 6, 10, 3, 160), A(7, 6, 10, 3, 180)],
 			"special": "Rift Cleave"},
+		# Christian's Paladin sheet: 256px frames, right-facing. atkUp/atkDown reuse the side slash for now.
+		"paladin": {"img": "paladin", "f": {"fw": 256.0, "fh": 256.0, "ax": 128.0, "ay": 242.0, "s": 0.58}, "head": 200.0, "label": "Paladin", "range": 52.0, "ranged": "",
+			"idle": {"r": 0, "n": 6, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
+			"atk": [A(2, 6, 10, 3, 160), A(3, 6, 10, 3, 180)],
+			"atkDown": [A(4, 6, 10, 3, 160), A(5, 6, 10, 3, 180)], "atkUp": [A(6, 6, 10, 3, 160), A(7, 6, 10, 3, 180)],
+			"special": "Holy Strike"},
 		"archer": {"img": "archer", "f": S192, "head": 72.0, "label": "Archer", "range": 340.0, "ranged": "arrow",
 			"idle": {"r": 0, "n": 6, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(4, 8, 11, 5, 160)], "atkUp": [A(3, 8, 11, 5, 160)], "atkDown": [A(5, 8, 11, 5, 160)],
@@ -108,6 +115,10 @@ func build_kinds() -> void:
 			"idle": {"r": 0, "n": 8, "fps": 10.0}, "run": {"r": 1, "n": 8, "fps": 12.0},
 			"atk": [A(2, 13, 14, 8, 200)], "death": {"r": 6, "n": 9}, "special": "Soul Rend"},
 	}
+
+# Paladin uses the warrior combat kit (double swing, melee contact).
+func is_warrior_kit(kind: String) -> bool:
+	return kind == "warrior" or kind == "paladin"
 
 var ROSTER_BLUE := [["warrior", "Airron", 360, 265], ["warrior", "Christian", 360, 395],
 	["pawn", "Lanning", 315, 185], ["pawn", "Rico", 315, 470],
@@ -146,12 +157,12 @@ var CLASS_DEFS := {
 	# set CHAR[hero].cls, drop "upcoming", and add the class to CLASS_IDS.
 	"Spell Breaker": {"kind": "warrior", "blurb": "Breaks guards, wards and spells", "upcoming": true, "hero": "Airron",
 		"hp": 28, "atk": 18, "def": 8, "armor": 8, "crit": 6, "mana": 8, "speed": 8},
-	"Paladin": {"kind": "warrior", "blurb": "Holy armor that heals the line", "upcoming": true, "hero": "Christian",
+	"Paladin": {"kind": "paladin", "blurb": "Holy armor that heals the line", "hero": "Christian",
 		"hp": 44, "atk": 12, "def": 12, "armor": 12, "crit": 0, "mana": 8, "speed": 2},
 	"Warlock": {"kind": "archer", "blurb": "Dark bolts and draining curses", "upcoming": true, "hero": "Wiesen",
 		"hp": 8, "atk": 24, "def": 2, "armor": 2, "crit": 10, "mana": 12, "speed": 6},
 }
-var CLASS_IDS := ["Knight", "Warrior", "Ranger", "Marksman", "Guardian", "Warden"]
+var CLASS_IDS := ["Knight", "Warrior", "Ranger", "Marksman", "Guardian", "Warden", "Paladin"]
 var SUB_DEFS := {
 	"Riftblade": {"blurb": "A little extra cut", "atk": 8, "crit": 6},
 	"Vanguard": {"blurb": "Front-line bulk", "hp": 24, "def": 4, "armor": 6},
@@ -191,16 +202,16 @@ var AB_CLASS_ROWS := {
 		["worldsplitter", "Worldsplitter", "Capstone. Cleaves the rift itself — a massive hit on every foe.", "damage_all_enemies", {"mult": 3.4, "self_buff": [["atk", 15]], "sturns": 2}],
 	],
 	"Christian": [
-		["shield_break", "Shield Break", "Cracks a target's guard, lowering its Defense.", "damage_single", {"mult": 2.2, "debuff": [["def", -20]], "dturns": 2}],
-		["brace_up", "Brace Up", "Plants his feet and toughens up.", "buff_self", {"buffs": [["def", 18], ["armor", 5]], "turns": 2}],
-		["heavy_swing", "Heavy Swing", "One big, honest swing at a single foe.", "damage_single", {"mult": 3.2}],
-		["armor_crack", "Armor Crack", "A breaker's blow that shreds armor for longer.", "damage_single", {"mult": 2.6, "debuff": [["armor", -10]], "dturns": 3}],
-		["battle_cry", "Battle Cry", "A roar that lifts the whole party's ATK.", "buff_party", {"buffs": [["atk", 12]], "turns": 2}],
-		["crushing_blow", "Crushing Blow", "Crushes one foe and smashes its Defense.", "damage_single", {"mult": 4.2, "debuff": [["def", -25]], "dturns": 2}],
-		["line_breaker", "Line Breaker", "Charges the enemy line, hitting all and lowering Defense.", "damage_all_enemies", {"mult": 2.0, "debuff": [["def", -12]], "dturns": 2}],
-		["iron_resolve", "Iron Resolve", "Steels himself: big ATK and Defense for three turns.", "buff_self", {"buffs": [["atk", 20], ["def", 20]], "turns": 3}],
-		["earthshaker", "Earthshaker", "Slams the ground — every enemy is rocked.", "damage_all_enemies", {"mult": 2.8}],
-		["final_verdict", "Final Verdict", "Capstone. A finishing blow that breaks any guard.", "damage_single", {"mult": 6.2, "debuff": [["def", -30]], "dturns": 2}],
+		["holy_strike", "Holy Strike", "A consecrated swing that lands in a flash of holy light.", "damage_single", {"mult": 2.4}],
+		["lay_on_hands", "Lay on Hands", "Lays a healing hand on one ally, mending a large amount of damage.", "heal_single", {"pct": 0.40}],
+		["aegis_of_light", "Aegis of Light", "Raises a shield of light: Defense and Armor up.", "buff_self", {"buffs": [["def", 20], ["armor", 8]], "turns": 2}],
+		["consecrate", "Consecrate", "Blesses the ground and burns every enemy on it.", "damage_all_enemies", {"mult": 1.6}],
+		["devotion_aura", "Devotion Aura", "Faith steadies the whole line: party Defense up.", "buff_party", {"buffs": [["def", 15]], "turns": 2}],
+		["judgment", "Judgment", "Judges one foe: a heavy hit that lowers its ATK.", "damage_single", {"mult": 4.0, "debuff": [["atk", -15]], "dturns": 2}],
+		["healing_light", "Healing Light", "Light washes over the squad, healing everyone.", "heal_party", {"pct": 0.25}],
+		["crusader_charge", "Crusader Charge", "Charges the enemy line and rallies the party (ATK up).", "damage_all_enemies", {"mult": 2.4, "party_buff": [["atk", 10]], "pturns": 2}],
+		["divine_shield", "Divine Shield", "Shields the whole party: big Defense and Armor for three turns.", "buff_party", {"buffs": [["def", 25], ["armor", 10]], "turns": 3}],
+		["radiant_dawn", "Radiant Dawn", "Capstone. A holy dawn floods the party with a large heal and makes it hard to break.", "heal_party", {"pct": 0.50, "party_buff": [["def", 15], ["armor", 8]], "pturns": 3}],
 	],
 	"Weston": [
 		["quick_mark", "Quick Mark", "Finds the opening first: hits and marks the target (DEF down).", "damage_single", {"mult": 2.0, "debuff": [["def", -15]], "dturns": 2}],
@@ -480,7 +491,7 @@ func equip_ability(name: String, id: String) -> bool:
 # Class is locked to the character. Only subclass is swappable in the Characters page.
 var CHAR := {
 	"Airron": {"cls": "Knight", "sub": "Riftblade", "ability": "rift_cut"},
-	"Christian": {"cls": "Warrior", "sub": "Vanguard", "ability": "shield_break"},
+	"Christian": {"cls": "Paladin", "sub": "Vanguard", "ability": "holy_strike"},
 	"Weston": {"cls": "Ranger", "sub": "Scout", "ability": "quick_mark"},
 	"Wiesen": {"cls": "Marksman", "sub": "Sharpshot", "ability": "piercing_shot"},
 	"Lanning": {"cls": "Guardian", "sub": "Ironhide", "ability": "iron_wall"},
@@ -1105,7 +1116,7 @@ func start_action(u) -> bool:
 func begin_swing(u) -> void:
 	var a = u.act
 	var list := pick_atk(u, a.target)
-	a.d = list[mini(a.swing, list.size() - 1)] if (u.kind == "warrior" or u.kind == "pawn") else list[0]
+	a.d = list[mini(a.swing, list.size() - 1)] if (is_warrior_kit(u.kind) or u.kind == "pawn") else list[0]
 	a.stage = "atk"; a.t = 0.0; a.hit_done = false; a.hold_t = 0.0
 	u.facing = 1 if a.target.x >= u.x else -1
 
@@ -1160,7 +1171,7 @@ func update_unit(u, dt: float) -> void:
 				else:
 					a.stage = "back"; a.ready = true
 				return
-			if u.kind == "warrior" and a.swing == 0:
+			if is_warrior_kit(u.kind) and a.swing == 0:
 				a.swing = 1; begin_swing(u); return
 			# Follow-up strike if still in range. Warriors already swing twice as their kit.
 			if u.kind != "warrior" and not a.doubled and a.target != null and not a.target.dead:
@@ -1298,15 +1309,15 @@ func resolve_hit(u, a) -> void:
 		return
 	if t == null or t.dead:
 		add_text(u.x + u.facing * 30, u.y - 50, "miss", "#dddddd", 12, 500); return
-	var final: bool = not (u.kind == "warrior" and a.swing == 0)
-	var base := 0.6 if u.kind == "warrior" else (0.8 if u.kind == "torch" else 1.0)
+	var final: bool = not (is_warrior_kit(u.kind) and a.swing == 0)
+	var base := 0.6 if is_warrior_kit(u.kind) else (0.8 if u.kind == "torch" else 1.0)
 	hit(u, t, base * (2.5 if sp else 1.0), sp and final)
 	if u.kind == "pawn": t.kx = u.facing * 16
 	if u.kind == "torch" and not t.dead: t.burn = {"t": 380.0, "owner": u, "mult": 0.3 * (2 if sp else 1)}
 	if u.kind == "barrel" and not sp:
 		explode(t.x, t.y, 0.55); splash(u, t.x, t.y, 70, 0.12, t)
 	if sp and final:
-		if u.kind == "warrior":
+		if is_warrior_kit(u.kind):
 			splash(u, t.x, t.y, 85, 0.4, t); fx.append({"type": "slash", "x": t.x, "y": t.y - 30, "t": 0.0, "life": 260.0, "dir": u.facing}); shake(6, 200)
 		if u.kind == "pawn":
 			add_text(t.x, t.y - t.K.head * uS(t) - 30, "SHOCK", "#fff27a", 13, 700); splash(u, t.x, t.y, 70, 0.3, t); shake(5, 160)

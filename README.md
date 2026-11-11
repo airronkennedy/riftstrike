@@ -42,5 +42,6 @@ Add a **Windows Desktop** or **iOS** preset in Project → Export (Godot downloa
 ## Credits
 - Art: [Tiny Swords by Pixel Frog](https://pixelfrog-assets.itch.io/tiny-swords). The files are byte-identical to the original release, which the author now offers as "TS_old version_CC0 Licensed" (CC0). Commercial use is allowed. Please don't redistribute or resell the sprites as an asset pack. Only the sprites the game uses are included. See `docs/ASSET_LICENSES.md` for the full ledger and the one item to verify before release.
 - 6v1 boss: [Necromancer by CreativeKind](https://creativekind.itch.io/necromancer-free) (free pack, credit CreativeKind).
+- Christian Paladin character: 3D model from [Meshy](https://www.meshy.ai) Pro (private commercial license, 2026-11-11); animations from [Adobe Mixamo](https://www.mixamo.com). See `docs/ASSET_LICENSES.md`.
 - Font: Lilita One by Juan Montoreano (SIL Open Font License, see `fonts/OFL-LilitaOne.txt`).
 - Sounds are synthesized in code; no audio files.
