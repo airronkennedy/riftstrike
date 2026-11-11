@@ -49,6 +49,22 @@ func _build_local_tex() -> void:
 				col = Color("#7d7b78")
 			elif ch == W.C_GATE:
 				col = Color("#d23a2a")
+			elif ch == W.C_BRIDGE:
+				col = Color("#9a6a3a")
+			elif ch == W.C_FLOOR:
+				col = Color("#a9a7a2")
+			elif ch == W.C_RUBBLE:
+				col = Color("#8c857a")
+			elif ch == W.C_WALL:
+				col = Color("#4a4f58")
+			elif ch == W.C_LAVA:
+				col = Color("#e0561c")
+			elif ch == W.C_ICE:
+				col = Color("#dff2fb")
+			if ch != W.C_WATER and ch != W.C_BRIDGE and ch != W.C_GATE and ch != W.C_LAVA:
+				var st: Dictionary = W.style_at(c, r)
+				if st.has("map"):
+					col = col.lerp(st.map, 0.55)
 			im.set_pixel(c, r, col)
 	local_tex = ImageTexture.create_from_image(im)
 

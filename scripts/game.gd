@@ -32,6 +32,16 @@ var SRC := {
 	"flat": "terrain/Tilemap_Flat.png", "foam": "terrain/Foam.png",
 	"rocks1": "terrain/Rocks_01.png", "rocks3": "terrain/Rocks_03.png", "tree": "terrain/Tree.png",
 	"tower": "terrain/Tower_Blue.png", "ghouse": "terrain/Goblin_House.png", "sheep": "terrain/HappySheep_Idle.png",
+	# Overworld buildings and terrain for Acts II-V (Tiny Swords, original release; see docs/ASSET_LICENSES.md).
+	"tower_red": "buildings/Tower_Red.png", "tower_yellow": "buildings/Tower_Yellow.png", "tower_purple": "buildings/Tower_Purple.png",
+	"tower_ruin": "buildings/Tower_Destroyed.png", "ghouse_ruin": "buildings/Goblin_House_Destroyed.png",
+	"house_blue": "buildings/House_Blue.png", "house_red": "buildings/House_Red.png", "house_yellow": "buildings/House_Yellow.png",
+	"house_purple": "buildings/House_Purple.png", "house_ruin": "buildings/House_Destroyed.png",
+	"castle_blue": "buildings/Castle_Blue.png", "castle_red": "buildings/Castle_Red.png", "castle_yellow": "buildings/Castle_Yellow.png",
+	"castle_purple": "buildings/Castle_Purple.png", "castle_ruin": "buildings/Castle_Destroyed.png",
+	"wtower": "buildings/Wood_Tower_Red.png", "goldmine": "buildings/GoldMine_Active.png",
+	"elev": "terrain/Tilemap_Elevation.png", "bridge": "terrain/Bridge_All.png",
+	"rocks2": "terrain/Rocks_02.png", "rocks4": "terrain/Rocks_04.png",
 	"ribbonBlue": "ui/Ribbon_Blue_3Slides.png", "ribbonRed": "ui/Ribbon_Red_3Slides.png", "ribbonYellow": "ui/Ribbon_Yellow_3Slides.png",
 	"btnBlue": "ui/Button_Blue_3Slides.png", "btnBlueP": "ui/Button_Blue_3Slides_Pressed.png",
 	"btnRed": "ui/Button_Red_3Slides.png", "btnRedP": "ui/Button_Red_3Slides_Pressed.png",
@@ -46,7 +56,7 @@ const URL_TINY := "https://pixelfrog-assets.itch.io/tiny-swords"
 const URL_NECRO := "https://creativekind.itch.io/necromancer-free"
 
 func load_all() -> void:
-	for d in ["01", "02", "03", "04", "05", "07", "08", "09", "10", "11", "12", "13", "14"]:
+	for d in ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18"]:
 		SRC["deco" + d] = "deco/" + d + ".png"
 	for k in SRC:
 		IMG[k] = load("res://assets/" + SRC[k])
@@ -1888,11 +1898,11 @@ func ca(c: Color) -> Color: return Color(c.r, c.g, c.b, c.a * _alpha)
 func img(tex: Texture2D, sx: float, sy: float, sw: float, sh: float, dx: float, dy: float, dw: float, dh: float, mod := Color.WHITE) -> void:
 	draw_texture_rect_region(tex, Rect2(dx, dy, dw, dh), Rect2(sx, sy, sw, sh), ca(mod))
 
-func draw_frame(tex: Texture2D, fw: float, fh: float, col: int, row: int, x: float, y: float, ax: float, ay: float, s: float, flip: bool, alpha := 1.0) -> void:
+func draw_frame(tex: Texture2D, fw: float, fh: float, col: int, row: int, x: float, y: float, ax: float, ay: float, s: float, flip: bool, alpha := 1.0, mod := Color.WHITE) -> void:
 	save(); tr_(roundf(x), roundf(y))
 	if flip: scale_by(-1, 1)
 	_alpha *= alpha
-	img(tex, col * fw, row * fh, fw, fh, -ax * s, -ay * s, fw * s, fh * s)
+	img(tex, col * fw, row * fh, fw, fh, -ax * s, -ay * s, fw * s, fh * s, mod)
 	restore()
 
 func ellipse_pts(cx: float, cy: float, rx: float, ry: float, seg := 32) -> PackedVector2Array:
@@ -3275,6 +3285,7 @@ func ow_add_tree(x: float, y: float, scl: float, ph: int) -> void:
 	ow_add_block(x, y, 22 * scl / 0.6, 16 * scl / 0.6)
 
 
+var ow_warp := "" # area id from ?warp= (debug / preview), consumed by build_overworld
 var OW_K := 1.0 # town decor spacing scale (world.json town_scale) for the larger tile layout
 
 func ow_add_house(x0: float, y0: float, scl: float, flip := false) -> void:
@@ -3348,6 +3359,11 @@ func build_overworld() -> void:
 	if not ow_ready or ow_blocked_at(ow_x, ow_y):
 		ow_x = start.x
 		ow_y = start.y
+	if ow_warp != "" and WORLD != null and WORLD.ok:
+		var wp: Vector2 = WORLD.spawn_pos(ow_warp)
+		ow_x = wp.x
+		ow_y = wp.y
+		ow_warp = ""
 	ow_tx = ow_x
 	ow_ty = ow_y
 	ow_anim = "idle"
@@ -3491,7 +3507,7 @@ func draw_overworld() -> void:
 			var fr: int = 0
 			if int(p.n) > 1:
 				fr = (int(floorf(now / (1000.0 / float(p.get("fps", 6.0))))) + int(p.ph)) % int(p.n)
-			draw_frame(IMG[p.img], p.fw, p.fh, fr, 0, p.x, p.y, p.ax, p.ay, p.s, p.get("flip", false))
+			draw_frame(IMG[p.img], p.fw, p.fh, fr, 0, p.x, p.y, p.ax, p.ay, p.s, p.get("flip", false), 1.0, p.get("mod", Color.WHITE))
 		elif o[1] == 1:
 			var sh: Dictionary = o[2]
 			var sfr := (int(floorf(now / 125.0)) + int(sh.ph)) % 8
@@ -4384,6 +4400,7 @@ func _ready() -> void:
 	if params.get("boss", "") == "goblin": USE_NECRO = false
 	if params.has("enc"): WORLD.enc_mult = maxf(0.0, float(params.enc))
 	if params.get("gates", "") == "off": WORLD.gates_enabled = false
+	if params.has("warp"): ow_warp = str(params.warp) # preview helper: ?warp=frostveil starts the overworld in that area
 	build_kinds()
 	load_all()
 	set_orientation(false)

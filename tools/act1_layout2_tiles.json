@@ -1,0 +1,244 @@
+{
+ "_readme": "Tile rects are [col0,row0,col1,row1] inclusive (64px tiles). First matching rect wins. 'start' is the new-game tile. Gate rects tie X tiles to world.json gates. Layout 2: every Act I area is 2x wider and 2x taller (4x the tiles) than layout 1.",
+ "tile": 64,
+ "start": [
+  20,
+  16
+ ],
+ "areas": [
+  {
+   "id": "rivenbrook",
+   "rects": [
+    [
+     2,
+     2,
+     33,
+     25
+    ]
+   ]
+  },
+  {
+   "id": "brookside_wilds",
+   "rects": [
+    [
+     34,
+     2,
+     77,
+     29
+    ],
+    [
+     4,
+     26,
+     63,
+     61
+    ],
+    [
+     78,
+     6,
+     125,
+     27
+    ]
+   ],
+   "zones": [
+    {
+     "name": "Brookside Meadow",
+     "rects": [
+      [
+       34,
+       2,
+       77,
+       29
+      ]
+     ]
+    },
+    {
+     "name": "Whisperreed Marsh",
+     "rects": [
+      [
+       4,
+       26,
+       63,
+       61
+      ]
+     ]
+    },
+    {
+     "name": "Old Mill Road",
+     "rects": [
+      [
+       78,
+       6,
+       125,
+       27
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "thornwick",
+   "rects": [
+    [
+     126,
+     2,
+     161,
+     31
+    ]
+   ]
+  },
+  {
+   "id": "hollowpine_wood",
+   "rects": [
+    [
+     162,
+     2,
+     221,
+     39
+    ]
+   ]
+  },
+  {
+   "id": "ironbridge_fort",
+   "rects": [
+    [
+     202,
+     40,
+     221,
+     69
+    ]
+   ]
+  },
+  {
+   "id": "saltmere_shore",
+   "rects": [
+    [
+     116,
+     68,
+     127,
+     87
+    ],
+    [
+     112,
+     32,
+     201,
+     67
+    ]
+   ],
+   "zones": [
+    {
+     "name": "Gullcliff Lighthouse",
+     "rects": [
+      [
+       116,
+       68,
+       127,
+       87
+      ]
+     ]
+    }
+   ]
+  }
+ ],
+ "gates": [
+  {
+   "id": "g_fort_north",
+   "rects": [
+    [
+     206,
+     40,
+     219,
+     41
+    ]
+   ]
+  },
+  {
+   "id": "g_fort_south",
+   "rects": [
+    [
+     202,
+     46,
+     203,
+     55
+    ]
+   ]
+  },
+  {
+   "id": "g_lighthouse_door",
+   "rects": [
+    [
+     116,
+     84,
+     127,
+     85
+    ]
+   ]
+  }
+ ],
+ "props": [
+  {
+   "img": "tower",
+   "x": 100.5,
+   "y": 10.5,
+   "s": 0.62,
+   "note": "the old mill"
+  },
+  {
+   "img": "ghouse",
+   "x": 92.5,
+   "y": 20.5,
+   "s": 0.8
+  },
+  {
+   "img": "ghouse",
+   "x": 132.5,
+   "y": 8.5,
+   "s": 0.84
+  },
+  {
+   "img": "ghouse",
+   "x": 150.5,
+   "y": 8.5,
+   "s": 0.84,
+   "flip": true
+  },
+  {
+   "img": "ghouse",
+   "x": 132.5,
+   "y": 24.5,
+   "s": 0.86
+  },
+  {
+   "img": "ghouse",
+   "x": 152.5,
+   "y": 24.5,
+   "s": 0.82,
+   "flip": true
+  },
+  {
+   "img": "tower",
+   "x": 156.5,
+   "y": 16.5,
+   "s": 0.7
+  },
+  {
+   "img": "tower",
+   "x": 208.5,
+   "y": 56.5,
+   "s": 0.8,
+   "note": "fort keep (sealed)"
+  },
+  {
+   "img": "tower",
+   "x": 216.5,
+   "y": 52.5,
+   "s": 0.7
+  },
+  {
+   "img": "tower",
+   "x": 122.5,
+   "y": 86.5,
+   "s": 0.8,
+   "note": "lighthouse"
+  }
+ ]
+}

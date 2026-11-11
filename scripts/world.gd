@@ -32,6 +32,10 @@ var folded: Dictionary = {} # retired area id -> kept area id
 var flag_aliases: Dictionary = {}
 var zones: Array = [] # [{name, area, rects}] named parts inside an area
 var area_bbox: Dictionary = {} # id -> Rect2i of its tile rects
+var styles: Array = [] # biome looks from world_tiles.json "styles" (code tints only, no extra art)
+var style_ids: Dictionary = {} # style name -> index
+var style_grid := PackedInt32Array() # per tile style index or -1
+var spawns: Dictionary = {} # area id -> Vector2i spawn tile (debug ?warp= and tests)
 
 # runtime
 var cur_area := ""
@@ -55,6 +59,12 @@ const C_TREE := 84 # T
 const C_ROCK := 82 # R
 const C_BUSH := 98 # b
 const C_GATE := 88 # X
+const C_BRIDGE := 61 # = wooden bridge / boardwalk over water (walkable)
+const C_FLOOR := 44 # , stone floor (dungeon interiors, plazas)
+const C_RUBBLE := 59 # ; rubble floor: dungeon floor where monsters lurk (encounters like wild grass)
+const C_WALL := 35 # # dungeon / cliff wall (blocks)
+const C_LAVA := 76 # L molten rock (blocks)
+const C_ICE := 95 # _ frozen lake / packed snow road (walkable)
 
 
 func load_all() -> bool:
@@ -111,9 +121,17 @@ func _load_grid() -> void:
 	area_grid.fill(-1)
 	gate_grid.resize(W * H)
 	gate_grid.fill(-1)
+	var st_cfg: Dictionary = tiles_cfg.get("styles", {})
+	for sk in st_cfg:
+		style_ids[str(sk)] = styles.size()
+		styles.append(_parse_style(st_cfg[sk]))
+	style_grid.resize(W * H)
+	style_grid.fill(-1)
 	for a in tiles_cfg.get("areas", []):
 		var ad: Dictionary = a
 		var idx: int = area_ids.size()
+		if ad.has("spawn"):
+			spawns[canon(str(ad.id))] = Vector2i(int(ad.spawn[0]), int(ad.spawn[1]))
 		area_ids.append(canon(str(ad.id)))
 		for z in ad.get("zones", []):
 			var zd: Dictionary = z
@@ -127,6 +145,21 @@ func _load_grid() -> void:
 				for x in range(int(q[0]), int(q[2]) + 1):
 					if x >= 0 and y >= 0 and x < W and y < H and area_grid[y * W + x] == -1:
 						area_grid[y * W + x] = idx
+						if ad.has("style"):
+							style_grid[y * W + x] = int(style_ids.get(str(ad.style), -1))
+	# Zone looks override their area (e.g. a crystal canyon inside the red steppe).
+	for a2 in tiles_cfg.get("areas", []):
+		for z2 in (a2 as Dictionary).get("zones", []):
+			var zd2: Dictionary = z2
+			if not zd2.has("style"):
+				continue
+			var si: int = int(style_ids.get(str(zd2.style), -1))
+			for rc2 in zd2.get("rects", []):
+				var q2: Array = rc2
+				for y2 in range(int(q2[1]), int(q2[3]) + 1):
+					for x2 in range(int(q2[0]), int(q2[2]) + 1):
+						if x2 >= 0 and y2 >= 0 and x2 < W and y2 < H:
+							style_grid[y2 * W + x2] = si
 	for gt in tiles_cfg.get("gates", []):
 		var gd: Dictionary = gt
 		var gi: int = gate_ids.size()
@@ -139,6 +172,39 @@ func _load_grid() -> void:
 						gate_grid[y * W + x] = gi
 
 
+func _parse_style(v: Variant) -> Dictionary:
+	var d: Dictionary = v if v is Dictionary else {}
+	var out: Dictionary = {}
+	for k in ["grass", "overlay", "tree", "wild", "floor", "wall", "rock", "road", "water", "map"]:
+		if d.has(k):
+			var a: Array = d[k]
+			out[k] = Color(float(a[0]), float(a[1]), float(a[2]), float(a[3]) if a.size() > 3 else 1.0)
+	out["snow"] = bool(d.get("snow", false))
+	out["embers"] = bool(d.get("embers", false))
+	return out
+
+
+func style_at(c: int, r: int) -> Dictionary:
+	if c < 0 or r < 0 or c >= W or r >= H:
+		return {}
+	var i: int = style_grid[r * W + c]
+	return styles[i] if i >= 0 else {}
+
+
+func spawn_pos(id: String) -> Vector2:
+	var aid: String = canon(id)
+	if spawns.has(aid):
+		var t: Vector2i = spawns[aid]
+		return Vector2(t.x * TILE + 32.0, t.y * TILE + 40.0)
+	if area_bbox.has(aid):
+		var bb: Rect2i = area_bbox[aid]
+		for rr in range(bb.position.y, bb.end.y):
+			for cc in range(bb.position.x, bb.end.x):
+				if area_at(cc * TILE + 32.0, rr * TILE + 32.0) == aid and not tile_blocked(cc, rr) and not blocked_at(cc * TILE + 32.0, rr * TILE + 40.0):
+					return Vector2(cc * TILE + 32.0, rr * TILE + 40.0)
+	return start_pos()
+
+
 func ch_at(c: int, r: int) -> int:
 	if c < 0 or r < 0 or c >= W or r >= H:
 		return C_WATER
@@ -146,7 +212,8 @@ func ch_at(c: int, r: int) -> int:
 
 
 func is_land(c: int, r: int) -> bool:
-	return ch_at(c, r) != C_WATER
+	var ch: int = ch_at(c, r)
+	return ch != C_WATER and ch != C_BRIDGE
 
 
 func _hash(c: int, r: int) -> int:
@@ -165,23 +232,88 @@ func _build_chunks() -> void:
 			if ch == C_TREE:
 				var sc: float = 0.56 + float(hv % 4) * 0.035
 				var jx: float = float(hv % 13) - 6.0
-				_add_prop({"kind": "tree", "x": c * TILE + 32.0 + jx, "y": r * TILE + 54.0, "s": sc, "ph": hv % 4, "fw": 192.0, "fh": 192.0, "n": 4, "ax": 96.0, "ay": 178.0, "img": "tree", "fps": 6.0})
+				var tp: Dictionary = {"kind": "tree", "x": c * TILE + 32.0 + jx, "y": r * TILE + 54.0, "s": sc, "ph": hv % 4, "fw": 192.0, "fh": 192.0, "n": 4, "ax": 96.0, "ay": 178.0, "img": "tree", "fps": 6.0}
+				var ts: Dictionary = style_at(c, r)
+				if ts.has("tree"):
+					tp["mod"] = ts.tree
+				_add_prop(tp)
 			elif ch == C_ROCK:
-				_add_prop({"kind": "rock", "x": c * TILE + 32.0, "y": r * TILE + 46.0, "s": 0.8, "ph": hv % 8, "fw": 128.0, "fh": 128.0, "n": 8, "ax": 64.0, "ay": 72.0, "img": "rocks1" if hv % 2 == 0 else "rocks3", "fps": 7.0})
+				var rp: Dictionary = {"kind": "rock", "x": c * TILE + 32.0, "y": r * TILE + 46.0, "s": 0.8, "ph": hv % 8, "fw": 128.0, "fh": 128.0, "n": 8, "ax": 64.0, "ay": 72.0, "img": "rocks1" if hv % 2 == 0 else "rocks3", "fps": 7.0}
+				var rs: Dictionary = style_at(c, r)
+				if rs.has("rock"):
+					rp["mod"] = rs.rock
+				_add_prop(rp)
 	for p in tiles_cfg.get("props", []):
-		var pd: Dictionary = p
-		var im: String = str(pd.get("img", "tower"))
-		var px: float = float(pd.x) * TILE + 32.0
-		var py: float = float(pd.y) * TILE + 48.0
-		var sc2: float = float(pd.get("s", 0.8))
-		var pr: Dictionary = {"kind": im, "x": px, "y": py, "s": sc2, "ph": 0, "n": 1, "img": im, "fps": 1.0, "flip": bool(pd.get("flip", false))}
-		if im == "tower":
-			pr.merge({"fw": 128.0, "fh": 256.0, "ax": 64.0, "ay": 235.0})
-			pr["block"] = Rect2(px - 34.0 * sc2 / 0.7, py - 26.0 * sc2 / 0.7, 68.0 * sc2 / 0.7, 30.0 * sc2 / 0.7)
-		else:
-			pr.merge({"fw": 128.0, "fh": 192.0, "ax": 64.0, "ay": 171.0})
-			pr["block"] = Rect2(px - 35.0 * sc2, py - 24.0 * sc2, 70.0 * sc2, 36.0 * sc2)
-		_add_prop(pr)
+		var pr: Dictionary = make_prop(p)
+		if not pr.is_empty():
+			_add_prop(pr)
+
+
+# Sprite sheet layout per prop image key (all Tiny Swords, see docs/ASSET_LICENSES.md).
+# fw/fh frame size, n frames on row 0, ax/ay foot anchor, bw/bh foot block at s=1 (0 = walk-through).
+const PROP_DEFS := {
+	"tower": {"fw": 128, "fh": 256, "ax": 64, "ay": 235, "bw": 97, "bh": 43, "by": 37},
+	"tower_red": {"fw": 128, "fh": 256, "ax": 64, "ay": 235, "bw": 97, "bh": 43, "by": 37},
+	"tower_yellow": {"fw": 128, "fh": 256, "ax": 64, "ay": 235, "bw": 97, "bh": 43, "by": 37},
+	"tower_purple": {"fw": 128, "fh": 256, "ax": 64, "ay": 235, "bw": 97, "bh": 43, "by": 37},
+	"tower_ruin": {"fw": 128, "fh": 256, "ax": 64, "ay": 235, "bw": 80, "bh": 30},
+	"ghouse": {"fw": 128, "fh": 192, "ax": 64, "ay": 171, "bw": 70, "bh": 36, "by": 24},
+	"ghouse_ruin": {"fw": 128, "fh": 192, "ax": 64, "ay": 171, "bw": 60, "bh": 28},
+	"house_blue": {"fw": 128, "fh": 192, "ax": 64, "ay": 171, "bw": 74, "bh": 38},
+	"house_red": {"fw": 128, "fh": 192, "ax": 64, "ay": 171, "bw": 74, "bh": 38},
+	"house_yellow": {"fw": 128, "fh": 192, "ax": 64, "ay": 171, "bw": 74, "bh": 38},
+	"house_purple": {"fw": 128, "fh": 192, "ax": 64, "ay": 171, "bw": 74, "bh": 38},
+	"house_ruin": {"fw": 128, "fh": 192, "ax": 64, "ay": 171, "bw": 60, "bh": 28},
+	"castle_blue": {"fw": 320, "fh": 256, "ax": 160, "ay": 228, "bw": 250, "bh": 70},
+	"castle_red": {"fw": 320, "fh": 256, "ax": 160, "ay": 228, "bw": 250, "bh": 70},
+	"castle_yellow": {"fw": 320, "fh": 256, "ax": 160, "ay": 228, "bw": 250, "bh": 70},
+	"castle_purple": {"fw": 320, "fh": 256, "ax": 160, "ay": 228, "bw": 250, "bh": 70},
+	"castle_ruin": {"fw": 320, "fh": 256, "ax": 160, "ay": 228, "bw": 220, "bh": 50},
+	"wtower": {"fw": 256, "fh": 192, "ax": 128, "ay": 172, "bw": 90, "bh": 30, "n": 4, "fps": 6},
+	"goldmine": {"fw": 192, "fh": 128, "ax": 96, "ay": 112, "bw": 150, "bh": 40},
+	"rocks1": {"fw": 128, "fh": 128, "ax": 64, "ay": 72, "bw": 36, "bh": 22, "n": 8, "fps": 7},
+	"rocks2": {"fw": 128, "fh": 128, "ax": 64, "ay": 72, "bw": 0, "bh": 0, "n": 8, "fps": 7},
+	"rocks3": {"fw": 128, "fh": 128, "ax": 64, "ay": 72, "bw": 36, "bh": 22, "n": 8, "fps": 7},
+	"rocks4": {"fw": 128, "fh": 128, "ax": 64, "ay": 72, "bw": 0, "bh": 0, "n": 8, "fps": 7},
+	"sheep": {"fw": 128, "fh": 128, "ax": 64, "ay": 86, "bw": 30, "bh": 14, "n": 8, "fps": 8},
+	"pawn": {"fw": 192, "fh": 192, "ax": 96, "ay": 134, "bw": 26, "bh": 14, "n": 6, "fps": 7},
+	"warrior": {"fw": 192, "fh": 192, "ax": 96, "ay": 134, "bw": 26, "bh": 14, "n": 6, "fps": 7},
+	"archer": {"fw": 192, "fh": 192, "ax": 96, "ay": 134, "bw": 26, "bh": 14, "n": 6, "fps": 7},
+	"fire": {"fw": 128, "fh": 128, "ax": 64, "ay": 104, "bw": 28, "bh": 14, "n": 7, "fps": 10},
+	"deco16": {"fw": 64, "fh": 128, "ax": 32, "ay": 118, "bw": 0, "bh": 0},
+	"deco17": {"fw": 128, "fh": 128, "ax": 64, "ay": 116, "bw": 0, "bh": 0},
+	"deco18": {"fw": 192, "fh": 192, "ax": 96, "ay": 170, "bw": 30, "bh": 16},
+}
+
+
+func make_prop(p: Dictionary) -> Dictionary:
+	# Props from world_tiles.json: {"img", "x", "y" (tile units, may be fractional), "s", "flip", "mod", "note"}.
+	var im: String = str(p.get("img", "tower"))
+	var px: float = float(p.x) * TILE + 32.0
+	var py: float = float(p.y) * TILE + 48.0
+	var sc: float = float(p.get("s", 0.8))
+	var pr: Dictionary = {"kind": im, "x": px, "y": py, "s": sc, "ph": int(absf(px * 7.0 + py * 3.0)) % 8, "n": 1, "img": im, "fps": 1.0, "flip": bool(p.get("flip", false))}
+	var df: Dictionary = PROP_DEFS.get(im, {})
+	if df.is_empty() and im.begins_with("deco"):
+		df = {"fw": 64, "fh": 64, "ax": 32, "ay": 54, "bw": 0, "bh": 0}
+	if df.is_empty():
+		return {}
+	pr["fw"] = float(df.fw)
+	pr["fh"] = float(df.fh)
+	pr["ax"] = float(df.ax)
+	pr["ay"] = float(df.ay)
+	pr["n"] = int(df.get("n", 1))
+	pr["fps"] = float(df.get("fps", 1))
+	if p.has("mod"):
+		var m: Array = p.mod
+		pr["mod"] = Color(float(m[0]), float(m[1]), float(m[2]), float(m[3]) if m.size() > 3 else 1.0)
+	var bw: float = float(df.bw) * sc
+	var bh: float = float(df.bh) * sc
+	if bool(p.get("walk", false)):
+		bw = 0.0
+	if bw > 0.0:
+		pr["block"] = Rect2(px - bw / 2.0, py - float(df.get("by", float(df.bh) * 0.7)) * sc, bw, bh)
+	return pr
 
 
 func _add_prop(p: Dictionary) -> void:
@@ -308,7 +440,7 @@ func set_flag(f0: String, on: bool = true) -> void:
 
 func tile_blocked(c: int, r: int) -> bool:
 	var ch: int = ch_at(c, r)
-	if ch == C_WATER or ch == C_TREE or ch == C_ROCK:
+	if ch == C_WATER or ch == C_TREE or ch == C_ROCK or ch == C_WALL or ch == C_LAVA:
 		return true
 	if ch == C_GATE:
 		var gi: int = gate_grid[r * W + c]
@@ -377,7 +509,8 @@ func visible_props(view: Rect2) -> Array:
 
 
 func in_wild(x: float, y: float) -> bool:
-	return ch_at(int(floor(x / TILE)), int(floor(y / TILE))) == C_WILD
+	var ch: int = ch_at(int(floor(x / TILE)), int(floor(y / TILE)))
+	return ch == C_WILD or ch == C_RUBBLE
 
 
 # ------------------------------------------------------------- per-frame logic
@@ -496,7 +629,19 @@ func draw_ground(g: Object, view: Rect2, now: float) -> void:
 	var r1: int = mini(H - 1, int(floor(view.end.y / TILE)) + 1)
 	var flat: Texture2D = g.IMG.flat
 	var foam: Texture2D = g.IMG.foam
+	var elev: Texture2D = g.IMG.get("elev", null)
+	var bridge: Texture2D = g.IMG.get("bridge", null)
 	var ff: int = int(floorf(now / 110.0)) % 8
+	# tinted water (frozen sea, bog water) under everything else
+	for r in range(r0, r1 + 1):
+		for c in range(c0, c1 + 1):
+			var chw: int = ch_at(c, r)
+			if chw == C_WATER or chw == C_BRIDGE:
+				var sw: Dictionary = style_at(c, r)
+				if chw == C_BRIDGE and (ch_at(c - 1, r) == C_LAVA or ch_at(c + 1, r) == C_LAVA or ch_at(c, r - 1) == C_LAVA or ch_at(c, r + 1) == C_LAVA):
+					g.draw_rect(Rect2(c * TILE, r * TILE, TILE, TILE), Color(0.85, 0.3, 0.08))
+				elif sw.has("water"):
+					g.draw_rect(Rect2(c * TILE, r * TILE, TILE, TILE), sw.water)
 	# foam ring under coast tiles
 	for r in range(r0, r1 + 1):
 		for c in range(c0, c1 + 1):
@@ -508,47 +653,149 @@ func draw_ground(g: Object, view: Rect2, now: float) -> void:
 	for r in range(r0, r1 + 1):
 		for c in range(c0, c1 + 1):
 			var ch: int = ch_at(c, r)
-			if ch == C_WATER:
+			if ch == C_WATER or ch == C_BRIDGE:
 				continue
 			var sx: int = _edge_i(is_land(c - 1, r), is_land(c + 1, r))
 			var sy: int = _edge_i(is_land(c, r - 1), is_land(c, r + 1))
+			var st: Dictionary = style_at(c, r)
 			var tint: Color = wild_tint if ch == C_WILD else Color.WHITE
+			if st.has("grass"):
+				tint = tint * (st.grass as Color)
 			g.img(flat, sx * 64, sy * 64, 64, 64, c * TILE, r * TILE, 64, 64, tint)
+			if ch == C_ICE:
+				g.draw_rect(Rect2(c * TILE, r * TILE, TILE, TILE), Color(0.86, 0.95, 1.0, 0.86))
+				if _hash(c, r) % 5 == 0:
+					g.draw_line(Vector2(c * TILE + 10, r * TILE + 18), Vector2(c * TILE + 40, r * TILE + 34), Color(1, 1, 1, 0.9), 2.0)
+			elif st.has("overlay") and ch != C_FLOOR and ch != C_RUBBLE and ch != C_WALL:
+				g.draw_rect(Rect2(c * TILE, r * TILE, TILE, TILE), st.overlay)
 	# sand / road layer (autotiled against other sand)
 	for r in range(r0, r1 + 1):
 		for c in range(c0, c1 + 1):
 			var ch2: int = ch_at(c, r)
-			if ch2 != C_SAND and ch2 != C_GATE:
+			if ch2 != C_SAND and ch2 != C_GATE and ch2 != C_FLOOR and ch2 != C_RUBBLE:
+				continue
+			var st2: Dictionary = style_at(c, r)
+			if ch2 == C_FLOOR or ch2 == C_RUBBLE:
+				var sxf: int = _edge_i(_floorish(c - 1, r), _floorish(c + 1, r))
+				var syf: int = _edge_i(_floorish(c, r - 1), _floorish(c, r + 1))
+				var fc: Color = st2.get("floor", Color(0.66, 0.66, 0.7))
+				g.img(flat, 320 + sxf * 64, syf * 64, 64, 64, c * TILE, r * TILE, 64, 64, fc)
+				# flagstone seams so interiors read as built floors, not sand
+				var seam := Color(0, 0, 0, 0.12)
+				g.draw_line(Vector2(c * TILE, r * TILE + 32), Vector2(c * TILE + 64, r * TILE + 32), seam, 2.0)
+				var off: int = 16 if r % 2 == 0 else 48
+				g.draw_line(Vector2(c * TILE + off, r * TILE), Vector2(c * TILE + off, r * TILE + 32), seam, 2.0)
+				g.draw_line(Vector2(c * TILE + (off + 32) % 64, r * TILE + 32), Vector2(c * TILE + (off + 32) % 64, r * TILE + 64), seam, 2.0)
 				continue
 			var sx2: int = _edge_i(_sandy(c - 1, r), _sandy(c + 1, r))
 			var sy2: int = _edge_i(_sandy(c, r - 1), _sandy(c, r + 1))
-			g.img(flat, 320 + sx2 * 64, sy2 * 64, 64, 64, c * TILE, r * TILE, 64, 64)
-	# wild-grass tufts, bushes, gate markers
+			g.img(flat, 320 + sx2 * 64, sy2 * 64, 64, 64, c * TILE, r * TILE, 64, 64, st2.get("road", Color.WHITE))
+	# walls, lava, bridges
+	for r in range(r0, r1 + 1):
+		for c in range(c0, c1 + 1):
+			var ch4: int = ch_at(c, r)
+			if ch4 == C_WALL:
+				var st4: Dictionary = style_at(c, r)
+				var wc: Color = st4.get("wall", Color(0.78, 0.8, 0.86))
+				var wl: bool = ch_at(c - 1, r) == C_WALL
+				var wr: bool = ch_at(c + 1, r) == C_WALL
+				var wu: bool = ch_at(c, r - 1) == C_WALL
+				var wd: bool = ch_at(c, r + 1) == C_WALL
+				var ex: int = _edge_i(wl, wr)
+				if elev == null:
+					g.draw_rect(Rect2(c * TILE, r * TILE, TILE, TILE), wc.darkened(0.4))
+				elif wd:
+					# plateau top (autotiled 3x3, col 3 = single-wide)
+					g.img(elev, ex * 64, _edge_i(wu, true) * 64, 64, 64, c * TILE, r * TILE, 64, 64, wc)
+				else:
+					# bottom row of a wall: cliff face
+					g.img(elev, ex * 64, 3 * 64, 64, 64, c * TILE, r * TILE, 64, 64, wc)
+			elif ch4 == C_LAVA:
+				var pulse: float = 0.5 + 0.5 * sin(now / 380.0 + float(c) * 0.9 + float(r) * 0.6)
+				g.draw_rect(Rect2(c * TILE, r * TILE, TILE, TILE), Color(0.78, 0.22, 0.06).lerp(Color(1.0, 0.55, 0.12), pulse * 0.6))
+				var hv4: int = _hash(c, r)
+				g.draw_rect(Rect2(c * TILE + float(hv4 % 40), r * TILE + float((hv4 / 7) % 40), 18, 10), Color(0.35, 0.08, 0.04, 0.55))
+				g.draw_circle(Vector2(c * TILE + float((hv4 * 3) % 56) + 4, r * TILE + float((hv4 * 5) % 56) + 4), 3.0 + 2.0 * pulse, Color(1.0, 0.85, 0.3, 0.8))
+			elif ch4 == C_BRIDGE:
+				var horiz: bool = _bridgeish(c - 1, r) or _bridgeish(c + 1, r)
+				var vert: bool = _bridgeish(c, r - 1) or _bridgeish(c, r + 1)
+				if bridge == null:
+					g.draw_rect(Rect2(c * TILE + 4, r * TILE + 4, 56, 56), Color(0.6, 0.42, 0.24))
+				elif horiz and not vert:
+					var bx: int = 1
+					if not _bridgeish(c - 1, r):
+						bx = 0
+					elif not _bridgeish(c + 1, r):
+						bx = 2
+					g.img(bridge, bx * 64, 0, 64, 64, c * TILE, r * TILE, 64, 64)
+				else:
+					var by: int = 2
+					if not _bridgeish(c, r - 1):
+						by = 1
+					elif not _bridgeish(c, r + 1):
+						by = 3
+					g.img(bridge, 0, by * 64, 64, 64, c * TILE, r * TILE, 64, 64)
+	# wild-grass tufts, bushes, rubble, gate markers
 	for r in range(r0, r1 + 1):
 		for c in range(c0, c1 + 1):
 			var ch3: int = ch_at(c, r)
 			var hv: int = _hash(c, r)
 			if ch3 == C_WILD:
+				var st3: Dictionary = style_at(c, r)
+				var tt: Color = st3.get("wild", Color.WHITE)
 				var sway: float = sin(now / 420.0 + float(c) * 0.7 + float(r) * 0.3) * 1.6
 				for k in 3:
 					var ox: float = float((hv * (k + 3)) % 44) + 2.0
 					var oy: float = float((hv * (k + 7)) % 40) + 6.0
 					var tex: Texture2D = g.IMG["deco11"] if (hv + k) % 3 == 0 else g.IMG["deco10"]
-					g.img(tex, 0, 0, 64, 64, c * TILE + ox - 24 + sway, r * TILE + oy - 40, 48, 48)
+					g.img(tex, 0, 0, 64, 64, c * TILE + ox - 24 + sway, r * TILE + oy - 40, 48, 48, tt)
+			elif ch3 == C_RUBBLE:
+				for k2 in 2:
+					var ox2: float = float((hv * (k2 + 3)) % 40) + 4.0
+					var oy2: float = float((hv * (k2 + 5)) % 36) + 8.0
+					var rt: Texture2D = g.IMG.get("deco06" if (hv + k2) % 2 == 0 else "deco15", g.IMG["deco04"])
+					g.img(rt, 0, 0, 64, 64, c * TILE + ox2 - 24, r * TILE + oy2 - 36, 44, 44)
 			elif ch3 == C_BUSH:
 				var bt: Texture2D = g.IMG["deco0" + str(7 + hv % 3)]
-				g.img(bt, 0, 0, 64, 64, c * TILE, r * TILE - 8, 64, 64)
+				var sb: Dictionary = style_at(c, r)
+				g.img(bt, 0, 0, 64, 64, c * TILE, r * TILE - 8, 64, 64, sb.get("tree", Color.WHITE))
 			elif ch3 == C_GATE:
 				var gid: String = gate_at_tile(c, r)
 				if gid != "" and not gate_open(gid):
-					var pulse: float = 0.55 + 0.25 * sin(now / 260.0)
-					g.draw_rect(Rect2(c * TILE + 4, r * TILE + 4, 56, 56), Color(0.85, 0.2, 0.15, 0.28 * pulse))
+					var pulse2: float = 0.55 + 0.25 * sin(now / 260.0)
+					g.draw_rect(Rect2(c * TILE + 4, r * TILE + 4, 56, 56), Color(0.85, 0.2, 0.15, 0.28 * pulse2))
 					g.img(g.IMG.rocks3, (hv % 8) * 128, 0, 128, 128, c * TILE - 16, r * TILE - 28, 96, 96)
+	# falling snow / drifting embers for some looks (screen-cheap: a few dots per visible tile row)
+	for r in range(r0, r1 + 1, 2):
+		for c in range(c0, c1 + 1, 2):
+			var se: Dictionary = style_at(c, r)
+			if se.is_empty():
+				continue
+			if bool(se.get("snow", false)):
+				var hs: int = _hash(c, r)
+				var fy: float = fmod(now / 22.0 + float(hs), 128.0)
+				var fx: float = float(hs % 100) + sin(now / 700.0 + float(hs)) * 8.0
+				g.draw_circle(Vector2(c * TILE + fx, r * TILE + fy), 2.2, Color(1, 1, 1, 0.75))
+			elif bool(se.get("embers", false)):
+				var he: int = _hash(c, r)
+				var ey: float = 128.0 - fmod(now / 30.0 + float(he), 128.0)
+				var ex2: float = float(he % 100) + sin(now / 500.0 + float(he)) * 6.0
+				g.draw_circle(Vector2(c * TILE + ex2, r * TILE + ey), 1.8, Color(1.0, 0.6, 0.2, 0.7))
 
 
 func _sandy(c: int, r: int) -> bool:
 	var ch: int = ch_at(c, r)
 	return ch == C_SAND or ch == C_GATE
+
+
+func _floorish(c: int, r: int) -> bool:
+	var ch: int = ch_at(c, r)
+	return ch == C_FLOOR or ch == C_RUBBLE or ch == C_WALL or ch == C_GATE
+
+
+func _bridgeish(c: int, r: int) -> bool:
+	var ch: int = ch_at(c, r)
+	return ch == C_BRIDGE or ch == C_GATE
 
 
 func _edge_i(l_on: bool, r_on: bool) -> int:
