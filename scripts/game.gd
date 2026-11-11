@@ -162,6 +162,76 @@ var CHAR := {
 	"Lanning": {"cls": "Guardian", "sub": "Ironhide", "ability": "iron_wall"},
 	"Rico": {"cls": "Warrior", "sub": "Raider", "ability": "raid_step"},
 }
+# Per-hero level / XP. Cap 99. Growth is computed from current level + current subclass
+# (changing subclass retargets the focused bonus; it is not locked at the time you leveled).
+const LEVEL_CAP := 99
+var SUB_FOCUS := {
+	"Riftblade": "atk",
+	"Vanguard": "hp",
+	"Scout": "speed",
+	"Sharpshot": "crit",
+	"Ironhide": "armor",
+	"Raider": "atk",
+	"Sage": "mana",
+	"Duelist": "crit",
+}
+var FOCUS_LABELS := {
+	"hp": "HP", "atk": "ATK", "def": "Defense", "armor": "Armor",
+	"crit": "Crit", "mana": "Mana", "speed": "Speed",
+}
+var HERO_PROG := {}
+# First 5 fight; the rest sit on the bench. Index 0 is the lead (overworld model).
+const PARTY_SIZE := 5
+var SQUAD := ["Airron", "Christian", "Weston", "Wiesen", "Lanning", "Rico"]
+# Shared bag + per-hero equipment. Slot keys match ITEM_DEFS.slot.
+const SLOT_IDS := ["weapon", "armor", "gloves", "amulet"]
+const SLOT_LABELS := {"weapon": "Weapon", "armor": "Armor", "gloves": "Gloves", "amulet": "Amulet"}
+var ITEM_DEFS := {
+	"riftbrand": {"name": "Riftbrand", "slot": "weapon", "blurb": "A keen rift-forged blade", "atk": 6, "crit": 2},
+	"hollow_bow": {"name": "Hollow Bow", "slot": "weapon", "blurb": "Quiet and precise", "atk": 5, "crit": 4},
+	"oak_maul": {"name": "Oak Maul", "slot": "weapon", "blurb": "Heavy wooden heft", "atk": 3, "hp": 12},
+	"iron_plate": {"name": "Iron Plate", "slot": "armor", "blurb": "Solid, weighty cover", "armor": 4, "def": 4, "hp": 16},
+	"trail_vest": {"name": "Trail Vest", "slot": "armor", "blurb": "Light travel padding", "def": 3, "speed": 2, "hp": 8},
+	"warden_mail": {"name": "Warden Mail", "slot": "armor", "blurb": "Steady protective rings", "armor": 3, "def": 6, "hp": 12},
+	"grip_wraps": {"name": "Grip Wraps", "slot": "gloves", "blurb": "A firmer hold on the strike", "atk": 3, "crit": 2},
+	"swift_cuffs": {"name": "Swift Cuffs", "slot": "gloves", "blurb": "Light on the hands", "speed": 3, "crit": 2},
+	"stone_fists": {"name": "Stone Fists", "slot": "gloves", "blurb": "Knuckles like cobble", "armor": 2, "atk": 2},
+	"sage_hands": {"name": "Sage Hands", "slot": "gloves", "blurb": "Steady for channeling", "mana": 3, "def": 1},
+	"ember_charm": {"name": "Ember Charm", "slot": "amulet", "blurb": "A warm spark at the throat", "atk": 2, "crit": 3},
+	"brook_pendant": {"name": "Brook Pendant", "slot": "amulet", "blurb": "A calm, lingering ward", "hp": 20, "mana": 2},
+	"veil_talisman": {"name": "Veil Talisman", "slot": "amulet", "blurb": "A thin extra guard", "def": 3, "armor": 2},
+	"wind_seal": {"name": "Wind Seal", "slot": "amulet", "blurb": "A push at the heels", "speed": 4, "crit": 1},
+}
+const STARTER_BAG := ["riftbrand", "oak_maul", "trail_vest", "grip_wraps", "swift_cuffs", "ember_charm", "brook_pendant", "sage_hands"]
+var INV: Array = []
+var EQUIP := {}
+# Menu / overworld UI state
+var inv_slot_sel := ""
+var party_sel := 0
+var ow_x := 0.0
+var ow_y := 0.0
+var ow_tx := 0.0
+var ow_ty := 0.0
+var ow_facing := 1
+var ow_anim := "idle"
+var ow_at := 0.0
+var ow_camx := 0.0
+var ow_camy := 0.0
+var ow_scale := 1.0
+var ow_moving := false
+var ow_ready := false
+# Rivenbrook — original starter hamlet (not a Nintendo map).
+const TOWN_NAME := "Rivenbrook"
+const OW_C0 := 1
+const OW_C1 := 16
+const OW_R0 := 1
+const OW_R1 := 12
+var OW_BLOCK := [] # Rect2 in world space
+var OW_PROPS := []
+var OW_DECO := []
+var OW_SHEEP := []
+# 5-fighter landscape slots: three front, two back.
+var BLUE_SLOTS_5 := [[360, 210], [375, 330], [360, 450], [215, 250], [215, 410]]
 var GOB_CLASS := {
 	"torch": {"cls": "Skirmisher", "sub": "Emberblade", "atk": 72, "def": 36, "armor": 8, "crit": 8, "mana": 6, "speed": 14},
 	"tnt": {"cls": "Bomber", "sub": "Demolitionist", "atk": 84, "def": 22, "armor": 4, "crit": 10, "mana": 4, "speed": 12},
@@ -191,18 +261,223 @@ func compute_hero_stats(name: String) -> Dictionary:
 	var d: Dictionary = HERO_BASE[name].duplicate()
 	pack_add(d, CLASS_DEFS[cls])
 	pack_add(d, SUB_DEFS[sub])
+	var lv: int = hero_level(name)
+	pack_add(d, level_bonus(lv, sub))
+	var eq: Dictionary = EQUIP[name] if EQUIP.has(name) else {}
+	for slot in SLOT_IDS:
+		var iid: String = str(eq.get(slot, ""))
+		if iid != "" and ITEM_DEFS.has(iid):
+			pack_add(d, ITEM_DEFS[iid])
+	var xp: int = hero_xp(name)
+	var focus: String = sub_focus_stat(sub)
 	return {
-		"hp": clamp_range(d.hp, 140, 620),
-		"atk": clamp_stat(d.atk),
-		"def": clamp_stat(d.def),
-		"armor": clamp_range(d.armor, 0, 40),
-		"crit": clamp_range(d.crit, 1, 50),
-		"mana": clamp_range(d.mana, 0, 25),
-		"speed": clamp_range(d.speed, 1, 40),
+		"hp": clamp_range(d.hp, 140, 1200),
+		"atk": clamp_range(d.atk, 1, 180),
+		"def": clamp_range(d.def, 1, 180),
+		"armor": clamp_range(d.armor, 0, 60),
+		"crit": clamp_range(d.crit, 1, 70),
+		"mana": clamp_range(d.mana, 0, 50),
+		"speed": clamp_range(d.speed, 1, 70),
 		"cls": cls, "sub": sub, "kind": CLASS_DEFS[cls].kind,
 		"blurb": CLASS_DEFS[cls].blurb, "sub_blurb": SUB_DEFS[sub].blurb, "scale": 1.0,
 		"ability": ability_id, "ability_name": ab.name, "ability_blurb": ab.blurb,
+		"level": lv, "xp": xp, "xp_next": xp_to_next(lv),
+		"focus": focus, "focus_name": FOCUS_LABELS.get(focus, "ATK"),
 	}
+
+func hero_level(name: String) -> int:
+	if not HERO_PROG.has(name):
+		return 1
+	return int(HERO_PROG[name].level)
+
+func hero_xp(name: String) -> int:
+	if not HERO_PROG.has(name):
+		return 0
+	return int(HERO_PROG[name].xp)
+
+func xp_to_next(level: int) -> int:
+	if level >= LEVEL_CAP:
+		return 0
+	# Early levels come in a fight or two; the curve steepens so 99 stays a long-term cap.
+	return 50 + 8 * level + int(level * level * 2 / 5)
+
+func sub_focus_stat(sub: String) -> String:
+	if SUB_FOCUS.has(sub):
+		return str(SUB_FOCUS[sub])
+	return "atk"
+
+func level_bonus(level: int, sub: String = "Riftblade") -> Dictionary:
+	# General bump on every stat, plus a larger extra bump on the current subclass focus.
+	# Recalculated from level + current subclass (not historic).
+	var lv: int = maxi(0, level - 1)
+	var d := {
+		"hp": 2 * lv,
+		"atk": int(roundf(0.25 * lv)),
+		"def": int(roundf(0.25 * lv)),
+		"armor": int(roundf(0.10 * lv)),
+		"crit": int(roundf(0.15 * lv)),
+		"mana": int(roundf(0.10 * lv)),
+		"speed": int(roundf(0.15 * lv)),
+	}
+	var focus := sub_focus_stat(sub)
+	var extra := {"hp": 4.0, "atk": 0.60, "def": 0.50, "armor": 0.25, "crit": 0.35, "mana": 0.30, "speed": 0.40}
+	var add := int(roundf(float(extra.get(focus, 0.6)) * lv))
+	d[focus] = int(d[focus]) + add
+	return d
+
+func ensure_hero_data() -> void:
+	for name in HERO_NAMES:
+		if not HERO_PROG.has(name):
+			HERO_PROG[name] = {"level": 1, "xp": 0}
+		if not EQUIP.has(name):
+			EQUIP[name] = {"weapon": "", "armor": "", "gloves": "", "amulet": ""}
+		else:
+			for slot in SLOT_IDS:
+				if not EQUIP[name].has(slot):
+					EQUIP[name][slot] = ""
+	if SQUAD.size() != HERO_NAMES.size():
+		SQUAD = HERO_NAMES.duplicate()
+	# Keep a unique, complete order; unknown names dropped.
+	var seen := {}
+	var cleaned: Array = []
+	for name in SQUAD:
+		if HERO_NAMES.find(name) >= 0 and not seen.has(name):
+			cleaned.append(name)
+			seen[name] = true
+	for name in HERO_NAMES:
+		if not seen.has(name):
+			cleaned.append(name)
+	SQUAD = cleaned
+
+func party_names() -> Array:
+	return SQUAD.slice(0, mini(PARTY_SIZE, SQUAD.size()))
+
+func bench_names() -> Array:
+	return SQUAD.slice(mini(PARTY_SIZE, SQUAD.size()))
+
+func lead_name() -> String:
+	var p := party_names()
+	return p[0] if p.size() > 0 else HERO_NAMES[0]
+
+func raid_xp_award(n_red: int, win: bool) -> int:
+	var base := 80 if n_red == 3 else (110 if n_red == 2 else 150)
+	return base if win else int(roundf(float(base) * 0.25))
+
+func grant_hero_xp(name: String, amount: int) -> int:
+	ensure_hero_data()
+	if amount <= 0 or not HERO_PROG.has(name):
+		return 0
+	var p: Dictionary = HERO_PROG[name]
+	if int(p.level) >= LEVEL_CAP:
+		p.xp = 0
+		return 0
+	p.xp = int(p.xp) + amount
+	var gained := 0
+	while int(p.level) < LEVEL_CAP and int(p.xp) >= xp_to_next(int(p.level)):
+		p.xp = int(p.xp) - xp_to_next(int(p.level))
+		p.level = int(p.level) + 1
+		gained += 1
+	if int(p.level) >= LEVEL_CAP:
+		p.xp = 0
+	return gained
+
+func item_bonus_text(iid: String) -> String:
+	if not ITEM_DEFS.has(iid):
+		return ""
+	var it: Dictionary = ITEM_DEFS[iid]
+	var parts: Array = []
+	var labels := {"hp": "HP", "atk": "ATK", "def": "DEF", "armor": "ARM", "crit": "CRIT", "mana": "MANA", "speed": "SPD"}
+	for k in ["hp", "atk", "def", "armor", "crit", "mana", "speed"]:
+		var v := int(it.get(k, 0))
+		if v != 0:
+			parts.append("%+d %s" % [v, labels[k]])
+	return "  ".join(parts)
+
+func equip_item(name: String, iid: String) -> bool:
+	ensure_hero_data()
+	if not ITEM_DEFS.has(iid):
+		return false
+	var slot: String = ITEM_DEFS[iid].slot
+	var bag_i := INV.find(iid)
+	if bag_i < 0:
+		return false
+	INV.remove_at(bag_i)
+	var cur: String = str(EQUIP[name].get(slot, ""))
+	if cur != "" and ITEM_DEFS.has(cur):
+		INV.append(cur)
+	EQUIP[name][slot] = iid
+	save_cfg()
+	apply_loadout_preview(name)
+	return true
+
+func unequip_slot(name: String, slot: String) -> bool:
+	ensure_hero_data()
+	if SLOT_IDS.find(slot) < 0:
+		return false
+	var cur: String = str(EQUIP[name].get(slot, ""))
+	if cur == "":
+		return false
+	EQUIP[name][slot] = ""
+	if ITEM_DEFS.has(cur):
+		INV.append(cur)
+	save_cfg()
+	apply_loadout_preview(name)
+	return true
+
+func swap_party_with_bench(party_i: int, bench_i: int) -> void:
+	ensure_hero_data()
+	var p := party_names()
+	var b := bench_names()
+	if party_i < 0 or party_i >= p.size() or bench_i < 0 or bench_i >= b.size():
+		return
+	var pi := party_i
+	var bi := PARTY_SIZE + bench_i
+	var tmp = SQUAD[pi]
+	SQUAD[pi] = SQUAD[bi]
+	SQUAD[bi] = tmp
+	save_cfg()
+	sfx.tone(660, 0.05, "square", 0.03)
+
+func move_party_slot(i: int, dir: int) -> void:
+	ensure_hero_data()
+	var j := i + dir
+	if i < 0 or i >= PARTY_SIZE or j < 0 or j >= PARTY_SIZE or i >= SQUAD.size() or j >= SQUAD.size():
+		return
+	var tmp = SQUAD[i]
+	SQUAD[i] = SQUAD[j]
+	SQUAD[j] = tmp
+	party_sel = j
+	save_cfg()
+	sfx.tone(523, 0.045, "triangle", 0.025)
+
+func build_blue_roster() -> Array:
+	var active: Array = party_names()
+	var melee: Array = []
+	var ranged: Array = []
+	for name in active:
+		var st := compute_hero_stats(name)
+		var kind: String = st.kind
+		if not KINDS.has(kind):
+			kind = "warrior"
+		if str(KINDS[kind].get("ranged", "")) != "":
+			ranged.append([kind, name])
+		else:
+			melee.append([kind, name])
+	var front: Array = melee.slice(0, mini(3, melee.size()))
+	var back: Array = ranged.slice(0, mini(2, ranged.size()))
+	var extra_m: Array = melee.slice(front.size())
+	var extra_r: Array = ranged.slice(back.size())
+	while front.size() < 3 and extra_r.size() > 0:
+		front.append(extra_r[0]); extra_r.remove_at(0)
+	while back.size() < 2 and extra_m.size() > 0:
+		back.append(extra_m[0]); extra_m.remove_at(0)
+	var order: Array = front + back + extra_m + extra_r
+	var out := []
+	for i in order.size():
+		if i >= BLUE_SLOTS_5.size():
+			break
+		out.append([order[i][0], order[i][1], BLUE_SLOTS_5[i][0], BLUE_SLOTS_5[i][1]])
+	return out
 
 func char_stats(name: String, kind: String, team: String, n_red: int) -> Dictionary:
 	if team == "blue":
@@ -270,6 +545,7 @@ class Act:
 	var d := {}
 	var hit_done := false
 	var hold_t := 0.0
+	var doubled := false
 
 class Unit:
 	var id := ""
@@ -386,7 +662,7 @@ func new_battle(n: int = 0) -> void:
 	last_raid = n
 	var red := build_red_roster(n)
 	for team in ["blue", "red"]:
-		var roster: Array = ROSTER_BLUE if team == "blue" else red
+		var roster: Array = build_blue_roster() if team == "blue" else red
 		for i in roster.size():
 			var r: Array = roster[i]
 			var p := mp(r[2], r[3])
@@ -514,6 +790,15 @@ func update_unit(u, dt: float) -> void:
 			if a.hold_t < d.get("hold", 150): return
 			if u.kind == "warrior" and a.swing == 0:
 				a.swing = 1; begin_swing(u); return
+			# Follow-up strike if still in range. Warriors already swing twice as their kit.
+			if u.kind != "warrior" and not a.doubled and a.target != null and not a.target.dead:
+				var dx: float = a.target.x - u.x
+				var dy: float = a.target.y - u.y
+				if sqrt(dx * dx + dy * dy) <= float(u.K.range) + 12.0:
+					a.doubled = true
+					a.swing = 0
+					begin_swing(u)
+					return
 			if u.K.ranged != "": a.stage = "wait"
 			else:
 				a.stage = "back"; a.ready = true
@@ -1138,7 +1423,10 @@ func draw_bars(u) -> void:
 	text(u.name, u.x, ny, nfs, Color("#d6f1ff") if u.team == "blue" else Color("#ffd9cf"), "center", 3, Color(0, 0, 0, 0.75))
 	if u.sub != "":
 		var rfs := roundf(7.5 * TS)
-		text(u.cls + " · " + u.sub, u.x, y - 4 - 11 * TS - rfs * 0.35, rfs, Color("#9fd4e8") if u.team == "blue" else Color("#f0b6a8"), "center", 2.5, Color(0, 0, 0, 0.75))
+		var role := u.cls + " · " + u.sub
+		if u.team == "blue":
+			role = "Lv." + str(hero_level(u.name)) + "  " + role
+		text(role, u.x, y - 4 - 11 * TS - rfs * 0.35, rfs, Color("#9fd4e8") if u.team == "blue" else Color("#f0b6a8"), "center", 2.5, Color(0, 0, 0, 0.75))
 
 func draw_fx(e: Dictionary) -> void:
 	match e.type:
@@ -1385,26 +1673,72 @@ func link_text(prefix: String, link: String, suffix: String, url: String, cx: fl
 	add_btn(id, Rect2(cx - (w1 + w2 + w3) / 2 + w1 - 4, y - size, w2 + 8, size * 2), func(): OS.shell_open(url))
 
 func save_cfg() -> void:
+	ensure_hero_data()
 	var cf := ConfigFile.new()
 	cf.set_value("rs", "muted", muted)
 	for name in HERO_NAMES:
+		# Class is stored for readability only; load always keeps the locked class.
 		cf.set_value("loadout", name, "%s|%s" % [CHAR[name].cls, CHAR[name].sub])
+		cf.set_value("progress", name, "%d|%d" % [hero_level(name), hero_xp(name)])
+		var eq: Dictionary = EQUIP[name]
+		var ev := []
+		for slot in SLOT_IDS:
+			ev.append(str(eq.get(slot, "")))
+		cf.set_value("equip", name, "|".join(ev))
+	cf.set_value("party", "squad", ",".join(SQUAD))
+	cf.set_value("inv", "bag", ",".join(INV))
 	cf.save("user://riftstrike.cfg")
 
 func load_cfg() -> void:
+	ensure_hero_data()
 	var cf := ConfigFile.new()
-	if cf.load("user://riftstrike.cfg") != OK:
+	var loaded: bool = cf.load("user://riftstrike.cfg") == OK
+	if not loaded:
+		INV = STARTER_BAG.duplicate()
 		return
 	muted = bool(cf.get_value("rs", "muted", muted))
 	for name in HERO_NAMES:
 		var raw = cf.get_value("loadout", name, "")
-		if typeof(raw) != TYPE_STRING or raw == "":
-			continue
-		var parts: PackedStringArray = raw.split("|")
-		# Class is locked to the character; ignore any class saved by older builds.
-		var sub := parts[1] if parts.size() >= 2 else (parts[0] if parts.size() == 1 else "")
-		if SUB_DEFS.has(sub):
-			CHAR[name].sub = sub
+		if typeof(raw) == TYPE_STRING and raw != "":
+			var parts: PackedStringArray = raw.split("|")
+			# Class is locked to the character; ignore any class saved by older builds.
+			var sub := parts[1] if parts.size() >= 2 else (parts[0] if parts.size() == 1 else "")
+			if SUB_DEFS.has(sub):
+				CHAR[name].sub = sub
+		var prog = cf.get_value("progress", name, "")
+		if typeof(prog) == TYPE_STRING and prog != "":
+			var pp: PackedStringArray = prog.split("|")
+			var lv := int(pp[0]) if pp.size() >= 1 else 1
+			var xp := int(pp[1]) if pp.size() >= 2 else 0
+			HERO_PROG[name] = {"level": clampi(lv, 1, LEVEL_CAP), "xp": maxi(0, xp)}
+			if hero_level(name) >= LEVEL_CAP:
+				HERO_PROG[name].xp = 0
+		var eqr = cf.get_value("equip", name, "")
+		if typeof(eqr) == TYPE_STRING and eqr != "":
+			var ep: PackedStringArray = eqr.split("|")
+			for si in SLOT_IDS.size():
+				var iid := ep[si] if si < ep.size() else ""
+				if iid != "" and ITEM_DEFS.has(iid) and ITEM_DEFS[iid].slot == SLOT_IDS[si]:
+					EQUIP[name][SLOT_IDS[si]] = iid
+				else:
+					EQUIP[name][SLOT_IDS[si]] = ""
+	if cf.has_section_key("party", "squad"):
+		var sq = cf.get_value("party", "squad", "")
+		if typeof(sq) == TYPE_STRING and sq != "":
+			SQUAD = Array(sq.split(",", false))
+	if cf.has_section_key("inv", "bag"):
+		var bag = cf.get_value("inv", "bag", "")
+		INV = []
+		if typeof(bag) == TYPE_STRING and bag != "":
+			for iid in bag.split(",", false):
+				if ITEM_DEFS.has(iid):
+					INV.append(iid)
+	else:
+		# Old saves have no inventory yet — seed the starter bag once.
+		INV = STARTER_BAG.duplicate()
+	ensure_hero_data()
+	# Drop equipment ids that somehow also sit in the bag, and vice versa, is fine
+	# (bag and equipment are separate). Rebuild if an equipped id is invalid already handled.
 
 func open_chars() -> void:
 	char_sel = 0
@@ -1413,6 +1747,28 @@ func open_chars() -> void:
 	char_delta_t = 0.0
 	screen = "chars"
 	sfx.tone(660, 0.06, "square", 0.035)
+
+func open_inv() -> void:
+	char_sel = 0
+	inv_slot_sel = ""
+	char_prev = {}
+	char_bar = {}
+	char_delta_t = 0.0
+	screen = "inv"
+	sfx.tone(660, 0.06, "square", 0.035)
+
+func open_party() -> void:
+	party_sel = 0
+	char_sel = 0
+	screen = "party"
+	sfx.tone(660, 0.06, "square", 0.035)
+
+func open_overworld() -> void:
+	build_overworld()
+	phase = "overworld"
+	paused = false
+	screen = "overworld"
+	sfx.tone(523, 0.08, "square", 0.035)
 
 func selected_hero() -> String:
 	return HERO_NAMES[clampi(char_sel, 0, HERO_NAMES.size() - 1)]
@@ -1461,7 +1817,7 @@ func cycle_sub(dir: int) -> void:
 	sfx.tone(880 if dir > 0 else 698, 0.045, "triangle", 0.025)
 
 func tick_char_ui(dt: float) -> void:
-	if screen != "chars":
+	if screen != "chars" and screen != "inv":
 		return
 	if char_delta_t > 0:
 		char_delta_t = maxf(0.0, char_delta_t - dt)
@@ -1577,29 +1933,31 @@ func draw_chars() -> void:
 		draw_hero_sprite(hs.kind, rr.position.x + 26, sy, 0.40 if short else 0.48)
 		var tx: float = rr.position.x + 50
 		text(hn, tx, ry + (13 if short else 15), 14.0 if short else 16.0, Color("#ffe27a") if sel else Color("#2a1a10"), "left")
-		text(hs.cls + " · " + hs.sub, tx, ry + (26 if short else 30), 10.0 if short else 11.0, Color("#c8a06a") if sel else Color("#7a5a32"), "left")
+		text("Lv." + str(int(hs.level)) + "  " + hs.cls + " · " + hs.sub, tx, ry + (26 if short else 30), 10.0 if short else 11.0, Color("#c8a06a") if sel else Color("#7a5a32"), "left")
 	var dx: float = inner.position.x + left_w + 4
 	var dw: float = inner.position.x + inner.size.x - dx
 	var y: float = top
 	var spr_h: float = 72.0 if short else 120.0
 	draw_hero_sprite(st.kind, dx + 44, y + spr_h - 4, 0.82 if short else 1.05)
 	text(name, dx + 88, y + 18, 24.0 if short else 30.0, Color("#2a1a10"), "left")
-	text(st.cls + "  ·  " + st.sub, dx + 88, y + (40 if short else 48), 13.0 if short else 15.0, Color("#7a5a32"), "left")
+	var focus_bit := "Focus " + str(st.focus_name)
+	var head2 := ("Lv." + str(int(st.level)) + "  ·  " + focus_bit) if short else ("Lv." + str(int(st.level)) + "  ·  " + st.cls + "  ·  " + st.sub + "  ·  " + focus_bit)
+	text(head2, dx + 88, y + (40 if short else 48), 13.0 if short else 15.0, Color("#7a5a32"), "left")
 	y += spr_h + (2 if short else 6)
 	var cls_hint := "" if short else String(st.blurb)
 	y += draw_locked_row(dx, y, dw, "CLASS", st.cls, cls_hint, short)
-	var sub_hint := "" if short else String(st.sub_blurb)
+	var sub_hint := "" if short else (String(st.sub_blurb) + "  ·  Level focus: " + str(st.focus_name))
 	y += draw_cycle_row("sub", dx, y, dw, "SUBCLASS", st.sub, sub_hint, func(): cycle_sub(-1), func(): cycle_sub(1))
 	var ab_hint := "" if short else String(st.ability_blurb)
 	y += draw_locked_row(dx, y, dw, "ABILITY", String(st.ability_name), ab_hint, short)
 	var rows := [
-		["hp", "HP", 620.0, Color("#4fd36b"), ""],
-		["atk", "ATK", 100.0, Color("#e85a3a"), ""],
-		["def", "Defense", 100.0, Color("#3d8adf"), ""],
-		["armor", "Armor", 40.0, Color("#8a8f9a"), ""],
-		["crit", "Crit", 50.0, Color("#e6b422"), "%"],
-		["mana", "Mana Regen", 25.0, Color("#9b6bdb"), ""],
-		["speed", "Speed", 40.0, Color("#3ec8c8"), ""],
+		["hp", "HP", 1200.0, Color("#4fd36b"), ""],
+		["atk", "ATK", 180.0, Color("#e85a3a"), ""],
+		["def", "Defense", 180.0, Color("#3d8adf"), ""],
+		["armor", "Armor", 60.0, Color("#8a8f9a"), ""],
+		["crit", "Crit", 70.0, Color("#e6b422"), "%"],
+		["mana", "Mana Regen", 50.0, Color("#9b6bdb"), ""],
+		["speed", "Speed", 70.0, Color("#3ec8c8"), ""],
 	]
 	var two_col := dw > 360
 	var col_w: float = (dw - 12) / 2.0 if two_col else dw
@@ -1627,39 +1985,582 @@ func draw_chars() -> void:
 		text("Tap arrows or the subclass name to swap and watch the stats move. Class and ability stay locked.", dx + dw / 2, footer_y - 14, 10, Color("#7a5a32"))
 
 
+
+func draw_inv() -> void:
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(8 / 255.0, 18 / 255.0, 22 / 255.0, 0.72))
+	var short := VHc <= 430
+	var pad := 8.0 if short else 12.0
+	var panel := Rect2(pad, pad, VWc - pad * 2, VHc - pad * 2)
+	css9(IMG.carved, panel.position.x, panel.position.y, panel.size.x, panel.size.y, 24.0 if short else 32.0)
+	var inner := Rect2(panel.position.x + (16 if short else 22), panel.position.y + (12 if short else 16), panel.size.x - (32 if short else 44), panel.size.y - (24 if short else 32))
+	var name := selected_hero()
+	var st := compute_hero_stats(name)
+	var back_w := 110.0 if short else 130.0
+	var bh := 40.0 if short else 48.0
+	ui_button("inv_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): to_title())
+	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Inventory", 20.0 if short else 26.0, bh, minf(280, inner.size.x * 0.46), 40, bh - 10)
+	text("Saved for Play", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
+	var top: float = inner.position.y + bh + (4.0 if short else 8.0)
+	var body_h: float = inner.position.y + inner.size.y - top
+	var left_w := clampf3(148.0, inner.size.x * 0.28, 220.0)
+	var row_h: float = body_h / 6.0
+	for i in HERO_NAMES.size():
+		var hn: String = HERO_NAMES[i]
+		var hs := compute_hero_stats(hn)
+		var ry: float = top + i * row_h
+		var rr := Rect2(inner.position.x, ry, left_w - 8, row_h - 3)
+		var sel := i == char_sel
+		if sel:
+			draw_rect(rr, Color("#c8a05a"))
+			draw_rect(Rect2(rr.position.x + 2, rr.position.y + 2, rr.size.x - 4, rr.size.y - 4), Color("#3a2412"))
+		var idx := i
+		add_btn("invhero_%d" % i, rr, func(): select_hero(idx))
+		var sy: float = rr.position.y + rr.size.y - 2
+		draw_hero_sprite(hs.kind, rr.position.x + 26, sy, 0.40 if short else 0.48)
+		var tx: float = rr.position.x + 50
+		text(hn, tx, ry + (13 if short else 15), 14.0 if short else 16.0, Color("#ffe27a") if sel else Color("#2a1a10"), "left")
+		text("Lv." + str(int(hs.level)) + "  " + hs.cls, tx, ry + (26 if short else 30), 10.0 if short else 11.0, Color("#c8a06a") if sel else Color("#7a5a32"), "left")
+	var dx: float = inner.position.x + left_w + 4
+	var dw: float = inner.position.x + inner.size.x - dx
+	var y: float = top
+	var spr_h: float = 56.0 if short else 88.0
+	draw_hero_sprite(st.kind, dx + 40, y + spr_h - 4, 0.7 if short else 0.9)
+	text(name, dx + 80, y + 16, 22.0 if short else 28.0, Color("#2a1a10"), "left")
+	var xp_txt := "MAX" if int(st.level) >= LEVEL_CAP else ("%d / %d XP" % [int(st.xp), int(st.xp_next)])
+	text("Lv." + str(int(st.level)) + "  ·  " + st.cls + "  ·  Focus " + str(st.focus_name) + "  ·  " + xp_txt, dx + 80, y + (36 if short else 44), 12.0 if short else 14.0, Color("#7a5a32"), "left")
+	y += spr_h + (2 if short else 4)
+	# Equipment slots
+	var eq: Dictionary = EQUIP[name] if EQUIP.has(name) else {}
+	var slot_h := 28.0 if short else 34.0
+	for slot in SLOT_IDS:
+		var iid: String = str(eq.get(slot, ""))
+		var label: String = SLOT_LABELS[slot]
+		var filled: bool = iid != "" and ITEM_DEFS.has(iid)
+		var shown: String = ITEM_DEFS[iid].name if filled else "—"
+		var rr := Rect2(dx, y, dw, slot_h - 3)
+		var active: bool = inv_slot_sel == slot
+		if active:
+			draw_rect(rr, Color("#c8a05a"))
+			draw_rect(Rect2(rr.position.x + 2, rr.position.y + 2, rr.size.x - 4, rr.size.y - 4), Color("#3a2412"))
+		else:
+			var plate := Color("#2a1a10")
+			plate.a = 0.12
+			draw_rect(rr, plate)
+		text(label, rr.position.x + 8, rr.position.y + rr.size.y * 0.52, 11, Color("#ffe27a") if active else Color("#5b3b20"), "left")
+		var nx: float = rr.position.x + 78
+		text(shown, nx, rr.position.y + rr.size.y * 0.52, 13.0 if short else 14.0, Color("#ffe27a") if active else Color("#2a1a10"), "left")
+		if filled and not short:
+			text(item_bonus_text(iid), rr.position.x + rr.size.x - 8, rr.position.y + rr.size.y * 0.52, 11, Color("#c8a06a") if active else Color("#7a5a32"), "right")
+		var slot_id: String = slot
+		add_btn("slot_" + slot, rr, func(): _inv_tap_slot(slot_id))
+		y += slot_h
+	# Bag
+	text("BAG", dx, y + 10, 11, Color("#5b3b20"), "left")
+	y += 18
+	var bag_bottom: float = inner.position.y + inner.size.y - (6 if short else 86)
+	var bag_h: float = maxf(32.0, bag_bottom - y)
+	var ih := 24.0 if short else 26.0
+	var two := dw > 340
+	var col_w: float = (dw - 8) / 2.0 if two else dw
+	if INV.is_empty():
+		text("Bag is empty — unequip something to return it here.", dx + dw / 2, y + 12, 11, Color("#7a5a32"))
+	else:
+		for bi in INV.size():
+			var iid2: String = INV[bi]
+			if not ITEM_DEFS.has(iid2):
+				continue
+			var it: Dictionary = ITEM_DEFS[iid2]
+			var cx: float = dx
+			var cy: float = y
+			if two:
+				cx = dx + (col_w + 8) * (bi % 2)
+				cy = y + int(bi / 2) * (ih + 2)
+			else:
+				cy = y + bi * (ih + 2)
+			if cy + ih > bag_bottom + 4:
+				break
+			var br := Rect2(cx, cy, col_w, ih)
+			var match_slot: bool = inv_slot_sel == "" or it.slot == inv_slot_sel
+			var plate2 := Color("#2a1a10")
+			plate2.a = 0.16 if match_slot else 0.07
+			draw_rect(br, plate2)
+			var nmcol := Color("#2a1a10") if match_slot else Color("#7a5a32")
+			text(String(it.name), br.position.x + 6, br.position.y + ih * 0.52, 12, nmcol, "left")
+			if not short:
+				text(item_bonus_text(iid2), br.position.x + br.size.x - 6, br.position.y + ih * 0.52, 10, Color("#7a5a32"), "right")
+			var bag_index := bi
+			add_btn("bag_%d" % bi, br, func(): _inv_tap_bag(bag_index))
+	# Stats
+	var rows := [
+		["hp", "HP", 1200.0, Color("#4fd36b"), ""],
+		["atk", "ATK", 180.0, Color("#e85a3a"), ""],
+		["def", "Defense", 180.0, Color("#3d8adf"), ""],
+		["armor", "Armor", 60.0, Color("#8a8f9a"), ""],
+		["crit", "Crit", 70.0, Color("#e6b422"), "%"],
+		["mana", "Mana Regen", 50.0, Color("#9b6bdb"), ""],
+		["speed", "Speed", 70.0, Color("#3ec8c8"), ""],
+	]
+	var stats_y: float = inner.position.y + inner.size.y - (6 if short else 8)
+	var sh: float = 15.0 if short else 17.0
+	var gap: float = 1.0 if short else 2.0
+	var two_col := dw > 360
+	var sw: float = (dw - 12) / 2.0 if two_col else dw
+	var block_h: float = (4 if two_col else 7) * (sh + gap)
+	stats_y -= block_h
+	# keep stats below the bag if there's room; otherwise overlay the bottom of the bag area
+	for ri in rows.size():
+		var row: Array = rows[ri]
+		var key: String = row[0]
+		var cur: int = int(st[key])
+		var shown: String = str(cur) + str(row[4])
+		if key == "mana":
+			shown = "+" + str(cur)
+		var vx: float = dx
+		var vy: float = stats_y
+		if two_col:
+			vx = dx + (sw + 12) * (ri % 2)
+			vy = stats_y + int(ri / 2) * (sh + gap)
+		else:
+			vy = stats_y + ri * (sh + gap)
+		var bar_v := float(char_bar[key]) if char_bar.has(key) else float(cur)
+		draw_stat_bar(vx, vy, sw, sh, row[1], bar_v, row[2], shown, stat_delta(key, cur), row[3])
+	if not short:
+		text("Tap a slot to unequip, or a bag item to put it on. Stats update right away.", dx + dw / 2, inner.position.y + inner.size.y - 2, 10, Color("#7a5a32"))
+
+
+func _inv_tap_slot(slot: String) -> void:
+	var name := selected_hero()
+	ensure_hero_data()
+	var cur: String = str(EQUIP[name].get(slot, ""))
+	if cur != "":
+		char_prev = compute_hero_stats(name)
+		if unequip_slot(name, slot):
+			char_delta_t = 900.0
+			inv_slot_sel = slot
+			sfx.tone(698, 0.045, "triangle", 0.025)
+			return
+	inv_slot_sel = "" if inv_slot_sel == slot else slot
+	sfx.tone(523, 0.04, "square", 0.025)
+
+
+func _inv_tap_bag(index: int) -> void:
+	if index < 0 or index >= INV.size():
+		return
+	var iid: String = INV[index]
+	if not ITEM_DEFS.has(iid):
+		return
+	var name := selected_hero()
+	char_prev = compute_hero_stats(name)
+	if equip_item(name, iid):
+		inv_slot_sel = str(ITEM_DEFS[iid].slot)
+		char_delta_t = 900.0
+		sfx.tone(880, 0.045, "triangle", 0.025)
+	else:
+		sfx.tone(220, 0.05, "square", 0.02)
+
+
+func draw_party() -> void:
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(8 / 255.0, 18 / 255.0, 22 / 255.0, 0.72))
+	var short := VHc <= 430
+	var pad := 8.0 if short else 12.0
+	var panel := Rect2(pad, pad, VWc - pad * 2, VHc - pad * 2)
+	css9(IMG.carved, panel.position.x, panel.position.y, panel.size.x, panel.size.y, 24.0 if short else 32.0)
+	var inner := Rect2(panel.position.x + (16 if short else 22), panel.position.y + (12 if short else 16), panel.size.x - (32 if short else 44), panel.size.y - (24 if short else 32))
+	var back_w := 110.0 if short else 130.0
+	var bh := 40.0 if short else 48.0
+	ui_button("party_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): to_title())
+	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Party", 20.0 if short else 26.0, bh, minf(240, inner.size.x * 0.4), 40, bh - 10)
+	text("5 fight  ·  1 bench", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
+	var top: float = inner.position.y + bh + (6.0 if short else 10.0)
+	var pnames := party_names()
+	var bnames := bench_names()
+	var col_gap := 12.0
+	var left_w: float = (inner.size.x - col_gap) * 0.62
+	var right_x: float = inner.position.x + left_w + col_gap
+	var right_w: float = inner.position.x + inner.size.x - right_x
+	text("FIGHTING FIVE  ·  1 is lead", inner.position.x, top + 8, 12, Color("#5b3b20"), "left")
+	text("BENCH", right_x, top + 8, 12, Color("#5b3b20"), "left")
+	var list_top: float = top + 18
+	var list_bot: float = inner.position.y + inner.size.y - (20 if short else 36)
+	var prow: float = (list_bot - list_top) / 5.0
+	for i in pnames.size():
+		var hn: String = pnames[i]
+		var hs := compute_hero_stats(hn)
+		var ry: float = list_top + i * prow
+		var rr := Rect2(inner.position.x, ry, left_w - 80, prow - 4)
+		var sel := party_sel == i
+		if sel:
+			draw_rect(rr, Color("#c8a05a"))
+			draw_rect(Rect2(rr.position.x + 2, rr.position.y + 2, rr.size.x - 4, rr.size.y - 4), Color("#3a2412"))
+		var idx := i
+		add_btn("pact_%d" % i, rr, func(): _party_tap_active(idx))
+		draw_hero_sprite(hs.kind, rr.position.x + 26, rr.position.y + rr.size.y - 2, 0.42 if short else 0.5)
+		var col := Color("#ffe27a") if sel else Color("#2a1a10")
+		var subc := Color("#c8a06a") if sel else Color("#7a5a32")
+		var tag := "LEAD" if i == 0 else str(i + 1)
+		text(tag, rr.position.x + 52, ry + (12 if short else 14), 11, subc, "left")
+		text(hn, rr.position.x + 52, ry + (26 if short else 30), 15.0 if short else 17.0, col, "left")
+		text("Lv." + str(int(hs.level)) + "  " + hs.cls + " · " + hs.sub, rr.position.x + 52, ry + (42 if short else 48), 10.0 if short else 11.0, subc, "left")
+		var aw := 34.0 if short else 36.0
+		var ah := 28.0 if short else 32.0
+		var ax: float = inner.position.x + left_w - 76
+		var ay: float = ry + (prow - ah * 2 - 4) / 2
+		ui_button("pup_%d" % i, Rect2(ax, ay, aw, ah), "^", false, 16, 16, func(): move_party_slot(idx, -1), false, i == 0)
+		ui_button("pdn_%d" % i, Rect2(ax + aw + 4, ay, aw, ah), "v", false, 16, 16, func(): move_party_slot(idx, 1), false, i >= PARTY_SIZE - 1)
+	var brow: float = maxf(48.0, (list_bot - list_top) / maxf(1.0, float(maxi(1, bnames.size()))))
+	if bnames.is_empty():
+		text("No one on the bench.", right_x + right_w / 2, list_top + 24, 12, Color("#7a5a32"))
+	else:
+		for j in bnames.size():
+			var hn2: String = bnames[j]
+			var hs2 := compute_hero_stats(hn2)
+			var ry2: float = list_top + j * brow
+			var rr2 := Rect2(right_x, ry2, right_w, mini(prow, brow) - 4)
+			var sel2 := party_sel == PARTY_SIZE + j
+			if sel2:
+				draw_rect(rr2, Color("#c8a05a"))
+				draw_rect(Rect2(rr2.position.x + 2, rr2.position.y + 2, rr2.size.x - 4, rr2.size.y - 4), Color("#3a2412"))
+			var jdx := j
+			add_btn("pben_%d" % j, rr2, func(): _party_tap_bench(jdx))
+			draw_hero_sprite(hs2.kind, rr2.position.x + 26, rr2.position.y + rr2.size.y - 2, 0.42 if short else 0.5)
+			var col2 := Color("#ffe27a") if sel2 else Color("#2a1a10")
+			var sub2 := Color("#c8a06a") if sel2 else Color("#7a5a32")
+			text(hn2, rr2.position.x + 52, ry2 + (16 if short else 18), 15.0 if short else 17.0, col2, "left")
+			text("Lv." + str(int(hs2.level)) + "  " + hs2.cls, rr2.position.x + 52, ry2 + (34 if short else 38), 11, sub2, "left")
+	if not short:
+		text("Tap a fighter and a benched hero to swap. Arrows change order — slot 1 walks the town.", inner.get_center().x, inner.position.y + inner.size.y - 8, 10, Color("#7a5a32"))
+
+
+func _party_tap_active(i: int) -> void:
+	ensure_hero_data()
+	if party_sel >= PARTY_SIZE:
+		var bi := party_sel - PARTY_SIZE
+		swap_party_with_bench(i, bi)
+		party_sel = i
+		return
+	party_sel = i
+	sfx.tone(523, 0.04, "square", 0.025)
+
+
+func _party_tap_bench(j: int) -> void:
+	ensure_hero_data()
+	if party_sel >= 0 and party_sel < PARTY_SIZE:
+		swap_party_with_bench(party_sel, j)
+		return
+	party_sel = PARTY_SIZE + j
+	sfx.tone(523, 0.04, "square", 0.025)
+
+
+func ow_walk_rect() -> Rect2:
+	var x0 := float(OW_C0) * 64.0 + 22.0
+	var y0 := float(OW_R0) * 64.0 + 22.0
+	var x1 := float(OW_C1 + 1) * 64.0 - 22.0
+	var y1 := float(OW_R1 + 1) * 64.0 - 22.0
+	return Rect2(x0, y0, x1 - x0, y1 - y0)
+
+
+func ow_blocked_at(x: float, y: float) -> bool:
+	var wr := ow_walk_rect()
+	if x < wr.position.x or y < wr.position.y or x > wr.position.x + wr.size.x or y > wr.position.y + wr.size.y:
+		return true
+	var r := Rect2(x - 10, y - 8, 20, 16)
+	for b in OW_BLOCK:
+		if r.intersects(b):
+			return true
+	return false
+
+
+func ow_add_block(cx: float, cy: float, w: float, h: float) -> void:
+	OW_BLOCK.append(Rect2(cx - w / 2.0, cy - h * 0.65, w, h))
+
+
+func ow_add_tree(x: float, y: float, scl: float, ph: int) -> void:
+	OW_PROPS.append({"kind": "tree", "x": x, "y": y, "s": scl, "ph": ph, "fw": 192.0, "fh": 192.0, "n": 4, "ax": 96.0, "ay": 178.0, "img": "tree", "fps": 6.0})
+	ow_add_block(x, y, 22 * scl / 0.6, 16 * scl / 0.6)
+
+
+func ow_add_house(x: float, y: float, scl: float, flip := false) -> void:
+	OW_PROPS.append({"kind": "house", "x": x, "y": y, "s": scl, "ph": 0, "fw": 128.0, "fh": 192.0, "n": 1, "ax": 64.0, "ay": 171.0, "img": "ghouse", "flip": flip, "fps": 1.0})
+	ow_add_block(x, y + 2, 70 * scl, 36 * scl)
+
+
+func ow_add_tower(x: float, y: float, scl: float) -> void:
+	OW_PROPS.append({"kind": "tower", "x": x, "y": y, "s": scl, "ph": 0, "fw": 128.0, "fh": 256.0, "n": 1, "ax": 64.0, "ay": 235.0, "img": "tower", "fps": 1.0})
+	ow_add_block(x, y + 2, 48 * scl / 0.7, 30 * scl / 0.7)
+
+
+func ow_add_rock(x: float, y: float, which: String, block := true) -> void:
+	OW_PROPS.append({"kind": "rock", "x": x, "y": y, "s": 1.0, "ph": 0, "fw": 128.0, "fh": 128.0, "n": 8, "ax": 64.0, "ay": 72.0, "img": which, "fps": 7.0})
+	if block:
+		ow_add_block(x, y, 36, 22)
+
+
+func ow_add_deco(id: String, x: float, y: float, block := false) -> void:
+	OW_DECO.append([id, x, y])
+	if block:
+		ow_add_block(x, y, 22, 16)
+
+
+func build_overworld() -> void:
+	OW_BLOCK = []
+	OW_PROPS = []
+	OW_DECO = []
+	OW_SHEEP = []
+	# Houses and the lookout — a small hamlet, not a Nintendo layout.
+	ow_add_house(300, 280, 0.88)
+	ow_add_house(540, 250, 0.84, true)
+	ow_add_house(270, 470, 0.9)
+	ow_add_tower(900, 270, 0.72)
+	# Yard "fences" of stones in front of cottages and a small sheep pasture.
+	for t in [[340, 330], [372, 332], [404, 330], [500, 300], [532, 302], [564, 300], [250, 520], [282, 522], [314, 520], [250, 552], [314, 552], [220, 700], [252, 702], [284, 700], [316, 702], [348, 700], [220, 760], [348, 760], [220, 728], [348, 728]]:
+		ow_add_deco("04" if int(t[0] + t[1]) % 2 == 0 else "05", t[0], t[1], true)
+	# Border trees, with a clear east road out toward the shore.
+	var trees := [
+		[160, 180], [230, 150], [320, 145], [410, 140], [500, 138], [600, 142], [700, 148], [800, 155], [880, 160], [960, 190],
+		[150, 260], [145, 340], [148, 420], [150, 500], [155, 580], [160, 660], [200, 740], [280, 800], [360, 810], [460, 815],
+		[560, 812], [660, 800], [760, 790], [860, 770], [960, 720], [1000, 640], [1010, 360], [1000, 280], [980, 210],
+		# a few inner groves
+		[700, 620], [740, 580], [430, 700],
+	]
+	for i in trees.size():
+		var t: Array = trees[i]
+		ow_add_tree(t[0], t[1], 0.58 + (i % 3) * 0.05, i % 4)
+	# East road out: keep a 2-tile corridor around y=500-560, x=900-1040 clear of trees (already omitted). Line it with bushes.
+	for bx in [860, 900, 940, 980, 1020]:
+		ow_add_deco("08", bx, 470, false)
+		ow_add_deco("07", bx + 16, 590, false)
+	# Gardens and path dressings
+	for d in [["01", 360, 360], ["02", 390, 350], ["03", 580, 330], ["10", 450, 400], ["11", 470, 620], ["12", 320, 560], ["13", 360, 580], ["09", 620, 700], ["08", 200, 600], ["14", 780, 360], ["02", 820, 400], ["01", 760, 240], ["11", 640, 360], ["10", 480, 520]]:
+		ow_add_deco(d[0], float(d[1]), float(d[2]), false)
+	# A couple of rock piles near the shore road and the north grove
+	ow_add_rock(820, 640, "rocks1", true)
+	ow_add_rock(200, 240, "rocks3", true)
+	ow_add_rock(980, 500, "rocks1", false)
+	OW_SHEEP = [
+		{"x": 270, "y": 730, "ph": 0, "flip": false},
+		{"x": 320, "y": 748, "ph": 3, "flip": true},
+	]
+	# Start in the central plaza if new, otherwise keep a still-valid spot.
+	var start := Vector2(640, 520)
+	if not ow_ready or ow_blocked_at(ow_x, ow_y):
+		ow_x = start.x
+		ow_y = start.y
+	ow_tx = ow_x
+	ow_ty = ow_y
+	ow_anim = "idle"
+	ow_at = 0.0
+	ow_camx = ow_x
+	ow_camy = ow_y
+	ow_moving = false
+	ow_ready = true
+
+
+func ow_tap(p: Vector2) -> void:
+	var world := Vector2((p.x - VWc / 2.0) / ow_scale + ow_camx, (p.y - VHc / 2.0) / ow_scale + ow_camy)
+	# If the exact spot is blocked, walk as close as we can on the way there.
+	ow_tx = world.x
+	ow_ty = world.y
+	# Clamp destination to the walkable island, even if it's inside a building (movement will slide/stop).
+	var wr := ow_walk_rect()
+	ow_tx = clampf(ow_tx, wr.position.x, wr.position.x + wr.size.x)
+	ow_ty = clampf(ow_ty, wr.position.y, wr.position.y + wr.size.y)
+	sfx.tone(440, 0.03, "square", 0.015)
+
+
+func tick_overworld(dt: float) -> void:
+	if screen != "overworld":
+		return
+	ow_at += dt
+	var sp := 180.0 * dt / 1000.0
+	var dx: float = ow_tx - ow_x
+	var dy: float = ow_ty - ow_y
+	var dist := sqrt(dx * dx + dy * dy)
+	if dist <= sp + 0.6:
+		ow_x = ow_tx
+		ow_y = ow_ty
+		ow_moving = false
+		ow_anim = "idle"
+	else:
+		var nx: float = ow_x + dx / dist * sp
+		var ny: float = ow_y + dy / dist * sp
+		var moved := false
+		if not ow_blocked_at(nx, ny):
+			ow_x = nx
+			ow_y = ny
+			moved = true
+		elif not ow_blocked_at(nx, ow_y):
+			ow_x = nx
+			moved = true
+			# sliding: cancel the blocked axis of the destination so we don't jitter
+			if ow_blocked_at(ow_x, ow_y + (1 if dy > 0 else -1) * 2):
+				ow_ty = ow_y
+		elif not ow_blocked_at(ow_x, ny):
+			ow_y = ny
+			moved = true
+			if ow_blocked_at(ow_x + (1 if dx > 0 else -1) * 2, ow_y):
+				ow_tx = ow_x
+		else:
+			ow_tx = ow_x
+			ow_ty = ow_y
+			moved = false
+		ow_moving = moved
+		ow_anim = "run" if moved else "idle"
+		if absf(dx) > 1:
+			ow_facing = 1 if dx > 0 else -1
+	# Smooth camera, clamped to the town plus a little water.
+	var wantx := ow_x
+	var wanty := ow_y
+	ow_camx += (wantx - ow_camx) * minf(1.0, dt / 110.0)
+	ow_camy += (wanty - ow_camy) * minf(1.0, dt / 110.0)
+	var vis_w: float = VWc / maxf(0.2, ow_scale)
+	var vis_h: float = VHc / maxf(0.2, ow_scale)
+	var map_x0 := 0.0
+	var map_y0 := 0.0
+	var map_x1 := float(OW_C1 + 2) * 64.0
+	var map_y1 := float(OW_R1 + 2) * 64.0
+	var min_cx := map_x0 + vis_w / 2.0
+	var max_cx := map_x1 - vis_w / 2.0
+	var min_cy := map_y0 + vis_h / 2.0
+	var max_cy := map_y1 - vis_h / 2.0
+	if min_cx > max_cx:
+		ow_camx = (map_x0 + map_x1) / 2.0
+	else:
+		ow_camx = clampf(ow_camx, min_cx, max_cx)
+	if min_cy > max_cy:
+		ow_camy = (map_y0 + map_y1) / 2.0
+	else:
+		ow_camy = clampf(ow_camy, min_cy, max_cy)
+
+
+func draw_overworld() -> void:
+	# Water backdrop and a grass island with foam, houses, and a road out to the east.
+	draw_rect(Rect2(0, 0, VWc, VHc), Color("#47aba9"))
+	var short := VHc <= 430
+	# Fit a readable chunk of town; keep the lead easy to see on a short landscape screen.
+	var show_h := 460.0 if short else 560.0
+	var show_w := show_h * (VWc / maxf(1.0, VHc))
+	ow_scale = minf(VWc / show_w, VHc / show_h)
+	ow_scale = clampf(ow_scale, 0.7, 1.35)
+	var base := Transform2D(Vector2(dpr, 0), Vector2(0, dpr), Vector2.ZERO)
+	var cam := Transform2D(Vector2(ow_scale, 0), Vector2(0, ow_scale), Vector2(VWc / 2.0 - ow_camx * ow_scale, VHc / 2.0 - ow_camy * ow_scale))
+	set_xf(base * cam)
+	# Foam around the island
+	var ff := int(floorf(now / 110.0)) % 8
+	for r in range(OW_R0 - 1, OW_R1 + 2):
+		for c in range(OW_C0 - 1, OW_C1 + 2):
+			if r == OW_R0 - 1 or r == OW_R1 + 1 or c == OW_C0 - 1 or c == OW_C1 + 1:
+				img(IMG.foam, ((ff + c + r) % 8) * 192, 0, 192, 192, c * 64 - 64, r * 64 - 64, 192, 192)
+	# Grass tiles with island edges
+	for r in range(OW_R0, OW_R1 + 1):
+		for c in range(OW_C0, OW_C1 + 1):
+			var sx := 0 if c == OW_C0 else (2 if c == OW_C1 else 1)
+			var sy := 0 if r == OW_R0 else (2 if r == OW_R1 else 1)
+			img(IMG.flat, sx * 64, sy * 64, 64, 64, c * 64, r * 64, 64, 64)
+	# Ground decorations (mushrooms, bushes, stones) under characters
+	for d in OW_DECO:
+		var im: Texture2D = IMG["deco" + str(d[0])]
+		img(im, 0, 0, 64, 64, float(d[1]) - 32, float(d[2]) - 54, 64, 64)
+	# Destination marker
+	if ow_moving or absf(ow_tx - ow_x) + absf(ow_ty - ow_y) > 2:
+		save(); _alpha *= 0.45 + 0.2 * sin(now / 160.0)
+		stroke_ellipse(ow_tx, ow_ty - 2, 12, 6, Color("#ffe27a"), 2)
+		restore()
+	# Y-sort props, sheep, and the lead
+	var list := []
+	for p in OW_PROPS:
+		list.append([float(p.y), 0, p])
+	for sh in OW_SHEEP:
+		list.append([float(sh.y), 1, sh])
+	list.append([ow_y, 2, {}])
+	list.sort_custom(func(a, b): return a[0] < b[0])
+	for o in list:
+		if o[1] == 0:
+			var p: Dictionary = o[2]
+			var fr: int = 0
+			if int(p.n) > 1:
+				fr = (int(floorf(now / (1000.0 / float(p.get("fps", 6.0))))) + int(p.ph)) % int(p.n)
+			draw_frame(IMG[p.img], p.fw, p.fh, fr, 0, p.x, p.y, p.ax, p.ay, p.s, p.get("flip", false))
+		elif o[1] == 1:
+			var sh: Dictionary = o[2]
+			var sfr := (int(floorf(now / 125.0)) + int(sh.ph)) % 8
+			draw_frame(IMG.sheep, 128, 128, sfr, 0, sh.x, sh.y, 64, 86, 0.62, sh.flip)
+		else:
+			_draw_ow_lead()
+	set_xf(base)
+	# UI
+	var bh := 42.0 if short else 48.0
+	ui_button("ow_back", Rect2(10, 8, 118.0 if short else 130.0, bh), "BACK", true, 16, 28, func(): to_title())
+	ribbon(IMG.ribbonYellow, VWc / 2, 8, TOWN_NAME, 18.0 if short else 22.0, bh, minf(260, VWc * 0.42), 40, bh - 10)
+	var lead := lead_name()
+	var st := compute_hero_stats(lead)
+	text(lead + "  ·  Lv." + str(int(st.level)) + "  " + st.cls, VWc - 12, 8 + bh * 0.5, 12.0 if short else 14.0, Color.WHITE, "right", 3, Color(0, 0, 0, 0.75))
+	var hint := "Tap the ground to walk" if short else "Tap a spot to walk there  ·  the lead of your fighting five explores"
+	outlined(hint, VWc / 2, VHc - (14 if short else 18), 12.0 if short else 14.0, Color.WHITE)
+
+
+func _draw_ow_lead() -> void:
+	var name := lead_name()
+	var st := compute_hero_stats(name)
+	var kind: String = st.kind
+	if not KINDS.has(kind):
+		kind = "warrior"
+	var K: Dictionary = KINDS[kind]
+	var anim: Dictionary = K.run if ow_anim == "run" else K.idle
+	var fr := int(floorf(ow_at * float(anim.fps) / 1000.0)) % int(anim.n)
+	var scl: float = float(K.f.s) * 0.95
+	draw_frame(IMG[K.img], K.f.fw, K.f.fh, fr, anim.r, ow_x, ow_y, K.f.ax, K.f.ay, scl, ow_facing < 0)
+	# Soft name tag so the lead stays readable
+	text(name, ow_x, ow_y - K.head * scl - 8, 11, Color("#d6f1ff"), "center", 3, Color(0, 0, 0, 0.75))
+
+
 func draw_title() -> void:
 	draw_rect(Rect2(0, 0, VWc, VHc), Color(10 / 255.0, 25 / 255.0, 28 / 255.0, 0.5))
 	var short := VHc <= 430
 	var vw := VWc
-	var L := clampf3(40, VHc * 0.11, 80) if short else clampf3(46, vw * 0.135, 108)
-	var rib_h := 38.0 if short else 44.0
-	var tag_fs := clampf3(15, vw * 0.044, 22)
-	var side_fs := clampf3(14, vw * 0.038, 19)
-	var mtop := 8.0 if short else clampf3(10, VHc * 0.03, 22)
-	var mbot := 8.0 if short else clampf3(10, VHc * 0.03, 20)
-	var bh := 56.0 if short else 70.0
-	var bfs := 16.0 if short else clampf3(16, vw * 0.044, 22)
-	var row_w := minf(560, vw * 0.94)
-	var specs := [["raid3", "6v3 RAID", false, minf(160, vw * 0.44), 3], ["raid2", "6v2 ELITE", false, minf(160, vw * 0.44), 2], ["raid1", "6v1 BOSS", true, minf(200, vw * 0.7), 1]]
+	var L := clampf3(32, VHc * 0.09, 64) if short else clampf3(46, vw * 0.135, 108)
+	var rib_h := 32.0 if short else 44.0
+	var tag_fs := clampf3(14, vw * 0.04, 22)
+	var side_fs := clampf3(13, vw * 0.036, 19)
+	var mtop := 4.0 if short else clampf3(10, VHc * 0.03, 22)
+	var mbot := 4.0 if short else clampf3(10, VHc * 0.03, 20)
+	var bh := 48.0 if short else 64.0
+	var mbh := 44.0 if short else 56.0
+	var bfs := 15.0 if short else clampf3(16, vw * 0.042, 22)
+	var mfs := 13.0 if short else clampf3(14, vw * 0.036, 18)
+	var row_w := minf(720, vw * 0.94)
+	var specs := [["raid3", "6v3 RAID", false, minf(150, vw * 0.4), 3], ["raid2", "6v2 ELITE", false, minf(150, vw * 0.4), 2], ["raid1", "6v1 BOSS", true, minf(180, vw * 0.6), 1]]
 	var rows := []
 	var cur := []
 	var cw := 0.0
 	for sp in specs:
-		var bw := maxf(sp[3], text_w(sp[1], bfs) + 80 + 4)
+		var bw := maxf(sp[3], text_w(sp[1], bfs) + 70 + 4)
 		if cur.size() > 0 and cw + 10 + bw > row_w:
 			rows.append([cur, cw]); cur = []; cw = 0.0
 		cw += (10.0 if cur.size() > 0 else 0.0) + bw
 		cur.append([sp, bw])
 	rows.append([cur, cw])
-	var hint_fs := clampf3(13, vw * 0.036, 16)
+	var menus := [
+		["chars", "CHARACTERS", func(): open_chars()],
+		["inv", "INVENTORY", func(): open_inv()],
+		["party", "PARTY", func(): open_party()],
+		["ow", "OVERWORLD", func(): open_overworld()],
+	]
+	# One row of four when they fit; two rows of two on a short/narrow screen.
+	var menu_gap := 8.0
+	var menu_minw := 108.0 if short else 130.0
+	var four_w := 4.0 * menu_minw + 3.0 * menu_gap
+	var menu_one_row := (not short and vw * 0.94 >= four_w) or (short and vw >= 700)
+	var menu_rows := 1 if menu_one_row else 2
+	var hint_fs := clampf3(12, vw * 0.034, 16)
 	var hint_lines := []
 	if not short:
-		for para in ["Open Characters to swap subclass, then pick a raid. Hits that land together COMBO."]:
+		for para in ["Characters swap subclass. Inventory equips gear. Party sets the fighting five and the lead. Overworld walks Rivenbrook. Hits that land together COMBO."]:
 			hint_lines += wrap_words(para, hint_fs, vw - 24)
-	var ch_w := minf(280.0, vw * 0.62)
-	var total := L + 10 + rib_h + mtop + rib_h + mbot + bh + 10 + rows.size() * bh + (rows.size() - 1) * 10 + 2
-	if hint_lines.size() > 0: total += 12 + hint_lines.size() * hint_fs * 1.2
-	var y := maxf(12, (VHc - total) / 2 - (10.0 if USE_NECRO else 0.0))
+	var show_tag := not short
+	var menu_h := menu_rows * mbh + (menu_rows - 1) * 8
+	var total := L + 8 + (rib_h + mtop if show_tag else 0.0) + rib_h + mbot + menu_h + 8 + rows.size() * bh + (rows.size() - 1) * 8 + 2
+	if hint_lines.size() > 0: total += 10 + hint_lines.size() * hint_fs * 1.2
+	var y := maxf(8, (VHc - total) / 2 - (8.0 if USE_NECRO else 0.0))
 	var cx := VWc / 2
 	# logo with layered text-shadow and bob
 	var bob := -3.0 + 3.0 * cos(now / 2400.0 * TAU)
@@ -1669,12 +2570,13 @@ func draw_title() -> void:
 	text(logo, cx, ly + L * 0.09, L, Color("#4a2a14"), "center", L * 0.06, Color("#4a2a14"))
 	text(logo, cx, ly + L * 0.05, L, Color("#b5641f"), "center", L * 0.06, Color("#2b1a10"))
 	text(logo, cx, ly, L, Color("#ffe27a"), "center", L * 0.06, Color("#2b1a10"))
-	y += L + 10
-	ribbon(IMG.ribbonYellow, cx, y, "Turn-based rift brawl", tag_fs, rib_h, minf(340, vw * 0.8), 40, rib_h - 8)
-	y += rib_h + mtop
-	var vs_fs := clampf3(22, vw * 0.06, 34)
-	var lw := text_w("Airron's Squad", side_fs) + 80
-	var rw := text_w("Pick a raid", side_fs) + 80
+	y += L + 8
+	if show_tag:
+		ribbon(IMG.ribbonYellow, cx, y, "Turn-based rift brawl", tag_fs, rib_h, minf(340, vw * 0.8), 40, rib_h - 8)
+		y += rib_h + mtop
+	var vs_fs := clampf3(18, vw * 0.05, 34)
+	var lw := text_w("Airron's Squad", side_fs) + 70
+	var rw := text_w("Pick a raid", side_fs) + 70
 	var vsw := text_w("VS", vs_fs)
 	var x0 := cx - (lw + rw + vsw + 20) / 2
 	ribbon(IMG.ribbonBlue, x0 + lw / 2, y, "Airron's Squad", side_fs, rib_h, 0, 40, rib_h - 8)
@@ -1682,8 +2584,25 @@ func draw_title() -> void:
 	text("VS", x0 + lw + 10 + vsw / 2, y + rib_h / 2, vs_fs, Color.WHITE, "center", 4, Color.BLACK)
 	ribbon(IMG.ribbonRed, x0 + lw + 20 + vsw + rw / 2, y, "Pick a raid", side_fs, rib_h, 0, 40, rib_h - 8)
 	y += rib_h + mbot + 2
-	ui_button("chars", Rect2(cx - ch_w / 2, y, ch_w, bh), "CHARACTERS", false, bfs, 40, func(): open_chars())
-	y += bh + 10
+	# Menu buttons: Characters, Inventory, Party, Overworld
+	var menu_w: float = minf(row_w, vw * 0.94)
+	if menu_one_row:
+		var bw4: float = (menu_w - 3 * menu_gap) / 4.0
+		var mx: float = cx - menu_w / 2
+		for mi in menus.size():
+			var m: Array = menus[mi]
+			ui_button(m[0], Rect2(mx, y, bw4, mbh), m[1], false, mfs, 22, m[2])
+			mx += bw4 + menu_gap
+		y += mbh + 8
+	else:
+		var bw2: float = (minf(menu_w, 520) - menu_gap) / 2.0
+		for r in 2:
+			var mx2: float = cx - (bw2 * 2 + menu_gap) / 2
+			for c in 2:
+				var m2: Array = menus[r * 2 + c]
+				ui_button(m2[0], Rect2(mx2, y, bw2, mbh), m2[1], false, mfs, 22, m2[2])
+				mx2 += bw2 + menu_gap
+			y += mbh + 8
 	for row in rows:
 		var bx: float = cx - row[1] / 2
 		for it in row[0]:
@@ -1853,6 +2772,9 @@ func _draw() -> void:
 	var base := Transform2D(Vector2(dpr, 0), Vector2(0, dpr), Vector2.ZERO)
 	_stack.clear(); _alpha = 1.0
 	set_xf(base)
+	if screen == "overworld":
+		draw_overworld()
+		return
 	draw_rect(Rect2(0, 0, VWc, VHc), Color("#47aba9"))
 	set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
 	save()
@@ -1886,6 +2808,8 @@ func _draw() -> void:
 	draw_hud(); draw_banner()
 	if screen == "title": draw_title()
 	elif screen == "chars": draw_chars()
+	elif screen == "inv": draw_inv()
+	elif screen == "party": draw_party()
 	elif screen == "results": draw_results()
 	elif phase == "battle" or phase == "ending": draw_battle_ui()
 
@@ -1924,16 +2848,44 @@ func show_results() -> void:
 	var N := Color("#3a2412")
 	var B := Color("#1c4f8a")
 	var RR := Color("#9e2c2c")
+	var win: bool = r == "win"
+	var xp_full := raid_xp_award(G.n_red, win) if r != "draw" else raid_xp_award(G.n_red, false)
+	if r == "draw":
+		xp_full = raid_xp_award(G.n_red, false)
+	var ups: Array = []
+	# Fighters get full XP; bench gets half on a win, none on a loss or draw.
+	for name in party_names():
+		var g := grant_hero_xp(name, xp_full)
+		if g > 0:
+			ups.append(name + " Lv." + str(hero_level(name)))
+	if win:
+		for name in bench_names():
+			var half := int(roundf(float(xp_full) * 0.5))
+			var g2 := grant_hero_xp(name, half)
+			if g2 > 0:
+				ups.append(name + " Lv." + str(hero_level(name)))
+	save_cfg()
+	var xp_line := [["XP: ", N], ["+%d" % xp_full, B], [" each fighter", N]]
+	if win and bench_names().size() > 0:
+		xp_line += [[" · bench +%d" % int(roundf(float(xp_full) * 0.5)), N]]
+	var up_line := []
+	if ups.size() > 0:
+		up_line = [["Level up: ", N], [", ".join(ups), B]]
+	else:
+		up_line = [["No level ups this fight.", N]]
+	var lines_out := [
+		[["Turns: ", N], [str(G.turn), B], [" · Mode: ", N], [raid_name, RR]],
+		[["Standing: ", N], ["%d/%d" % [b_alive, party_names().size()], B], [" · ", N], ["%d/%d" % [r_alive, G.n_red], RR]],
+		[["Damage: ", N], [fmt_n(bd), B], [" vs ", N], [fmt_n(rd), RR]],
+		[["MVP: ", N], [mvp.name, RR if mvp.team == "red" else B], [" the " + role + " — " + fmt_n(mvp.dmg) + " dmg, " + str(mvp.kos) + " KO" + ("" if mvp.kos == 1 else "s"), N]],
+		xp_line,
+		up_line,
+	]
 	res = {
 		"result": r, "n_red": G.n_red,
 		"title": "VICTORY" if r == "win" else ("DEFEAT" if r == "lose" else "DRAW"),
 		"sub": "The squad holds the rift!" if r == "win" else ("The rift was overrun…" if r == "lose" else "Nobody left standing!"),
-		"lines": [
-			[["Turns: ", N], [str(G.turn), B], [" · Mode: ", N], [raid_name, RR]],
-			[["Standing: ", N], ["%d/6" % b_alive, B], [" · ", N], ["%d/%d" % [r_alive, G.n_red], RR]],
-			[["Damage: ", N], [fmt_n(bd), B], [" vs ", N], [fmt_n(rd), RR]],
-			[["MVP: ", N], [mvp.name, RR if mvp.team == "red" else B], [" the " + role + " — " + fmt_n(mvp.dmg) + " dmg, " + str(mvp.kos) + " KO" + ("" if mvp.kos == 1 else "s"), N]],
-		],
+		"lines": lines_out,
 	}
 	results_t = 0.0
 	screen = "results"
@@ -1983,6 +2935,9 @@ func on_press(p: Vector2) -> void:
 		pressed_id = b.id
 		return
 	pressed_id = ""
+	if screen == "overworld":
+		ow_tap(p)
+		return
 	canvas_tap(p.x, p.y)
 
 func on_release(p: Vector2) -> void:
@@ -2012,19 +2967,32 @@ func canvas_tap(cx: float, cy: float) -> void:
 	if best != null: toggle_queue(best)
 
 func on_key(k: int) -> void:
-	if screen == "chars":
+	if screen == "chars" or screen == "inv" or screen == "party" or screen == "overworld":
 		if k == KEY_ESCAPE or k == KEY_P:
 			to_title()
-		elif k == KEY_LEFT:
+			return
+		if screen == "overworld":
+			return
+		if k == KEY_LEFT and screen == "chars":
 			cycle_sub(-1)
-		elif k == KEY_RIGHT:
+		elif k == KEY_RIGHT and screen == "chars":
 			cycle_sub(1)
 		elif k == KEY_UP:
-			select_hero((char_sel - 1 + HERO_NAMES.size()) % HERO_NAMES.size())
+			if screen == "party":
+				party_sel = (party_sel - 1 + SQUAD.size()) % SQUAD.size()
+			else:
+				select_hero((char_sel - 1 + HERO_NAMES.size()) % HERO_NAMES.size())
 		elif k == KEY_DOWN:
-			select_hero((char_sel + 1) % HERO_NAMES.size())
+			if screen == "party":
+				party_sel = (party_sel + 1) % SQUAD.size()
+			else:
+				select_hero((char_sel + 1) % HERO_NAMES.size())
 		elif k >= KEY_1 and k <= KEY_6:
-			select_hero(k - KEY_1)
+			if screen == "party":
+				party_sel = k - KEY_1
+			else:
+				select_hero(k - KEY_1)
+		# Space / Enter must not start a fight from these menus.
 		return
 	if k == KEY_SPACE or k == KEY_ENTER or k == KEY_KP_ENTER:
 		if phase == "title" or phase == "results": start_fight(last_raid)
@@ -2076,7 +3044,8 @@ func _process(delta: float) -> void:
 			var s := minf(total, 17.0)
 			step(s); total -= s
 	if screen == "results": results_t += dt
-	if screen == "chars": tick_char_ui(dt)
+	if screen == "chars" or screen == "inv": tick_char_ui(dt)
+	if screen == "overworld": tick_overworld(dt)
 	queue_redraw()
 
 # ---------------------------------------------------------------- headless test hooks (desktop only)
