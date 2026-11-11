@@ -190,134 +190,134 @@ var HERO_MP: Dictionary = {} # hero name -> MP carried between fights (saved)
 # Rows: [id, name, blurb, kind, params]. Unlock level comes from the row position.
 var AB_CLASS_ROWS := {
 	"Airron": [
-		["rift_cut", "Rift Cut", "A sharp opening strike that tears a seam in the air.", "damage_single", {"mult": 2.4}],
-		["seam_ward", "Seam Ward", "Folds the rift around himself to blunt incoming blows.", "buff_self", {"buffs": [["def", 20], ["armor", 6]], "turns": 2}],
-		["riftbrand_slash", "Riftbrand Slash", "A heavy cut that also strips the target's armor.", "damage_single", {"mult": 3.2, "debuff": [["armor", -6]], "dturns": 2}],
-		["rending_arc", "Rending Arc", "A wide rift arc that catches every enemy.", "damage_all_enemies", {"mult": 1.6}],
-		["knights_oath", "Knight's Oath", "Swears to the squad. The whole party gains Defense.", "buff_party", {"buffs": [["def", 15]], "turns": 2}],
-		["rift_lunge", "Rift Lunge", "Steps through the rift for a crushing single blow.", "damage_single", {"mult": 4.2}],
-		["sundering_wave", "Sundering Wave", "A wave of torn space hits all foes and cracks their guard.", "damage_all_enemies", {"mult": 2.2, "debuff": [["def", -15]], "dturns": 2}],
-		["bulwark_rally", "Bulwark Rally", "Rallies the line: party gains Armor and ATK.", "buff_party", {"buffs": [["armor", 8], ["atk", 10]], "turns": 2}],
-		["fault_line", "Fault Line", "Splits the ground under every enemy.", "damage_all_enemies", {"mult": 2.8}],
-		["worldsplitter", "Worldsplitter", "Capstone. Cleaves the rift itself — a massive hit on every foe.", "damage_all_enemies", {"mult": 3.4, "self_buff": [["atk", 15]], "sturns": 2}],
+		["rift_cut", "Rift Cut", "A sharp opening strike that tears a seam in the air.", "damage_single", {"mult": 2.9}],
+		["seam_ward", "Seam Ward", "Folds the rift around himself to blunt incoming blows.", "buff_self", {"buffs": [["def", 30], ["armor", 9]], "turns": 2}],
+		["riftbrand_slash", "Riftbrand Slash", "A heavy cut that also strips the target's armor.", "damage_single", {"mult": 3.8, "debuff": [["armor", -6]], "dturns": 2}],
+		["rending_arc", "Rending Arc", "A wide rift arc that catches every enemy.", "damage_all_enemies", {"mult": 1.8}],
+		["knights_oath", "Knight's Oath", "Swears to the squad. The whole party gains Defense.", "buff_party", {"buffs": [["def", 22]], "turns": 2}],
+		["rift_lunge", "Rift Lunge", "Steps through the rift for a crushing single blow.", "damage_single", {"mult": 5.0}],
+		["sundering_wave", "Sundering Wave", "A wave of torn space hits all foes and cracks their guard.", "damage_all_enemies", {"mult": 2.5, "debuff": [["def", -15]], "dturns": 2}],
+		["bulwark_rally", "Bulwark Rally", "Rallies the line: party gains Armor and ATK.", "buff_party", {"buffs": [["armor", 12], ["atk", 15]], "turns": 2}],
+		["fault_line", "Fault Line", "Splits the ground under every enemy.", "damage_all_enemies", {"mult": 3.2}],
+		["worldsplitter", "Worldsplitter", "Capstone. Cleaves the rift itself — a massive hit on every foe.", "damage_all_enemies", {"mult": 3.9, "self_buff": [["atk", 22]], "sturns": 2}],
 	],
 	"Christian": [
-		["holy_strike", "Holy Strike", "A consecrated swing that lands in a flash of holy light.", "damage_single", {"mult": 2.4}],
+		["holy_strike", "Holy Strike", "A consecrated swing that lands in a flash of holy light.", "damage_single", {"mult": 2.9}],
 		["lay_on_hands", "Lay on Hands", "Lays a healing hand on one ally, mending a large amount of damage.", "heal_single", {"pct": 0.40}],
-		["aegis_of_light", "Aegis of Light", "Raises a shield of light: Defense and Armor up.", "buff_self", {"buffs": [["def", 20], ["armor", 8]], "turns": 2}],
-		["consecrate", "Consecrate", "Blesses the ground and burns every enemy on it.", "damage_all_enemies", {"mult": 1.6}],
-		["devotion_aura", "Devotion Aura", "Faith steadies the whole line: party Defense up.", "buff_party", {"buffs": [["def", 15]], "turns": 2}],
-		["judgment", "Judgment", "Judges one foe: a heavy hit that lowers its ATK.", "damage_single", {"mult": 4.0, "debuff": [["atk", -15]], "dturns": 2}],
+		["aegis_of_light", "Aegis of Light", "Raises a shield of light: Defense and Armor up.", "buff_self", {"buffs": [["def", 30], ["armor", 12]], "turns": 2}],
+		["consecrate", "Consecrate", "Blesses the ground and burns every enemy on it.", "damage_all_enemies", {"mult": 1.8}],
+		["devotion_aura", "Devotion Aura", "Faith steadies the whole line: party Defense up.", "buff_party", {"buffs": [["def", 22]], "turns": 2}],
+		["judgment", "Judgment", "Judges one foe: a heavy hit that lowers its ATK.", "damage_single", {"mult": 4.8, "debuff": [["atk", -15]], "dturns": 2}],
 		["healing_light", "Healing Light", "Light washes over the squad, healing everyone.", "heal_party", {"pct": 0.25}],
-		["crusader_charge", "Crusader Charge", "Charges the enemy line and rallies the party (ATK up).", "damage_all_enemies", {"mult": 2.4, "party_buff": [["atk", 10]], "pturns": 2}],
-		["divine_shield", "Divine Shield", "Shields the whole party: big Defense and Armor for three turns.", "buff_party", {"buffs": [["def", 25], ["armor", 10]], "turns": 3}],
-		["radiant_dawn", "Radiant Dawn", "Capstone. A holy dawn floods the party with a large heal and makes it hard to break.", "heal_party", {"pct": 0.50, "party_buff": [["def", 15], ["armor", 8]], "pturns": 3}],
+		["crusader_charge", "Crusader Charge", "Charges the enemy line and rallies the party (ATK up).", "damage_all_enemies", {"mult": 2.8, "party_buff": [["atk", 15]], "pturns": 2}],
+		["divine_shield", "Divine Shield", "Shields the whole party: big Defense and Armor for three turns.", "buff_party", {"buffs": [["def", 38], ["armor", 15]], "turns": 3}],
+		["radiant_dawn", "Radiant Dawn", "Capstone. A holy dawn floods the party with a large heal and makes it hard to break.", "heal_party", {"pct": 0.50, "party_buff": [["def", 22], ["armor", 12]], "pturns": 3}],
 	],
 	"Weston": [
-		["quick_mark", "Quick Mark", "Finds the opening first: hits and marks the target (DEF down).", "damage_single", {"mult": 2.0, "debuff": [["def", -15]], "dturns": 2}],
-		["fleet_foot", "Fleet Foot", "Light on his feet: Speed and Crit up.", "buff_self", {"buffs": [["speed", 12], ["crit", 10]], "turns": 2}],
-		["twin_shot", "Twin Shot", "Two arrows nocked as one — a strong single shot.", "damage_single", {"mult": 3.0}],
-		["volley", "Volley", "Arrows over the whole enemy line.", "damage_all_enemies", {"mult": 1.6}],
-		["hunters_call", "Hunter's Call", "Calls the hunt: party Crit up.", "buff_party", {"buffs": [["crit", 10]], "turns": 2}],
-		["pinning_shot", "Pinning Shot", "Pins one foe hard and slows it.", "damage_single", {"mult": 3.8, "debuff": [["speed", -15]], "dturns": 2}],
-		["arrow_rain", "Arrow Rain", "A heavy rain of arrows on every enemy.", "damage_all_enemies", {"mult": 2.2}],
-		["trailwise", "Trailwise", "Leads the party: Speed and ATK up.", "buff_party", {"buffs": [["speed", 12], ["atk", 8]], "turns": 2}],
-		["storm_of_arrows", "Storm of Arrows", "A storm of shafts batters all foes.", "damage_all_enemies", {"mult": 2.8}],
-		["skyfall_volley", "Skyfall Volley", "Capstone. The sky falls on every enemy and opens their guard.", "damage_all_enemies", {"mult": 3.4, "debuff": [["def", -15]], "dturns": 2}],
+		["quick_mark", "Quick Mark", "Finds the opening first: hits and marks the target (DEF down).", "damage_single", {"mult": 2.4, "debuff": [["def", -15]], "dturns": 2}],
+		["fleet_foot", "Fleet Foot", "Light on his feet: Speed and Crit up.", "buff_self", {"buffs": [["speed", 18], ["crit", 15]], "turns": 2}],
+		["twin_shot", "Twin Shot", "Two arrows nocked as one — a strong single shot.", "damage_single", {"mult": 3.6}],
+		["volley", "Volley", "Arrows over the whole enemy line.", "damage_all_enemies", {"mult": 1.8}],
+		["hunters_call", "Hunter's Call", "Calls the hunt: party Crit up.", "buff_party", {"buffs": [["crit", 15]], "turns": 2}],
+		["pinning_shot", "Pinning Shot", "Pins one foe hard and slows it.", "damage_single", {"mult": 4.6, "debuff": [["speed", -15]], "dturns": 2}],
+		["arrow_rain", "Arrow Rain", "A heavy rain of arrows on every enemy.", "damage_all_enemies", {"mult": 2.5}],
+		["trailwise", "Trailwise", "Leads the party: Speed and ATK up.", "buff_party", {"buffs": [["speed", 18], ["atk", 12]], "turns": 2}],
+		["storm_of_arrows", "Storm of Arrows", "A storm of shafts batters all foes.", "damage_all_enemies", {"mult": 3.2}],
+		["skyfall_volley", "Skyfall Volley", "Capstone. The sky falls on every enemy and opens their guard.", "damage_all_enemies", {"mult": 3.9, "debuff": [["def", -15]], "dturns": 2}],
 	],
 	"Wiesen": [
-		["piercing_shot", "Piercing Shot", "A precise, punching arrow that pierces armor.", "damage_single", {"mult": 2.6, "debuff": [["armor", -6]], "dturns": 2}],
-		["steady_aim", "Steady Aim", "Breathes out and lines up: ATK and Crit up.", "buff_self", {"buffs": [["atk", 15], ["crit", 10]], "turns": 2}],
-		["headshot", "Headshot", "A clean shot at one target's weak spot.", "damage_single", {"mult": 3.4}],
-		["ricochet", "Ricochet", "One arrow skips off every enemy.", "damage_all_enemies", {"mult": 1.6}],
-		["spotters_eye", "Spotter's Eye", "Calls out openings: party Crit up.", "buff_party", {"buffs": [["crit", 12]], "turns": 2}],
-		["armor_piercer", "Armor Piercer", "A heavy bolt that shreds armor for three turns.", "damage_single", {"mult": 4.0, "debuff": [["armor", -12]], "dturns": 3}],
-		["suppressing_fire", "Suppressing Fire", "Pins down all enemies and weakens their ATK.", "damage_all_enemies", {"mult": 2.0, "debuff": [["atk", -12]], "dturns": 2}],
-		["deadeye_focus", "Deadeye Focus", "Total focus: huge ATK and Crit.", "buff_self", {"buffs": [["atk", 30], ["crit", 15]], "turns": 2}],
-		["longshot", "Longshot", "A shot from impossible range at one foe.", "damage_single", {"mult": 5.2}],
-		["one_clean_shot", "One Clean Shot", "Capstone. The perfect shot — enormous single-target damage.", "damage_single", {"mult": 7.0}],
+		["piercing_shot", "Piercing Shot", "A precise, punching arrow that pierces armor.", "damage_single", {"mult": 3.1, "debuff": [["armor", -6]], "dturns": 2}],
+		["steady_aim", "Steady Aim", "Breathes out and lines up: ATK and Crit up.", "buff_self", {"buffs": [["atk", 22], ["crit", 15]], "turns": 2}],
+		["headshot", "Headshot", "A clean shot at one target's weak spot.", "damage_single", {"mult": 4.1}],
+		["ricochet", "Ricochet", "One arrow skips off every enemy.", "damage_all_enemies", {"mult": 1.8}],
+		["spotters_eye", "Spotter's Eye", "Calls out openings: party Crit up.", "buff_party", {"buffs": [["crit", 18]], "turns": 2}],
+		["armor_piercer", "Armor Piercer", "A heavy bolt that shreds armor for three turns.", "damage_single", {"mult": 4.8, "debuff": [["armor", -12]], "dturns": 3}],
+		["suppressing_fire", "Suppressing Fire", "Pins down all enemies and weakens their ATK.", "damage_all_enemies", {"mult": 2.3, "debuff": [["atk", -12]], "dturns": 2}],
+		["deadeye_focus", "Deadeye Focus", "Total focus: huge ATK and Crit.", "buff_self", {"buffs": [["atk", 45], ["crit", 22]], "turns": 2}],
+		["longshot", "Longshot", "A shot from impossible range at one foe.", "damage_single", {"mult": 6.2}],
+		["one_clean_shot", "One Clean Shot", "Capstone. The perfect shot — enormous single-target damage.", "damage_single", {"mult": 8.4}],
 	],
 	"Lanning": [
-		["iron_wall", "Iron Wall", "Braces and soaks the hit: big Defense and Armor.", "buff_self", {"buffs": [["def", 25], ["armor", 8]], "turns": 2}],
-		["shield_bash", "Shield Bash", "Bashes one foe and dulls its ATK.", "damage_single", {"mult": 2.2, "debuff": [["atk", -12]], "dturns": 2}],
-		["bastion", "Bastion", "Becomes a wall for everyone: party Armor up.", "buff_party", {"buffs": [["armor", 6]], "turns": 2}],
-		["rallying_stand", "Rallying Stand", "Steadies the line, healing the whole party a little.", "heal_party", {"pct": 0.12}],
-		["stone_skin", "Stone Skin", "Skin like stone: Armor and Defense for three turns.", "buff_self", {"buffs": [["armor", 16], ["def", 20]], "turns": 3}],
-		["ground_slam", "Ground Slam", "Slams the ground, hitting all foes and slowing them.", "damage_all_enemies", {"mult": 1.8, "debuff": [["speed", -12]], "dturns": 2}],
-		["aegis_line", "Aegis Line", "Raises a shield line: party Defense and Armor up.", "buff_party", {"buffs": [["def", 20], ["armor", 6]], "turns": 2}],
+		["iron_wall", "Iron Wall", "Braces and soaks the hit: big Defense and Armor.", "buff_self", {"buffs": [["def", 38], ["armor", 12]], "turns": 2}],
+		["shield_bash", "Shield Bash", "Bashes one foe and dulls its ATK.", "damage_single", {"mult": 2.6, "debuff": [["atk", -12]], "dturns": 2}],
+		["bastion", "Bastion", "Becomes a wall for everyone: party Armor up.", "buff_party", {"buffs": [["armor", 9]], "turns": 2}],
+		["rallying_stand", "Rallying Stand", "Steadies the line, healing the whole party a little.", "heal_party", {"pct": 0.20}],
+		["stone_skin", "Stone Skin", "Skin like stone: Armor and Defense for three turns.", "buff_self", {"buffs": [["armor", 24], ["def", 30]], "turns": 3}],
+		["ground_slam", "Ground Slam", "Slams the ground, hitting all foes and slowing them.", "damage_all_enemies", {"mult": 2.1, "debuff": [["speed", -12]], "dturns": 2}],
+		["aegis_line", "Aegis Line", "Raises a shield line: party Defense and Armor up.", "buff_party", {"buffs": [["def", 30], ["armor", 9]], "turns": 2}],
 		["second_wind", "Second Wind", "Pulls the weakest ally back up with a large heal.", "heal_single", {"pct": 0.45}],
-		["fortress", "Fortress", "The party becomes a fortress for three turns.", "buff_party", {"buffs": [["def", 25], ["armor", 10]], "turns": 3}],
+		["fortress", "Fortress", "The party becomes a fortress for three turns.", "buff_party", {"buffs": [["def", 38], ["armor", 15]], "turns": 3}],
 		["unbreakable", "Unbreakable", "Capstone. Heals the party and makes it nearly unbreakable.", "heal_party", {"pct": 0.30, "party_buff": [["armor", 12], ["def", 20]], "pturns": 3}],
 	],
 	"Rico": [
-		["raid_step", "Raid Step", "Hits and shifts off the line, gaining Speed.", "damage_single", {"mult": 2.4, "self_buff": [["speed", 10]], "sturns": 2}],
-		["hit_and_run", "Hit and Run", "Strikes and slips away, guarding himself.", "damage_single", {"mult": 2.8, "self_buff": [["def", 12]], "sturns": 1}],
-		["plunder_strike", "Plunder Strike", "Steals the fight from one foe, lowering its ATK.", "damage_single", {"mult": 3.2, "debuff": [["atk", -10]], "dturns": 2}],
-		["whirling_raid", "Whirling Raid", "Spins through the whole enemy line.", "damage_all_enemies", {"mult": 1.8}],
-		["war_drums", "War Drums", "Beats the drums: party Speed up.", "buff_party", {"buffs": [["speed", 12]], "turns": 2}],
-		["flank_rush", "Flank Rush", "Rushes the flank for a big hit, then Speed and Crit up.", "damage_single", {"mult": 4.2, "self_buff": [["speed", 12], ["crit", 10]], "sturns": 2}],
-		["reavers_sweep", "Reaver's Sweep", "A reckless sweep across every enemy.", "damage_all_enemies", {"mult": 2.4}],
-		["bloodrush", "Bloodrush", "All-in aggression: huge ATK and Speed.", "buff_self", {"buffs": [["atk", 30], ["speed", 15]], "turns": 2}],
-		["raiders_storm", "Raider's Storm", "Storms all foes and keeps the momentum (ATK up).", "damage_all_enemies", {"mult": 3.0, "self_buff": [["atk", 15]], "sturns": 2}],
-		["warpath", "Warpath", "Capstone. Tears through every foe and drives the party forward.", "damage_all_enemies", {"mult": 3.6, "party_buff": [["speed", 12], ["atk", 10]], "pturns": 2}],
+		["raid_step", "Raid Step", "Hits and shifts off the line, gaining Speed.", "damage_single", {"mult": 2.9, "self_buff": [["speed", 15]], "sturns": 2}],
+		["hit_and_run", "Hit and Run", "Strikes and slips away, guarding himself.", "damage_single", {"mult": 3.4, "self_buff": [["def", 18]], "sturns": 1}],
+		["plunder_strike", "Plunder Strike", "Steals the fight from one foe, lowering its ATK.", "damage_single", {"mult": 3.8, "debuff": [["atk", -10]], "dturns": 2}],
+		["whirling_raid", "Whirling Raid", "Spins through the whole enemy line.", "damage_all_enemies", {"mult": 2.1}],
+		["war_drums", "War Drums", "Beats the drums: party Speed up.", "buff_party", {"buffs": [["speed", 18]], "turns": 2}],
+		["flank_rush", "Flank Rush", "Rushes the flank for a big hit, then Speed and Crit up.", "damage_single", {"mult": 5.0, "self_buff": [["speed", 18], ["crit", 15]], "sturns": 2}],
+		["reavers_sweep", "Reaver's Sweep", "A reckless sweep across every enemy.", "damage_all_enemies", {"mult": 2.8}],
+		["bloodrush", "Bloodrush", "All-in aggression: huge ATK and Speed.", "buff_self", {"buffs": [["atk", 45], ["speed", 22]], "turns": 2}],
+		["raiders_storm", "Raider's Storm", "Storms all foes and keeps the momentum (ATK up).", "damage_all_enemies", {"mult": 3.5, "self_buff": [["atk", 22]], "sturns": 2}],
+		["warpath", "Warpath", "Capstone. Tears through every foe and drives the party forward.", "damage_all_enemies", {"mult": 4.1, "party_buff": [["speed", 18], ["atk", 15]], "pturns": 2}],
 	],
 }
 var AB_SUB_ROWS := {
 	"Riftblade": [
-		["rift_edge", "Rift Edge", "A quick rift-edged cut on one foe.", "damage_single", {"mult": 2.2}],
-		["seam_burst", "Seam Burst", "Bursts a seam under every enemy.", "damage_all_enemies", {"mult": 1.4}],
-		["blade_focus", "Blade Focus", "Hones the edge: ATK and Crit up.", "buff_self", {"buffs": [["atk", 20], ["crit", 10]], "turns": 2}],
-		["rift_rend", "Rift Rend", "Rends one foe and its armor.", "damage_single", {"mult": 4.0, "debuff": [["armor", -10]], "dturns": 2}],
-		["riftstorm", "Riftstorm", "A storm of rift blades hits all foes hard.", "damage_all_enemies", {"mult": 2.8}],
+		["rift_edge", "Rift Edge", "A quick rift-edged cut on one foe.", "damage_single", {"mult": 2.6}],
+		["seam_burst", "Seam Burst", "Bursts a seam under every enemy.", "damage_all_enemies", {"mult": 1.6}],
+		["blade_focus", "Blade Focus", "Hones the edge: ATK and Crit up.", "buff_self", {"buffs": [["atk", 30], ["crit", 15]], "turns": 2}],
+		["rift_rend", "Rift Rend", "Rends one foe and its armor.", "damage_single", {"mult": 4.8, "debuff": [["armor", -10]], "dturns": 2}],
+		["riftstorm", "Riftstorm", "A storm of rift blades hits all foes hard.", "damage_all_enemies", {"mult": 3.2}],
 	],
 	"Vanguard": [
-		["hold_the_line", "Hold the Line", "Digs in: Defense up.", "buff_self", {"buffs": [["def", 20]], "turns": 2}],
-		["shoulder_charge", "Shoulder Charge", "Charges one foe and slows it.", "damage_single", {"mult": 2.4, "debuff": [["speed", -10]], "dturns": 2}],
-		["front_guard", "Front Guard", "Guards the whole party: Defense up.", "buff_party", {"buffs": [["def", 15]], "turns": 2}],
-		["rally_point", "Rally Point", "Heals the party a little and adds Armor.", "heal_party", {"pct": 0.15, "party_buff": [["armor", 5]], "pturns": 2}],
-		["vanguards_wall", "Vanguard's Wall", "A full wall: big party Defense and Armor.", "buff_party", {"buffs": [["def", 25], ["armor", 10]], "turns": 3}],
+		["hold_the_line", "Hold the Line", "Digs in: Defense up.", "buff_self", {"buffs": [["def", 30]], "turns": 2}],
+		["shoulder_charge", "Shoulder Charge", "Charges one foe and slows it.", "damage_single", {"mult": 2.9, "debuff": [["speed", -10]], "dturns": 2}],
+		["front_guard", "Front Guard", "Guards the whole party: Defense up.", "buff_party", {"buffs": [["def", 22]], "turns": 2}],
+		["rally_point", "Rally Point", "Heals the party a little and adds Armor.", "heal_party", {"pct": 0.15, "party_buff": [["armor", 8]], "pturns": 2}],
+		["vanguards_wall", "Vanguard's Wall", "A full wall: big party Defense and Armor.", "buff_party", {"buffs": [["def", 38], ["armor", 15]], "turns": 3}],
 	],
 	"Scout": [
-		["swift_strike", "Swift Strike", "A fast strike, then Speed up.", "damage_single", {"mult": 2.0, "self_buff": [["speed", 10]], "sturns": 2}],
-		["scout_ahead", "Scout Ahead", "Finds the path: party Speed up.", "buff_party", {"buffs": [["speed", 10]], "turns": 2}],
-		["expose", "Expose", "Exposes one foe: hit and big Defense down.", "damage_single", {"mult": 2.4, "debuff": [["def", -20]], "dturns": 2}],
-		["smoke_screen", "Smoke Screen", "Covers the party: Defense and Speed up.", "buff_party", {"buffs": [["def", 18], ["speed", 8]], "turns": 2}],
-		["ambush", "Ambush", "Springs an ambush on every enemy.", "damage_all_enemies", {"mult": 2.6}],
+		["swift_strike", "Swift Strike", "A fast strike, then Speed up.", "damage_single", {"mult": 2.4, "self_buff": [["speed", 15]], "sturns": 2}],
+		["scout_ahead", "Scout Ahead", "Finds the path: party Speed up.", "buff_party", {"buffs": [["speed", 15]], "turns": 2}],
+		["expose", "Expose", "Exposes one foe: hit and big Defense down.", "damage_single", {"mult": 2.9, "debuff": [["def", -20]], "dturns": 2}],
+		["smoke_screen", "Smoke Screen", "Covers the party: Defense and Speed up.", "buff_party", {"buffs": [["def", 27], ["speed", 12]], "turns": 2}],
+		["ambush", "Ambush", "Springs an ambush on every enemy.", "damage_all_enemies", {"mult": 3.0}],
 	],
 	"Sharpshot": [
-		["aimed_shot", "Aimed Shot", "A careful shot at one foe.", "damage_single", {"mult": 2.4}],
-		["weak_point", "Weak Point", "Hits a weak point and lowers Armor.", "damage_single", {"mult": 2.2, "debuff": [["armor", -10]], "dturns": 2}],
-		["keen_eyes", "Keen Eyes", "Sharpens the squad: party Crit up.", "buff_party", {"buffs": [["crit", 12]], "turns": 2}],
-		["scatter_shot", "Scatter Shot", "Scatters shots across all foes.", "damage_all_enemies", {"mult": 2.0}],
-		["killshot", "Killshot", "A lethal single shot.", "damage_single", {"mult": 5.0}],
+		["aimed_shot", "Aimed Shot", "A careful shot at one foe.", "damage_single", {"mult": 2.9}],
+		["weak_point", "Weak Point", "Hits a weak point and lowers Armor.", "damage_single", {"mult": 2.6, "debuff": [["armor", -10]], "dturns": 2}],
+		["keen_eyes", "Keen Eyes", "Sharpens the squad: party Crit up.", "buff_party", {"buffs": [["crit", 18]], "turns": 2}],
+		["scatter_shot", "Scatter Shot", "Scatters shots across all foes.", "damage_all_enemies", {"mult": 2.3}],
+		["killshot", "Killshot", "A lethal single shot.", "damage_single", {"mult": 6.0}],
 	],
 	"Ironhide": [
-		["harden", "Harden", "Hardens up: Armor up.", "buff_self", {"buffs": [["armor", 10]], "turns": 2}],
-		["iron_hide", "Iron Hide", "Iron skin: big Defense and Armor.", "buff_self", {"buffs": [["def", 25], ["armor", 12]], "turns": 2}],
+		["harden", "Harden", "Hardens up: Armor up.", "buff_self", {"buffs": [["armor", 15]], "turns": 2}],
+		["iron_hide", "Iron Hide", "Iron skin: big Defense and Armor.", "buff_self", {"buffs": [["def", 38], ["armor", 18]], "turns": 2}],
 		["shrug_off", "Shrug Off", "Shrugs off the damage, healing himself a lot.", "heal_single", {"pct": 0.40, "self": true}],
-		["iron_bond", "Iron Bond", "Shares the iron: party Armor up.", "buff_party", {"buffs": [["armor", 8]], "turns": 2}],
-		["living_fortress", "Living Fortress", "Party Armor and Defense way up for three turns.", "buff_party", {"buffs": [["armor", 12], ["def", 20]], "turns": 3}],
+		["iron_bond", "Iron Bond", "Shares the iron: party Armor up.", "buff_party", {"buffs": [["armor", 12]], "turns": 2}],
+		["living_fortress", "Living Fortress", "Party Armor and Defense way up for three turns.", "buff_party", {"buffs": [["armor", 18], ["def", 30]], "turns": 3}],
 	],
 	"Raider": [
-		["raid_strike", "Raid Strike", "A raider's opening hit on one foe.", "damage_single", {"mult": 2.2}],
-		["loot_run", "Loot Run", "Hits one foe and runs off faster.", "damage_single", {"mult": 2.6, "self_buff": [["speed", 12]], "sturns": 2}],
-		["pillage", "Pillage", "Pillages the line: hits all and lowers Armor.", "damage_all_enemies", {"mult": 1.6, "debuff": [["armor", -6]], "dturns": 2}],
-		["warband_rush", "Warband Rush", "The warband surges: party ATK and Speed up.", "buff_party", {"buffs": [["atk", 12], ["speed", 8]], "turns": 2}],
-		["sack_the_line", "Sack the Line", "Sacks every foe and breaks their Defense.", "damage_all_enemies", {"mult": 2.8, "debuff": [["def", -15]], "dturns": 2}],
+		["raid_strike", "Raid Strike", "A raider's opening hit on one foe.", "damage_single", {"mult": 2.6}],
+		["loot_run", "Loot Run", "Hits one foe and runs off faster.", "damage_single", {"mult": 3.1, "self_buff": [["speed", 18]], "sturns": 2}],
+		["pillage", "Pillage", "Pillages the line: hits all and lowers Armor.", "damage_all_enemies", {"mult": 1.8, "debuff": [["armor", -6]], "dturns": 2}],
+		["warband_rush", "Warband Rush", "The warband surges: party ATK and Speed up.", "buff_party", {"buffs": [["atk", 18], ["speed", 12]], "turns": 2}],
+		["sack_the_line", "Sack the Line", "Sacks every foe and breaks their Defense.", "damage_all_enemies", {"mult": 3.2, "debuff": [["def", -15]], "dturns": 2}],
 	],
 	"Sage": [
 		["mend", "Mend", "Heals one ally for a large amount (lowest HP first).", "heal_single", {"pct": 0.50}],
-		["mana_ward", "Mana Ward", "Wards the party: Defense and Armor up.", "buff_party", {"buffs": [["def", 12], ["armor", 4]], "turns": 2}],
+		["mana_ward", "Mana Ward", "Wards the party: Defense and Armor up.", "buff_party", {"buffs": [["def", 18], ["armor", 6]], "turns": 2}],
 		["soothing_rain", "Soothing Rain", "Heals the whole party for a medium amount.", "heal_party", {"pct": 0.25}],
-		["renewal", "Renewal", "Heals the whole party and adds Defense.", "heal_party", {"pct": 0.30, "party_buff": [["def", 12]], "pturns": 2}],
+		["renewal", "Renewal", "Heals the whole party and adds Defense.", "heal_party", {"pct": 0.30, "party_buff": [["def", 18]], "pturns": 2}],
 		["grand_restoration", "Grand Restoration", "Heals the whole party for a large amount.", "heal_party", {"pct": 0.50}],
 	],
 	"Duelist": [
-		["riposte", "Riposte", "Strikes one foe and guards the counter.", "damage_single", {"mult": 2.2, "self_buff": [["def", 12]], "sturns": 1}],
-		["feint", "Feint", "A feint that opens the guard (big Defense down).", "damage_single", {"mult": 2.0, "debuff": [["def", -18]], "dturns": 2}],
-		["en_garde", "En Garde", "Ready stance: Crit and Speed up.", "buff_self", {"buffs": [["crit", 15], ["speed", 10]], "turns": 2}],
-		["perfect_lunge", "Perfect Lunge", "One perfect lunge — heavy single-target damage.", "damage_single", {"mult": 4.2}],
-		["duels_end", "Duel's End", "Ends the duel: huge hit, then Crit up.", "damage_single", {"mult": 5.2, "self_buff": [["crit", 15]], "sturns": 2}],
+		["riposte", "Riposte", "Strikes one foe and guards the counter.", "damage_single", {"mult": 2.6, "self_buff": [["def", 18]], "sturns": 1}],
+		["feint", "Feint", "A feint that opens the guard (big Defense down).", "damage_single", {"mult": 2.4, "debuff": [["def", -18]], "dturns": 2}],
+		["en_garde", "En Garde", "Ready stance: Crit and Speed up.", "buff_self", {"buffs": [["crit", 22], ["speed", 15]], "turns": 2}],
+		["perfect_lunge", "Perfect Lunge", "One perfect lunge — heavy single-target damage.", "damage_single", {"mult": 5.0}],
+		["duels_end", "Duel's End", "Ends the duel: huge hit, then Crit up.", "damage_single", {"mult": 6.2, "self_buff": [["crit", 22]], "sturns": 2}],
 	],
 }
 
@@ -661,11 +661,12 @@ func level_bonus(level: int, sub: String = "Riftblade") -> Dictionary:
 	# General bump on every stat, plus a larger extra bump on the current subclass focus.
 	# Recalculated from level + current subclass (not historic).
 	var lv: int = maxi(0, level - 1)
+	# Combat pass: general growth roughly doubled so ten levels are felt in a fight (L1 is unchanged).
 	var d := {
-		"hp": 2 * lv,
-		"atk": int(roundf(0.25 * lv)),
-		"def": int(roundf(0.25 * lv)),
-		"armor": int(roundf(0.10 * lv)),
+		"hp": 4 * lv,
+		"atk": int(roundf(0.5 * lv)),
+		"def": int(roundf(0.4 * lv)),
+		"armor": int(roundf(0.15 * lv)),
 		"crit": int(roundf(0.15 * lv)),
 		"mana": int(roundf(0.10 * lv)),
 		"speed": int(roundf(0.15 * lv)),
@@ -835,8 +836,8 @@ func char_stats(name: String, kind: String, team: String, n_red: int) -> Diction
 		return compute_hero_stats(name)
 	var g: Dictionary = GOB_CLASS[kind]
 	var f: Dictionary = GOB_FLAVOR.get(name, {"atk": 1.0, "def": 1.0})
-	var hpM := 4.2 if n_red == 1 else (2.2 if n_red == 2 else 1.25)
-	var atkM := 1.35 if n_red == 1 else (1.15 if n_red == 2 else 1.0)
+	var hpM := BOSS_HP_M if n_red == 1 else (2.2 if n_red == 2 else 1.25)
+	var atkM := BOSS_ATK_M if n_red == 1 else (1.15 if n_red == 2 else 1.0)
 	var defM := 1.25 if n_red == 1 else (1.1 if n_red == 2 else 1.0)
 	return {
 		"hp": int(roundf(hp_from_atk(g.atk) * hpM)),
@@ -850,6 +851,8 @@ func char_stats(name: String, kind: String, team: String, n_red: int) -> Diction
 		"kind": kind,
 		"scale": 1.4 if n_red == 1 else (1.12 if n_red == 2 else 1.0),
 	}
+var BOSS_HP_M := 5.4 # was 4.2: the boss now acts twice a turn and is meant to be the hardest raid
+var BOSS_ATK_M := 1.45 # was 1.35
 func def_mit(d: float) -> float: return 100.0 / (100.0 + maxf(0.0, d))
 func uS(u) -> float: return US * (u.scale if u else 1.0)
 # landscape design coords, front (melee) slots first. Slot 1 = single boss (missing in game.js).
@@ -1027,13 +1030,14 @@ func new_battle(n: int = 0) -> void:
 	else:
 		last_raid = n
 		red = build_red_roster(n)
+		emult = raid_level_mult()
 	for team in ["blue", "red"]:
 		var roster: Array = build_blue_roster() if team == "blue" else red
 		for i in roster.size():
 			var r: Array = roster[i]
 			var p := mp(r[2], r[3])
 			var st: Dictionary = char_stats(r[1], r[0], team, 3 if enc_on else n)
-			if enc_on and team == "red":
+			if team == "red" and not emult.is_empty():
 				st.hp = maxi(40, int(roundf(float(st.hp) * float(emult.hp))))
 				st.atk = maxi(1, int(roundf(float(st.atk) * float(emult.atk))))
 				st.def = maxi(1, int(roundf(float(st.def) * float(emult.def))))
@@ -1055,6 +1059,21 @@ func new_battle(n: int = 0) -> void:
 	G.units = units
 	G.n_red = n
 	fx = []; projectiles = []; texts = []; banner = null; cast_banner = null; screen_flash = null
+
+## Raids follow the party's level on the same curve as wild fights (encounters.json "scaling"),
+## normalised at RAID_REF_LV: parties at or below it see the original raid numbers.
+var RAID_REF_LV := 15
+func raid_level_mult() -> Dictionary:
+	if WORLD == null:
+		return {}
+	var tot := 0
+	var names := party_names()
+	for nm in names:
+		tot += hero_level(nm)
+	var lv: int = maxi(1, int(roundf(float(tot) / maxf(1.0, float(names.size())))))
+	var a: Dictionary = WORLD.enemy_mult(lv)
+	var b: Dictionary = WORLD.enemy_mult(RAID_REF_LV)
+	return {"hp": maxf(1.0, float(a.hp) / maxf(0.01, float(b.hp))), "atk": maxf(1.0, float(a.atk) / maxf(0.01, float(b.atk))), "def": maxf(1.0, float(a.def) / maxf(0.01, float(b.def)))}
 
 # ---------------------------------------------------------------- simulation
 func alive(team: String) -> Array:
@@ -1110,8 +1129,26 @@ func start_action(u) -> bool:
 		fx.append({"type": "ring", "x": u.x, "y": u.y - 20, "t": 0.0, "life": 380.0, "color": Color("#7fd8ff") if u.team == "blue" else Color("#ff9a4a")})
 		sfx.special()
 	else:
-		u.gauge = minf(100, u.gauge + 22)
+		gain_mp(u, 22)
 	return true
+
+## All MP gains go through here so a hero's bar filling up gets one clear "MP FULL" pop and chime.
+func gain_mp(u, amt: float) -> void:
+	var was: float = u.gauge
+	u.gauge = minf(100.0, u.gauge + amt)
+	if u.team == "blue" and was < AB_MP and u.gauge >= AB_MP and not u.dead and phase == "battle":
+		add_text(u.x, stack_y(u, u.y - u.K.head * uS(u) - 40), "MP FULL!", "#fff27a", 14, 900, true)
+		fx.append({"type": "ring", "x": u.x, "y": u.y - 10, "t": 0.0, "life": 420.0, "color": Color("#fff27a")})
+		sfx.tone(1320, 0.07, "triangle", 0.03, 1.2)
+
+## Floating numbers that land on the same unit at nearly the same moment stack upward instead of overprinting.
+var _text_stack := {}
+func stack_y(u, y: float) -> float:
+	var k: String = str(u.id)
+	var e: Dictionary = _text_stack.get(k, {"t": -1e9, "n": 0})
+	var n: int = int(e.n) + 1 if now - float(e.t) < 260.0 else 0
+	_text_stack[k] = {"t": now, "n": n}
+	return y - 17.0 * float(mini(n, 3))
 
 func begin_swing(u) -> void:
 	var a = u.act
@@ -1173,8 +1210,9 @@ func update_unit(u, dt: float) -> void:
 				return
 			if is_warrior_kit(u.kind) and a.swing == 0:
 				a.swing = 1; begin_swing(u); return
-			# Follow-up strike if still in range. Warriors already swing twice as their kit.
-			if u.kind != "warrior" and not a.doubled and a.target != null and not a.target.dead:
+			# Melee follow-up strike if still in range. Warriors already swing twice as their kit.
+			# Ranged units never follow up (the boss's 360 range used to reach the front-centre slot and fire twice).
+			if u.kind != "warrior" and str(u.K.ranged) == "" and not a.doubled and a.target != null and not a.target.dead:
 				var dx: float = a.target.x - u.x
 				var dy: float = a.target.y - u.y
 				if sqrt(dx * dx + dy * dy) <= float(u.K.range) + 12.0:
@@ -1344,21 +1382,38 @@ func hit(u, t, mult: float, special: bool, is_splash: bool = false, color: Strin
 		return
 	sync_pending.append({"u": u, "t": t, "mult": mult, "special": special, "color": color, "age": 0.0})
 
+const ARMOR_FLOOR := 0.3 # armor soaks flat damage but every hit keeps at least this share of its post-Defense value
 func mitigate_raw(raw: float, t) -> int:
-	var cut: float = raw * def_mit(t.def) - float(t.armor)
+	var after_def: float = raw * def_mit(t.def)
+	var cut: float = maxf(after_def - float(t.armor), after_def * ARMOR_FLOOR)
 	return maxi(1, int(roundf(cut)))
+
+## Speed is evasion: a faster target slips some normal hits (never abilities, specials or splash).
+const DODGE_PER_SPD := 0.006
+const DODGE_CAP := 0.22
+func dodge_chance(u, t) -> float:
+	return clampf((float(t.speed) - float(u.speed)) * DODGE_PER_SPD, 0.0, DODGE_CAP)
 
 func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "", ab: bool = false) -> void:
 	if t == null or t.dead: return
+	if not special and not is_splash and not ab and randf() < dodge_chance(u, t):
+		add_text(t.x + rand(-8, 8), stack_y(t, t.y - t.K.head * uS(t) - 6), "DODGE", "#d8f6ff", 15, 650, true)
+		t.kx = (1.0 if t.x >= u.x else -1.0) * 12
+		sfx.tone(1180, 0.05, "triangle", 0.025, 0.6)
+		return
 	var crit_p: float = clampf(float(u.crit) / 100.0, 0.0, 0.6)
-	var crit := not special and not is_splash and randf() < crit_p
+	var crit := (ab or not special) and not is_splash and randf() < crit_p
 	# Melee damage is fixed (crits and combos are the only swings); ranged keeps a small roll.
 	var roll: float = rand(0.85, 1.15) if str(u.K.ranged) != "" else 1.0
 	var raw: float = u.atk * roll * mult * (1.5 if crit else 1.0) * surge_mult()
 	deal_damage(u, t, mitigate_raw(raw, t), {"special": special, "isSplash": is_splash, "crit": crit, "color": color, "ab": ab})
 
+var combat_trace = null # Array when a headless tool wants a per-hit log (tools/combat_sim.gd); null in play.
+
 func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 	if t.dead: return
+	if combat_trace != null:
+		combat_trace.append({"turn": G.turn, "src": u.name, "dst": t.name, "dmg": dmg, "combo": opt.get("combo", false), "ab": opt.get("ab", false), "crit": opt.get("crit", false), "splash": opt.get("isSplash", false), "special": opt.get("special", false)})
 	var combo: bool = opt.get("combo", false)
 	t.hp = maxi(0, t.hp - dmg)
 	if combo:
@@ -1372,20 +1427,19 @@ func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 		u.dmg += dmg - credited
 	else:
 		u.dmg += dmg
-	t.gauge = minf(100, t.gauge + (16 if combo else 9))
+	gain_mp(t, 16 if combo else 9)
 	t.flash = 180.0 if combo else 110.0
 	t.shake = 240.0 if combo else 160.0
 	t.kx = (1.0 if t.x >= u.x else -1.0) * (14 if combo else (9 if opt.get("special", false) else 5))
 	var big: bool = combo or bool(opt.get("ab", false)) or (opt.get("special", false) and not opt.get("isSplash", false))
 	var crit: bool = opt.get("crit", false)
-	var label := ("COMBO x%d  %d" % [opt.n, dmg]) if combo else str(dmg)
+	var label := ("COMBO x%d  %d" % [opt.n, dmg]) if combo else (str(dmg) + ("!" if crit else ""))
 	var col: String = opt.get("color", "")
 	if col == "": col = "#ffd23f" if (combo or big) else ("#ff8a3d" if crit else "#ffffff")
-	add_text(t.x + rand(-10, 10), t.y - t.K.head * uS(t) - 6, label, col, 28 if combo else (26 if big else (21 if crit else 17)), 1100 if combo else 760, big or crit)
+	add_text(t.x + rand(-10, 10), stack_y(t, t.y - t.K.head * uS(t) - 6), label, col, 28 if combo else (26 if big else (21 if crit else 17)), 1100 if combo else 760, big or crit)
 	fx.append({"type": "spark", "x": t.x - t.kx * 2, "y": t.y - 32, "t": 0.0, "life": 280.0 if big else 170.0, "big": big or crit, "rot": randf() * 6})
 	if combo:
 		fx.append({"type": "ring", "x": t.x, "y": t.y - 20, "t": 0.0, "life": 420.0, "color": Color("#ffd23f")})
-		add_text(t.x, t.y - t.K.head * uS(t) - 36, "x3", "#fff27a", 18, 800, true)
 		hitstop = maxf(hitstop, 90)
 		sfx.special()
 	elif big:
@@ -1393,8 +1447,9 @@ func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 	sfx.hit()
 	if t.hp <= 0:
 		t.dead = true; t.death_t = 0.0; t.act = null; t.burn = null; u.kos += 1
-		add_text(t.x, t.y - t.K.head * uS(t) - 28, "KO!", "#ff5a5a", 20, 800, true)
-		sfx.ko(); shake(7 if combo else 4, 200 if combo else 140)
+		add_text(t.x, t.y - t.K.head * uS(t) - 44, "KO!", "#ff5a5a", 22, 900, true)
+		hitstop = maxf(hitstop, 80)
+		sfx.ko(); shake(7 if combo else 5, 200 if combo else 160)
 		var qi := G.queue.find(t)
 		if qi >= 0 and qi >= G.qi: G.queue.remove_at(qi)
 
@@ -1460,7 +1515,7 @@ func busy() -> bool:
 func apply_mana_regen(team: String) -> void:
 	for u in alive(team):
 		if u.mana_regen <= 0: continue
-		u.gauge = minf(100.0, u.gauge + u.mana_regen)
+		gain_mp(u, u.mana_regen)
 
 func begin_player_turn() -> void:
 	G.side = "blue"; G.mode = "select"; G.queue = []; G.qi = 0; G.turn += 1; G.ab_focus = null
@@ -1483,6 +1538,9 @@ func execute_orders() -> void:
 func begin_enemy_turn() -> void:
 	G.side = "red"; G.mode = "enemyIntro"; G.gap = 520; G.qi = 0; G.cur = null
 	G.queue = shuffled(alive("red"))
+	# A raid boss is one unit against five: it takes two actions a turn so the fight has real pressure.
+	if G.n_red == 1 and encounter.is_empty() and G.queue.size() == 1:
+		G.queue.append(G.queue[0])
 	tick_mods("red")
 	apply_mana_regen("red")
 	plan_actions(G.queue)
@@ -1513,6 +1571,8 @@ func controller(dt: float) -> void:
 		while G.qi < G.queue.size() and G.queue[G.qi].dead: G.qi += 1
 		if G.qi < G.queue.size():
 			var u = G.queue[G.qi]
+			if u.act != null:
+				return # same unit queued again (boss): let its previous action finish first
 			G.qi += 1
 			G.cur = u
 			start_action(u)
@@ -1546,9 +1606,26 @@ func auto_queue_turn() -> void:
 		u.ab_queued = ""
 		if u.gauge >= AB_MP:
 			var aid: String = auto_ab(u.name) if CHAR.has(u.name) else ""
-			if aid != "" and ABILITY_DEFS.has(aid) and (aid == u.ab_class or aid == u.ab_sub):
+			if aid != "" and ABILITY_DEFS.has(aid) and (aid == u.ab_class or aid == u.ab_sub) and auto_wants(u, aid):
 				u.ab_queued = aid
 	execute_orders()
+
+## AUTO keeps a heal banked (basic attack instead) until someone is actually hurt.
+func auto_wants(u, id: String) -> bool:
+	var ab: Dictionary = ABILITY_DEFS[id]
+	var kind: String = str(ab.kind)
+	if kind == "heal_single":
+		var t = u if bool(ab.params.get("self", false)) else lowest_ally(u)
+		return t != null and float(t.hp) / maxf(1.0, float(t.maxhp)) < 0.6
+	if kind == "heal_party":
+		var lo := 1.0
+		var tot := 0.0
+		var al := alive(u.team)
+		for a in al:
+			var r: float = float(a.hp) / maxf(1.0, float(a.maxhp))
+			lo = minf(lo, r); tot += r
+		return lo < 0.5 or (al.size() > 0 and tot / al.size() < 0.75)
+	return true
 
 func toggle_auto() -> void:
 	AUTO = not AUTO
@@ -1639,6 +1716,10 @@ func stat_floor(stat: String) -> int:
 func add_mod(u, stat: String, amt: int, turns: int) -> void:
 	if u == null or u.dead or amt == 0:
 		return
+	# Mods tick at the start of the target side's turn. A debuff cast on the other side would lose a
+	# tick before its target ever acts, so "2T" on a foe only covered one of its turns; count it from their next turn.
+	if G != null and u.team != G.side:
+		turns += 1
 	for i in range(u.buffs.size() - 1, -1, -1):
 		var b: Dictionary = u.buffs[i]
 		if str(b.stat) == stat and (int(b.req) > 0) == (amt > 0):
@@ -1685,7 +1766,10 @@ func heal_unit(t, pct: float) -> void:
 	var before: int = t.hp
 	t.hp = mini(t.maxhp, t.hp + amt)
 	var got: int = t.hp - before
-	add_text(t.x + rand(-6, 6), t.y - t.K.head * uS(t) - 6, "+" + str(got), "#5dff8a", 24, 1000, true)
+	if got > 0:
+		add_text(t.x + rand(-6, 6), stack_y(t, t.y - t.K.head * uS(t) - 6), "+" + str(got), "#5dff8a", 24, 1000, true)
+	else:
+		add_text(t.x, stack_y(t, t.y - t.K.head * uS(t) - 6), "FULL", "#bff5cf", 13, 700)
 	fx.append({"type": "pulse", "x": t.x, "y": t.y - 4, "t": 0.0, "life": 650.0, "r": 46.0, "color": Color("#5dff8a")})
 	fx.append({"type": "aura", "unit": t, "t": 0.0, "life": 800.0, "color": Color("#5dff8a")})
 
@@ -1705,6 +1789,17 @@ func queue_ability(u, id: String) -> void:
 	u.pop = 160.0
 	sfx.tone(988, 0.07, "triangle", 0.035)
 
+## Players can't aim, so a single-target ability picks for them: the biggest foe it can KO outright,
+## otherwise the weakest foe (setting up the next kill) — never a nearly-dead goblin that wastes a nuke.
+func ability_target(u, foes: Array, mult: float):
+	var best_kill = null
+	var weakest = null
+	for f in foes:
+		var est: int = mitigate_raw(float(u.atk) * mult * surge_mult(), f)
+		if est >= f.hp and (best_kill == null or f.hp > best_kill.hp): best_kill = f
+		if weakest == null or f.hp < weakest.hp: weakest = f
+	return best_kill if best_kill != null else weakest
+
 ## Replaces the unit's normal attack for this turn. Spends the full MP bar.
 func start_ability(u, id: String) -> bool:
 	var ab: Dictionary = ABILITY_DEFS[id]
@@ -1719,6 +1814,8 @@ func start_ability(u, id: String) -> bool:
 		if foes.is_empty():
 			return false
 		t = u.plan.target if (u.plan != null and u.plan.target != null and not u.plan.target.dead) else pick(foes)
+		if kind == "damage_single":
+			t = ability_target(u, foes, float(p.get("mult", 1.0)))
 		if u.plan != null: u.plan.target = t
 	elif kind == "heal_single":
 		t = u if bool(p.get("self", false)) else lowest_ally(u)
@@ -1788,7 +1885,8 @@ func ability_impact(u, id: String, t) -> void:
 		fx.append({"type": "pulse", "x": t.x, "y": t.y - 4, "t": 0.0, "life": 520.0, "r": 60.0, "color": col})
 		fx.append({"type": "slash", "x": t.x, "y": t.y - 30, "t": 0.0, "life": 320.0, "dir": u.facing})
 		shake(7, 220)
-		sync_pending.append({"u": u, "t": t, "mult": mult, "special": false, "color": "", "age": 0.0, "ab": true})
+		# Resolve right away: an ability hit must keep its own multiplier instead of being folded into a COMBO.
+		apply_hit(u, t, mult, false, false, "", true)
 		if p.has("debuff"):
 			apply_mod_list(t, p.debuff, int(p.get("dturns", 2)), true)
 	elif kind == "damage_all_enemies":
@@ -2267,7 +2365,8 @@ func remap_units(to_port: bool) -> void:
 			_rm(u, "x", "y", to_port); _rm(u, "hx", "hy", to_port)
 	for p in projectiles:
 		_rm(p, "x", "y", to_port); _rm(p, "sx", "sy", to_port); _rm(p, "tx", "ty", to_port)
-	for e in fx: _rm(e, "x", "y", to_port)
+	for e in fx:
+		if e.has("x"): _rm(e, "x", "y", to_port) # "aura" fx follow their unit and have no position of their own
 	for t in texts: _rm(t, "x", "y", to_port)
 
 func compute_dpr(vp: Vector2) -> float:
@@ -3843,7 +3942,7 @@ func draw_battle_ui() -> void:
 	if G != null and phase == "battle":
 		if AUTO: hint = "Auto-battle on · tap AUTO to take control"
 		elif sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your knights in attack order · or tap AUTO"
-		else: hint = "Your knights are attacking…" if G.side == "blue" else "Goblins are attacking…"
+		else: hint = "Your knights are attacking…" if G.side == "blue" else ("The boss is attacking…" if (G.n_red == 1 and encounter.is_empty()) else "Enemies are attacking…")
 	if hint != "":
 		var hfs := 12.0 if short_land else 14.0
 		var hy := hint_base - 2 - 9
@@ -3869,12 +3968,14 @@ func draw_cast_banner() -> void:
 	var sfs := 12.0
 	var w: float = minf(VWc - 20, maxf(text_w(str(cast_banner.text), fs) + 120, text_w(str(cast_banner.sub), sfs) + 60))
 	var h := 58.0
-	var cy: float = (64.0 + SAFE_T) if PORT else (VHc * 0.2)
+	# Sit just above the action bar (the RUN / AUTO pills used to cover it at the top of the field).
+	var short_land := VHc <= 520 and VWc > VHc
+	var bar_top: float = VHc - (4.0 if short_land else 6.0) - (50.0 if short_land else 60.0)
+	var cy: float = bar_top - 28.0 - h / 2.0
 	save(); _alpha *= al
 	tr_(VWc / 2, cy); scale_by(sc, sc)
-	draw_rect(Rect2(-w / 2, -h / 2, w, h), ca(Color(0.05, 0.03, 0.08, 0.82)))
-	draw_rect(Rect2(-w / 2, -h / 2, w, 3), ca(col))
-	draw_rect(Rect2(-w / 2, h / 2 - 3, w, 3), ca(col))
+	# Soft pill in the menu style: dark glass with the ability colour as the rim.
+	rbox(Rect2(-w / 2, -h / 2, w, h), h / 2.0, Color(0.05, 0.07, 0.1, 0.86), col, 3.0, 6.0)
 	text(str(cast_banner.text), 0, -8, fs, col, "center", 4, Color(0, 0, 0, 0.9))
 	text(str(cast_banner.sub), 0, 15, sfs, Color("#f4ecff"), "center", 3, Color(0, 0, 0, 0.9))
 	restore()
@@ -4223,7 +4324,7 @@ func show_results() -> void:
 		up_line,
 	]
 	res = {
-		"result": r, "n_red": G.n_red,
+		"result": r, "n_red": G.n_red if encounter.is_empty() else 0,
 		"title": "VICTORY" if r == "win" else ("DEFEAT" if r == "lose" else "DRAW"),
 		"sub": "The squad holds the rift!" if r == "win" else ("The rift was overrun…" if r == "lose" else "Nobody left standing!"),
 		"lines": lines_out,
