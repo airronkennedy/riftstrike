@@ -172,6 +172,7 @@ class Plan:
 	var target = null
 	var combo = null # Array of Unit or null
 	var combo_done := false
+	var contact_done := false
 
 class Act:
 	var target = null
@@ -356,8 +357,14 @@ func combo_mates(u, t) -> Array:
 	return u.plan.combo.filter(func(m): return not m.dead and m.plan != null and m.plan.target == t and not m.plan.combo_done)
 
 func is_combo_finisher(u, t) -> bool:
+	# Last contact in time among the group, not last in queue order —
+	# staggered launches plus different anim lengths can land out of order.
 	var mates := combo_mates(u, t)
-	return mates.size() >= 2 and mates[mates.size() - 1] == u
+	if mates.size() < 2: return false
+	for m in mates:
+		if m != u and not m.plan.contact_done:
+			return false
+	return true
 
 func is_last_contact(u, a, proj) -> bool:
 	if u.kind == "warrior" and a != null and a.swing == 0: return false
@@ -471,11 +478,14 @@ func deliver_hit(u, t, a, proj) -> String:
 	var combo: bool = mates.size() >= 2 and u.plan != null and u.plan.target == t
 	if combo:
 		if not is_combo_finisher(u, t) or not is_last_contact(u, a, proj):
+			if is_last_contact(u, a, proj):
+				u.plan.contact_done = true
 			t.flash = 90.0; t.shake = 120.0; t.kx = (1.0 if t.x >= u.x else -1.0) * 4
 			add_text(t.x + rand(-12, 12), t.y - t.K.head * uS(t) - 6, "COMBO", "#ffd23f", 14, 620, true)
 			fx.append({"type": "spark", "x": t.x, "y": t.y - 32, "t": 0.0, "life": 160.0, "big": false, "rot": randf() * 6})
 			sfx.hit()
 			return "setup"
+		u.plan.contact_done = true
 		var sum := 0
 		for m in mates:
 			sum += m.atk; m.plan.combo_done = true
@@ -654,9 +664,12 @@ func begin_player_turn() -> void:
 	if G.turn == 4: banner.sub = "RIFT SURGE — damage rising!"
 	sfx.tone(523, 0.08, "square", 0.04)
 
+const LAUNCH_STAGGER := 200.0
+const LAUNCH_FIRST := 80.0
+
 func execute_orders() -> void:
 	if G == null or G.mode != "select" or G.queue.is_empty() or phase != "battle": return
-	G.mode = "resolve"; G.side = "blue"; G.qi = 0; G.gap = 160; G.cur = null
+	G.mode = "resolve"; G.side = "blue"; G.qi = 0; G.gap = LAUNCH_FIRST; G.cur = null
 	plan_actions(G.queue)
 	sfx.fight()
 
@@ -684,8 +697,6 @@ func controller(dt: float) -> void:
 			G.mode = "resolve"; G.gap = 0
 		return
 	if G.mode == "resolve":
-		var c = G.cur
-		if c != null and not attack_resolved(c): return
 		G.gap -= dt
 		if G.gap > 0: return
 		if alive("red" if G.side == "blue" else "blue").is_empty():
@@ -694,7 +705,11 @@ func controller(dt: float) -> void:
 		if G.qi < G.queue.size():
 			var u = G.queue[G.qi]
 			G.qi += 1
-			G.cur = u; start_action(u); G.gap = 40; return
+			G.cur = u
+			start_action(u)
+			G.gap = LAUNCH_STAGGER
+			return
+		if busy(): return
 		G.mode = "finish"
 	if G.mode == "finish":
 		if busy(): return
