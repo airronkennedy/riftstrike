@@ -44,8 +44,8 @@
    "hours": 0.5,
    "optional": false,
    "map": [
-    8,
-    70
+    6,
+    74
    ],
    "built": "walkable",
    "blurb": "Starter hamlet on the river. Home base."
@@ -60,8 +60,8 @@
    "hours": 1.0,
    "optional": false,
    "map": [
-    18,
-    70
+    17,
+    64
    ],
    "built": "walkable",
    "blurb": "Tall-grass fields east of town. First wild encounters."
@@ -76,8 +76,8 @@
    "hours": 1.0,
    "optional": true,
    "map": [
-    14,
-    84
+    12,
+    88
    ],
    "built": "walkable",
    "blurb": "Reedy ponds south of Rivenbrook. Optional loot and grinding."
@@ -93,7 +93,7 @@
    "optional": false,
    "map": [
     28,
-    70
+    74
    ],
    "built": "walkable",
    "blurb": "Sandy road past the old mill toward Thornwick."
@@ -108,8 +108,8 @@
    "hours": 0.5,
    "optional": false,
    "map": [
-    38,
-    70
+    39,
+    74
    ],
    "built": "walkable",
    "blurb": "Crossroads town. First real fork in the road."
@@ -124,8 +124,8 @@
    "hours": 1.5,
    "optional": false,
    "map": [
-    46,
-    60
+    48,
+    62
    ],
    "built": "walkable",
    "blurb": "Dense pine forest. North way to the fort."
@@ -140,8 +140,8 @@
    "hours": 1.5,
    "optional": false,
    "map": [
-    46,
-    82
+    48,
+    86
    ],
    "built": "walkable",
    "blurb": "Dunes and tide pools. South way to the fort."
@@ -156,8 +156,8 @@
    "hours": 1.0,
    "optional": true,
    "map": [
-    56,
-    92
+    60,
+    95
    ],
    "built": "stub",
    "blurb": "Sealed lighthouse on a sea spit. Optional climb."
@@ -172,8 +172,8 @@
    "hours": 1.5,
    "optional": false,
    "map": [
-    56,
-    70
+    58,
+    74
    ],
    "built": "stub",
    "blurb": "Garrison over the gorge. Both forest and shore paths meet here."
@@ -188,8 +188,8 @@
    "hours": 0.5,
    "optional": false,
    "map": [
-    64,
-    62
+    68,
+    66
    ],
    "built": "planned",
    "blurb": "Mining town on the highland rim."
@@ -204,8 +204,8 @@
    "hours": 1.5,
    "optional": false,
    "map": [
-    70,
-    52
+    74,
+    55
    ],
    "built": "planned",
    "blurb": "Windy red-grass plains. Splits west and east."
@@ -220,8 +220,8 @@
    "hours": 1.0,
    "optional": true,
    "map": [
-    78,
-    64
+    84,
+    68
    ],
    "built": "planned",
    "blurb": "Mushroom hills with tougher wild packs."
@@ -237,7 +237,7 @@
    "optional": false,
    "map": [
     64,
-    40
+    45
    ],
    "built": "planned",
    "blurb": "West branch: crystal canyon toward the abbey."
@@ -252,8 +252,8 @@
    "hours": 2.0,
    "optional": false,
    "map": [
-    58,
-    30
+    56,
+    35
    ],
    "built": "planned",
    "blurb": "Flooded abbey. Warden of Bells waits below."
@@ -268,8 +268,8 @@
    "hours": 1.5,
    "optional": false,
    "map": [
-    80,
-    46
+    84,
+    47
    ],
    "built": "planned",
    "blurb": "East branch: bog wilds toward Foxglove."
@@ -284,8 +284,8 @@
    "hours": 0.5,
    "optional": false,
    "map": [
-    88,
-    52
+    94,
+    57
    ],
    "built": "planned",
    "blurb": "Hidden village in the fen."
@@ -300,7 +300,7 @@
    "hours": 2.0,
    "optional": false,
    "map": [
-    88,
+    94,
     38
    ],
    "built": "planned",
@@ -316,8 +316,8 @@
    "hours": 2.0,
    "optional": false,
    "map": [
-    80,
-    30
+    83,
+    31
    ],
    "built": "planned",
    "blurb": "Root-choked tombs under the keep."
@@ -332,8 +332,8 @@
    "hours": 1.5,
    "optional": true,
    "map": [
-    90,
-    22
+    95,
+    20
    ],
    "built": "planned",
    "blurb": "Optional volcanic lake below the catacomb."
@@ -348,8 +348,8 @@
    "hours": 0.5,
    "optional": false,
    "map": [
-    70,
-    22
+    71,
+    24
    ],
    "built": "planned",
    "blurb": "Long frozen bridge. Sealed until the abbey and catacomb fall."
@@ -364,8 +364,8 @@
    "hours": 0.5,
    "optional": false,
    "map": [
-    62,
-    16
+    61,
+    15
    ],
    "built": "planned",
    "blurb": "Snowbound city of spires."
@@ -380,8 +380,8 @@
    "hours": 1.5,
    "optional": false,
    "map": [
-    52,
-    12
+    49,
+    10
    ],
    "built": "planned",
    "blurb": "Terraced gardens. Splits to the spire or the vault."
@@ -396,8 +396,8 @@
    "hours": 2.0,
    "optional": false,
    "map": [
-    42,
-    6
+    37,
+    4
    ],
    "built": "planned",
    "blurb": "West branch: tower of the Warden of Moons."
@@ -412,8 +412,8 @@
    "hours": 1.5,
    "optional": false,
    "map": [
-    52,
-    24
+    48,
+    25
    ],
    "built": "planned",
    "blurb": "East branch: prison under the terraces."
@@ -428,8 +428,8 @@
    "hours": 2.0,
    "optional": false,
    "map": [
-    44,
-    28
+    38,
+    33
    ],
    "built": "planned",
    "blurb": "Fallen city past the prison. Warden of the Forge."
@@ -444,8 +444,8 @@
    "hours": 1.0,
    "optional": true,
    "map": [
-    34,
-    18
+    28,
+    20
    ],
    "built": "planned",
    "blurb": "Icy pass west of Frostveil. Back way to the crown lands."
@@ -460,8 +460,8 @@
    "hours": 1.0,
    "optional": false,
    "map": [
-    30,
-    34
+    31,
+    48
    ],
    "built": "planned",
    "blurb": "Royal road behind the fort, sealed by the royal ward."
@@ -476,8 +476,8 @@
    "hours": 2.0,
    "optional": false,
    "map": [
-    22,
-    42
+    20,
+    55
    ],
    "built": "planned",
    "blurb": "The king's citadel."
@@ -492,8 +492,8 @@
    "hours": 1.0,
    "optional": true,
    "map": [
-    12,
-    36
+    8,
+    46
    ],
    "built": "planned",
    "blurb": "Optional overgrown palace garden."
@@ -508,8 +508,8 @@
    "hours": 1.5,
    "optional": true,
    "map": [
-    8,
-    22
+    6,
+    31
    ],
    "built": "planned",
    "blurb": "Optional summit. Needs the drake sigil."
@@ -524,8 +524,8 @@
    "hours": 2.0,
    "optional": false,
    "map": [
-    22,
-    24
+    18,
+    37
    ],
    "built": "planned",
    "blurb": "Library of falling stars. Last stop before the heart."
@@ -540,8 +540,8 @@
    "hours": 1.0,
    "optional": false,
    "map": [
-    22,
-    10
+    17,
+    19
    ],
    "built": "planned",
    "blurb": "Where the rift began. Needs all four warden seals."
@@ -556,8 +556,8 @@
    "hours": 1.0,
    "optional": true,
    "map": [
-    3,
-    56
+    23,
+    92
    ],
    "built": "planned",
    "blurb": "Post-game secret behind Rivenbrook."
@@ -572,8 +572,8 @@
    "hours": 2.0,
    "optional": true,
    "map": [
-    34,
-    4
+    8,
+    8
    ],
    "built": "planned",
    "blurb": "Post-game rift fields."
@@ -588,8 +588,8 @@
    "hours": 2.0,
    "optional": true,
    "map": [
-    48,
-    2
+    25,
+    4
    ],
    "built": "planned",
    "blurb": "Post-game abyss. Level 99 content."

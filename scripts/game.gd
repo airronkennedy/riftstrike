@@ -496,6 +496,20 @@ var ow_camy := 0.0
 var ow_scale := 1.0
 var ow_moving := false
 var ow_ready := false
+# Overworld campaign: data-driven world, region map, stats screen, wild encounters.
+const WorldScript = preload("res://scripts/world.gd")
+const WorldMapUI = preload("res://scripts/world_map_ui.gd")
+const StatsUI = preload("res://scripts/stats_ui.gd")
+var WORLD = null
+var WMAP = null
+var STATS = null
+var ow_menu_open := false
+var menu_return := "" # "overworld" when a menu screen was opened from the overworld
+var encounter: Dictionary = {} # non-empty while a wild battle is running
+var drag_on := false
+var drag_moved := false
+var drag_from := Vector2.ZERO
+var drag_last := Vector2.ZERO
 # Rivenbrook — original starter hamlet (not a Nintendo map).
 const TOWN_NAME := "Rivenbrook"
 const OW_C0 := 1
@@ -939,17 +953,29 @@ func new_battle(n: int = 0) -> void:
 		G.queue = []; G.cur = null
 	sync_pending = []
 	var units := []
+	var enc_on: bool = not encounter.is_empty()
 	if n == 0: n = int(params.get("enemies", "0"))
 	if n == 0: n = last_raid
 	if n != 1 and n != 2 and n != 3: n = 3
-	last_raid = n
-	var red := build_red_roster(n)
+	var red: Array = []
+	var emult: Dictionary = {}
+	if enc_on:
+		red = build_encounter_roster()
+		n = red.size()
+		emult = WORLD.enemy_mult(int(encounter.get("level", 1)))
+	else:
+		last_raid = n
+		red = build_red_roster(n)
 	for team in ["blue", "red"]:
 		var roster: Array = build_blue_roster() if team == "blue" else red
 		for i in roster.size():
 			var r: Array = roster[i]
 			var p := mp(r[2], r[3])
-			var st := char_stats(r[1], r[0], team, n)
+			var st: Dictionary = char_stats(r[1], r[0], team, 3 if enc_on else n)
+			if enc_on and team == "red":
+				st.hp = maxi(40, int(roundf(float(st.hp) * float(emult.hp))))
+				st.atk = maxi(1, int(roundf(float(st.atk) * float(emult.atk))))
+				st.def = maxi(1, int(roundf(float(st.def) * float(emult.def))))
 			var kind: String = st.get("kind", r[0])
 			if not KINDS.has(kind): kind = r[0]
 			var u := Unit.new()
@@ -2098,6 +2124,7 @@ func draw_hud() -> void:
 		draw3(IMG.ribbonBlue if isB else IMG.ribbonRed, x, top, w, h)
 		var team_name: String
 		if isB: team_name = "SQUAD" if w > 190 else "BLUE"
+		elif not encounter.is_empty(): team_name = "WILD"
 		elif G.n_red == 1: team_name = "BOSS"
 		elif G.n_red == 2: team_name = "ELITES" if w > 190 else "RED"
 		else: team_name = "GOBLINS" if w > 190 else "RED"
@@ -2270,6 +2297,11 @@ func save_cfg() -> void:
 		cf.set_value("abilities", name, "%s|%s" % [str(AB_EQUIP[name].cls), str(AB_EQUIP[name].sub)])
 	cf.set_value("party", "squad", ",".join(SQUAD))
 	cf.set_value("inv", "bag", ",".join(INV))
+	if WORLD != null:
+		var fl: Array = WORLD.flags.keys()
+		cf.set_value("world", "flags", ",".join(fl))
+		if ow_ready:
+			cf.set_value("world", "pos", "%d|%d" % [int(ow_x), int(ow_y)])
 	cf.save("user://riftstrike.cfg")
 
 func load_cfg() -> void:
@@ -2327,6 +2359,18 @@ func load_cfg() -> void:
 		# Old saves have no inventory yet — seed the starter bag once.
 		INV = STARTER_BAG.duplicate()
 	ensure_hero_data()
+	if WORLD != null:
+		var wf = cf.get_value("world", "flags", "")
+		if typeof(wf) == TYPE_STRING and wf != "":
+			for f in wf.split(",", false):
+				WORLD.set_flag(str(f))
+		var wp = cf.get_value("world", "pos", "")
+		if typeof(wp) == TYPE_STRING and wp != "":
+			var pp2: PackedStringArray = wp.split("|")
+			if pp2.size() == 2:
+				ow_x = float(pp2[0])
+				ow_y = float(pp2[1])
+				ow_ready = true
 	# Drop equipment ids that somehow also sit in the bag, and vice versa, is fine
 	# (bag and equipment are separate). Rebuild if an equipped id is invalid already handled.
 
@@ -2358,7 +2402,135 @@ func open_overworld() -> void:
 	phase = "overworld"
 	paused = false
 	screen = "overworld"
+	ow_menu_open = false
+	menu_return = ""
+	WORLD.cur_area = ""
+	WORLD.reset_grace()
 	sfx.tone(523, 0.08, "square", 0.035)
+
+
+# Back to the overworld without rebuilding (after a menu, the map, or a wild battle).
+func resume_overworld() -> void:
+	if OW_PROPS.is_empty():
+		build_overworld()
+	phase = "overworld"
+	paused = false
+	screen = "overworld"
+	menu_return = ""
+	ow_tx = ow_x
+	ow_ty = ow_y
+	ow_moving = false
+	ow_anim = "idle"
+	WORLD.last_x = ow_x
+	WORLD.last_y = ow_y
+
+
+func menu_back() -> void:
+	if menu_return == "overworld":
+		resume_overworld()
+	else:
+		to_title()
+
+
+func ow_open_menu_screen(which: String) -> void:
+	ow_menu_open = false
+	if which == "map":
+		WMAP.open()
+		screen = "map"
+		menu_return = "overworld"
+	elif which == "stats":
+		var li: int = maxi(0, SQUAD.find(lead_name()))
+		STATS.open(li)
+		screen = "stats"
+		menu_return = "overworld"
+	elif which == "party":
+		new_battle()
+		phase = "title"
+		open_party()
+		menu_return = "overworld"
+	elif which == "inv":
+		new_battle()
+		phase = "title"
+		open_inv()
+		menu_return = "overworld"
+	elif which == "chars":
+		new_battle()
+		phase = "title"
+		open_chars()
+		menu_return = "overworld"
+	sfx.tone(660, 0.06, "square", 0.035)
+
+
+func close_world_map() -> void:
+	resume_overworld()
+
+
+func close_stats() -> void:
+	resume_overworld()
+
+
+# ---------------------------------------------------------------- wild encounters
+func start_encounter(e: Dictionary) -> void:
+	encounter = e
+	ow_moving = false
+	ow_tx = ow_x
+	ow_ty = ow_y
+	save_cfg()
+	new_battle(3)
+	phase = "battle"
+	paused = false
+	screen = ""
+	begin_player_turn()
+	banner.text = "WILD ENCOUNTER"
+	banner.sub = WORLD.area_name(str(e.get("area", ""))) + "  ·  Lv." + str(int(e.get("level", 1)))
+	banner.color = "yellow"
+	banner.life = 1400.0
+	sfx.tone(392, 0.09, "square", 0.04)
+
+
+func build_encounter_roster() -> Array:
+	var names := shuffled(GOB_NAMES)
+	var kinds: Array = encounter.get("kinds", ["torch"])
+	var n: int = clampi(kinds.size(), 1, 3)
+	var ks: Array = kinds.slice(0, n)
+	var nt: Array = ks.filter(func(k): return k != "tnt")
+	var tt: Array = ks.filter(func(k): return k == "tnt")
+	ks = nt + tt
+	var slots: Array = RED_SLOTS[n]
+	var out: Array = []
+	for i in ks.size():
+		out.append([str(ks[i]), names[i], slots[i][0], slots[i][1]])
+	return out
+
+
+func end_encounter_return() -> void:
+	encounter = {}
+	fx = []; projectiles = []; texts = []; banner = null; cast_banner = null; screen_flash = null
+	WORLD.reset_grace()
+	resume_overworld()
+
+
+# RUN: leave any battle right away. Wild battles go back to the overworld spot, raids to the title. No XP.
+func run_battle() -> void:
+	if phase != "battle" and phase != "ending":
+		return
+	sfx.tone(330, 0.06, "square", 0.03)
+	if not encounter.is_empty():
+		end_encounter_return()
+	else:
+		to_title()
+
+
+func results_primary() -> void:
+	if not encounter.is_empty():
+		end_encounter_return()
+	else:
+		start_fight(last_raid)
+
+
+func results_title() -> void:
+	encounter = {}
+	to_title()
 
 func selected_hero() -> String:
 	return HERO_NAMES[clampi(char_sel, 0, HERO_NAMES.size() - 1)]
@@ -2506,7 +2678,7 @@ func draw_chars() -> void:
 	var st := compute_hero_stats(name)
 	var back_w := 110.0 if short else 130.0
 	var bh := 40.0 if short else 48.0
-	ui_button("chars_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): to_title())
+	ui_button("chars_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): menu_back())
 	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Characters", 20.0 if short else 26.0, bh, minf(280, inner.size.x * 0.46), 40, bh - 10)
 	text("Saved for Play", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
 	var top: float = inner.position.y + bh + (4.0 if short else 8.0)
@@ -2601,7 +2773,7 @@ func draw_inv() -> void:
 	var st := compute_hero_stats(name)
 	var back_w := 110.0 if short else 130.0
 	var bh := 40.0 if short else 48.0
-	ui_button("inv_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): to_title())
+	ui_button("inv_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): menu_back())
 	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Inventory", 20.0 if short else 26.0, bh, minf(280, inner.size.x * 0.46), 40, bh - 10)
 	text("Saved for Play", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
 	var top: float = inner.position.y + bh + (4.0 if short else 8.0)
@@ -2787,7 +2959,7 @@ func draw_party() -> void:
 	var inner := Rect2(panel.position.x + (16 if short else 22), panel.position.y + (12 if short else 16), panel.size.x - (32 if short else 44), panel.size.y - (24 if short else 32))
 	var back_w := 110.0 if short else 130.0
 	var bh := 40.0 if short else 48.0
-	ui_button("party_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): to_title())
+	ui_button("party_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): menu_back())
 	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Party", 20.0 if short else 26.0, bh, minf(240, inner.size.x * 0.4), 40, bh - 10)
 	text("5 fight  ·  1 bench", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
 	var top: float = inner.position.y + bh + (6.0 if short else 10.0)
@@ -2871,6 +3043,8 @@ func _party_tap_bench(j: int) -> void:
 
 
 func ow_walk_rect() -> Rect2:
+	if WORLD != null and WORLD.ok:
+		return WORLD.world_rect().grow(-22.0)
 	var x0 := float(OW_C0) * 64.0 + 22.0
 	var y0 := float(OW_R0) * 64.0 + 22.0
 	var x1 := float(OW_C1 + 1) * 64.0 - 22.0
@@ -2881,6 +3055,8 @@ func ow_walk_rect() -> Rect2:
 func ow_blocked_at(x: float, y: float) -> bool:
 	var wr := ow_walk_rect()
 	if x < wr.position.x or y < wr.position.y or x > wr.position.x + wr.size.x or y > wr.position.y + wr.size.y:
+		return true
+	if WORLD != null and WORLD.ok and WORLD.blocked_at(x, y):
 		return true
 	var r := Rect2(x - 10, y - 8, 20, 16)
 	for b in OW_BLOCK:
@@ -2933,17 +3109,7 @@ func build_overworld() -> void:
 	# Yard "fences" of stones in front of cottages and a small sheep pasture.
 	for t in [[340, 330], [372, 332], [404, 330], [500, 300], [532, 302], [564, 300], [250, 520], [282, 522], [314, 520], [250, 552], [314, 552], [220, 700], [252, 702], [284, 700], [316, 702], [348, 700], [220, 760], [348, 760], [220, 728], [348, 728]]:
 		ow_add_deco("04" if int(t[0] + t[1]) % 2 == 0 else "05", t[0], t[1], true)
-	# Border trees, with a clear east road out toward the shore.
-	var trees := [
-		[160, 180], [230, 150], [320, 145], [410, 140], [500, 138], [600, 142], [700, 148], [800, 155], [880, 160], [960, 190],
-		[150, 260], [145, 340], [148, 420], [150, 500], [155, 580], [160, 660], [200, 740], [280, 800], [360, 810], [460, 815],
-		[560, 812], [660, 800], [760, 790], [860, 770], [960, 720], [1000, 640], [1010, 360], [1000, 280], [980, 210],
-		# a few inner groves
-		[700, 620], [740, 580], [430, 700],
-	]
-	for i in trees.size():
-		var t: Array = trees[i]
-		ow_add_tree(t[0], t[1], 0.58 + (i % 3) * 0.05, i % 4)
+	# Trees, roads, wild grass and the wider region come from res://data/world_map.txt (world.gd).
 	# East road out: keep a 2-tile corridor around y=500-560, x=900-1040 clear of trees (already omitted). Line it with bushes.
 	for bx in [860, 900, 940, 980, 1020]:
 		ow_add_deco("08", bx, 470, false)
@@ -2960,7 +3126,7 @@ func build_overworld() -> void:
 		{"x": 320, "y": 748, "ph": 3, "flip": true},
 	]
 	# Start in the central plaza if new, otherwise keep a still-valid spot.
-	var start := Vector2(640, 520)
+	var start: Vector2 = WORLD.start_pos() if WORLD != null and WORLD.ok else Vector2(640, 520)
 	if not ow_ready or ow_blocked_at(ow_x, ow_y):
 		ow_x = start.x
 		ow_y = start.y
@@ -2990,7 +3156,10 @@ func tick_overworld(dt: float) -> void:
 	if screen != "overworld":
 		return
 	ow_at += dt
-	var sp := 180.0 * dt / 1000.0
+	if ow_menu_open:
+		ow_tx = ow_x
+		ow_ty = ow_y
+	var sp := 200.0 * dt / 1000.0
 	var dx: float = ow_tx - ow_x
 	var dy: float = ow_ty - ow_y
 	var dist := sqrt(dx * dx + dy * dy)
@@ -3007,18 +3176,22 @@ func tick_overworld(dt: float) -> void:
 			ow_x = nx
 			ow_y = ny
 			moved = true
-		elif not ow_blocked_at(nx, ow_y):
+		elif absf(nx - ow_x) > 0.05 and not ow_blocked_at(nx, ow_y):
 			ow_x = nx
 			moved = true
 			# sliding: cancel the blocked axis of the destination so we don't jitter
 			if ow_blocked_at(ow_x, ow_y + (1 if dy > 0 else -1) * 2):
 				ow_ty = ow_y
-		elif not ow_blocked_at(ow_x, ny):
+		elif absf(ny - ow_y) > 0.05 and not ow_blocked_at(ow_x, ny):
 			ow_y = ny
 			moved = true
 			if ow_blocked_at(ow_x + (1 if dx > 0 else -1) * 2, ow_y):
 				ow_tx = ow_x
 		else:
+			var gid: String = WORLD.blocking_gate_near(ow_x, ow_y, ow_tx, ow_ty)
+			if gid != "":
+				var gd: Dictionary = WORLD.gates.get(gid, {})
+				WORLD.show_toast(str(gd.get("locked_text", "The way is blocked.")))
 			ow_tx = ow_x
 			ow_ty = ow_y
 			moved = false
@@ -3037,6 +3210,13 @@ func tick_overworld(dt: float) -> void:
 	var map_y0 := 0.0
 	var map_x1 := float(OW_C1 + 2) * 64.0
 	var map_y1 := float(OW_R1 + 2) * 64.0
+	if WORLD != null and WORLD.ok:
+		map_x1 = float(WORLD.W) * 64.0
+		map_y1 = float(WORLD.H) * 64.0
+	var wev: Dictionary = WORLD.tick(ow_x, ow_y, dt, ow_moving)
+	if wev.has("encounter"):
+		start_encounter(wev.encounter)
+		return
 	var min_cx := map_x0 + vis_w / 2.0
 	var max_cx := map_x1 - vis_w / 2.0
 	var min_cy := map_y0 + vis_h / 2.0
@@ -3056,25 +3236,18 @@ func draw_overworld() -> void:
 	draw_rect(Rect2(0, 0, VWc, VHc), Color("#47aba9"))
 	var short := VHc <= 430
 	# Fit a readable chunk of town; keep the lead easy to see on a short landscape screen.
-	var show_h := 460.0 if short else 560.0
+	# Zoomed out vs the first town build (was 460/560 tall, 0.7–1.35) so more of the region shows.
+	var show_h := 600.0 if short else 720.0
 	var show_w := show_h * (VWc / maxf(1.0, VHc))
 	ow_scale = minf(VWc / show_w, VHc / show_h)
-	ow_scale = clampf(ow_scale, 0.7, 1.35)
+	ow_scale = clampf(ow_scale, 0.55, 1.1)
 	var base := Transform2D(Vector2(dpr, 0), Vector2(0, dpr), Vector2.ZERO)
 	var cam := Transform2D(Vector2(ow_scale, 0), Vector2(0, ow_scale), Vector2(VWc / 2.0 - ow_camx * ow_scale, VHc / 2.0 - ow_camy * ow_scale))
 	set_xf(base * cam)
-	# Foam around the island
-	var ff := int(floorf(now / 110.0)) % 8
-	for r in range(OW_R0 - 1, OW_R1 + 2):
-		for c in range(OW_C0 - 1, OW_C1 + 2):
-			if r == OW_R0 - 1 or r == OW_R1 + 1 or c == OW_C0 - 1 or c == OW_C1 + 1:
-				img(IMG.foam, ((ff + c + r) % 8) * 192, 0, 192, 192, c * 64 - 64, r * 64 - 64, 192, 192)
-	# Grass tiles with island edges
-	for r in range(OW_R0, OW_R1 + 1):
-		for c in range(OW_C0, OW_C1 + 1):
-			var sx := 0 if c == OW_C0 else (2 if c == OW_C1 else 1)
-			var sy := 0 if r == OW_R0 else (2 if r == OW_R1 else 1)
-			img(IMG.flat, sx * 64, sy * 64, 64, 64, c * 64, r * 64, 64, 64)
+	var vis_w2: float = VWc / ow_scale
+	var vis_h2: float = VHc / ow_scale
+	var view := Rect2(ow_camx - vis_w2 / 2.0, ow_camy - vis_h2 / 2.0, vis_w2, vis_h2)
+	WORLD.draw_ground(self, view, now)
 	# Ground decorations (mushrooms, bushes, stones) under characters
 	for d in OW_DECO:
 		var im: Texture2D = IMG["deco" + str(d[0])]
@@ -3088,6 +3261,8 @@ func draw_overworld() -> void:
 	var list := []
 	for p in OW_PROPS:
 		list.append([float(p.y), 0, p])
+	for wp in WORLD.visible_props(view):
+		list.append([float(wp.y), 0, wp])
 	for sh in OW_SHEEP:
 		list.append([float(sh.y), 1, sh])
 	list.append([ow_y, 2, {}])
@@ -3105,16 +3280,61 @@ func draw_overworld() -> void:
 			draw_frame(IMG.sheep, 128, 128, sfr, 0, sh.x, sh.y, 64, 86, 0.62, sh.flip)
 		else:
 			_draw_ow_lead()
+			WORLD.draw_grass_over(self, ow_x, ow_y, now)
 	set_xf(base)
+	if screen != "overworld":
+		return
 	# UI
 	var bh := 42.0 if short else 48.0
-	ui_button("ow_back", Rect2(10, 8, 118.0 if short else 130.0, bh), "BACK", true, 16, 28, func(): to_title())
-	ribbon(IMG.ribbonYellow, VWc / 2, 8, TOWN_NAME, 18.0 if short else 22.0, bh, minf(260, VWc * 0.42), 40, bh - 10)
+	var mw := 118.0 if short else 130.0
+	ui_button("ow_menu", Rect2(10, 8, mw, bh), "MENU", true, 16, 28, func(): ow_menu_open = not ow_menu_open)
+	ui_button("ow_map", Rect2(10, 8 + bh + 6, mw, bh), "MAP", false, 16, 28, func(): ow_open_menu_screen("map"))
+	var here: String = WORLD.area_name(WORLD.cur_area) if WORLD.cur_area != "" else TOWN_NAME
+	ribbon(IMG.ribbonYellow, VWc / 2, 8, here, 18.0 if short else 22.0, bh, minf(300, VWc * 0.46), 40, bh - 10)
+	if WORLD.cur_area != "":
+		outlined("Recommended " + WORLD.rec_text(WORLD.cur_area), VWc / 2, 8 + bh + 12, 12.0 if short else 14.0, Color("#ffe6a8"))
 	var lead := lead_name()
 	var st := compute_hero_stats(lead)
 	text(lead + "  ·  Lv." + str(int(st.level)) + "  " + st.cls, VWc - 12, 8 + bh * 0.5, 12.0 if short else 14.0, Color.WHITE, "right", 3, Color(0, 0, 0, 0.75))
+	var wild_now: bool = WORLD.in_wild(ow_x, ow_y)
 	var hint := "Tap the ground to walk" if short else "Tap a spot to walk there  ·  the lead of your fighting five explores"
-	outlined(hint, VWc / 2, VHc - (14 if short else 18), 12.0 if short else 14.0, Color.WHITE)
+	if wild_now:
+		hint = "Wild grass  ·  monsters may jump out"
+	outlined(hint, VWc / 2, VHc - (14 if short else 18), 12.0 if short else 14.0, Color("#c8ffb0") if wild_now else Color.WHITE)
+	WORLD.draw_hud(self, VWc, VHc)
+	if ow_menu_open:
+		_draw_ow_menu(short)
+
+
+func _draw_ow_menu(short: bool) -> void:
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0, 0, 0, 0.45))
+	var items := [
+		["owm_map", "MAP", "map"], ["owm_party", "PARTY", "party"],
+		["owm_inv", "INVENTORY", "inv"], ["owm_stats", "STATS", "stats"],
+		["owm_chars", "CHARACTERS", "chars"], ["owm_title", "TITLE", "title"],
+	]
+	var cols := 2 if VWc < 900 else 3
+	var bw := minf(220.0, (VWc - 60.0) / float(cols) - 10.0)
+	var bh := 46.0 if short else 56.0
+	var rows := int(ceil(float(items.size()) / float(cols)))
+	var pw := float(cols) * bw + float(cols - 1) * 10.0 + 60.0
+	var ph := float(rows) * bh + float(rows - 1) * 10.0 + (96.0 if short else 120.0)
+	var px := VWc / 2 - pw / 2
+	var py := VHc / 2 - ph / 2
+	add_btn("owm_bg", Rect2(0, 0, VWc, VHc), func(): ow_menu_open = false)
+	css9(IMG.carved, px, py, pw, ph, 24.0 if short else 30.0)
+	ribbon(IMG.ribbonBlue, VWc / 2, py + 12, "MENU", 18.0 if short else 22.0, 40.0 if short else 48.0, minf(220, VWc * 0.4), 40, 32.0 if short else 38.0)
+	add_btn("owm_panel", Rect2(px, py, pw, ph), func(): pass)
+	var y0 := py + (60.0 if short else 74.0)
+	for i in items.size():
+		var it: Array = items[i]
+		var cx := px + 30.0 + float(i % cols) * (bw + 10.0)
+		var cy := y0 + float(i / cols) * (bh + 10.0)
+		var which: String = it[2]
+		if which == "title":
+			ui_button(it[0], Rect2(cx, cy, bw, bh), it[1], true, 16.0 if short else 18.0, 28, func(): to_title())
+		else:
+			ui_button(it[0], Rect2(cx, cy, bw, bh), it[1], false, 16.0 if short else 18.0, 28, func(): ow_open_menu_screen(which))
 
 
 func _draw_ow_lead() -> void:
@@ -3312,13 +3532,13 @@ func draw_results() -> void:
 	y += 8 if short else 14
 	if btn_rows == 1:
 		var bx := cx - (rw + tw + 10) / 2
-		ui_button("retry", Rect2(bx, y, rw, btn_h), "RETRY", false, 22, 40, func(): start_fight(last_raid))
-		ui_button("menu", Rect2(bx + rw + 10, y, tw, btn_h), "TITLE", true, 22, 40, func(): to_title())
+		ui_button("retry", Rect2(bx, y, rw, btn_h), "CONTINUE" if not encounter.is_empty() else "RETRY", false, 22, 40, func(): results_primary())
+		ui_button("menu", Rect2(bx + rw + 10, y, tw, btn_h), "TITLE", true, 22, 40, func(): results_title())
 		y += btn_h
 	else:
-		ui_button("retry", Rect2(cx - rw / 2, y, rw, btn_h), "RETRY", false, 22, 40, func(): start_fight(last_raid))
+		ui_button("retry", Rect2(cx - rw / 2, y, rw, btn_h), "CONTINUE" if not encounter.is_empty() else "RETRY", false, 22, 40, func(): results_primary())
 		y += btn_h + 10
-		ui_button("menu", Rect2(cx - tw / 2, y, tw, btn_h), "TITLE", true, 22, 40, func(): to_title())
+		ui_button("menu", Rect2(cx - tw / 2, y, tw, btn_h), "TITLE", true, 22, 40, func(): results_title())
 		y += btn_h
 	y += (4 if short else 10) + 8
 	link_text("Art: ", "Tiny Swords by Pixel Frog", " (CC0)", URL_TINY, cx, y, 12, Color("#5b3b20"), Color("#2a5d9f"), false, "cr1")
@@ -3353,6 +3573,13 @@ func draw_battle_ui() -> void:
 	sq_button("speed", Rect2(pos[0], Vector2(s, s)), "%dx" % speed, toggle_speed)
 	sq_button("pause", Rect2(pos[1], Vector2(s, s)), "II", toggle_pause, false, false, paused)
 	sq_button("mute", Rect2(pos[2], Vector2(s, s)), "", toggle_mute, true, muted)
+	# RUN — always available during a fight (wild: back to the overworld spot; raid: back to title).
+	var run_w := 108.0 if short_land else 124.0
+	var run_h := 42.0 if short_land else 48.0
+	var hud_w := minf(300, (VWc - 96) / 2)
+	var hud_h := roundf(minf(44, maxf(34, hud_w / 6.5)))
+	var run_y := 6 + SAFE_T + hud_h + 22
+	ui_button("run", Rect2(VWc / 2 - run_w / 2, run_y, run_w, run_h), "RUN", true, 17.0 if short_land else 19.0, 24, func(): run_battle())
 	var sel := G != null and phase == "battle" and G.mode == "select"
 	var n := G.queue.size() if sel else 0
 	var liv := alive("blue").size() if G != null else 0
@@ -3593,6 +3820,14 @@ func _draw() -> void:
 	if screen == "overworld":
 		draw_overworld()
 		return
+	if screen == "map":
+		draw_overworld()
+		WMAP.draw(self, VWc, VHc, now, ow_x, ow_y)
+		return
+	if screen == "stats":
+		draw_overworld()
+		STATS.draw(self, VWc, VHc)
+		return
 	draw_rect(Rect2(0, 0, VWc, VHc), Color("#47aba9"))
 	set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
 	save()
@@ -3637,6 +3872,9 @@ func _draw() -> void:
 
 # ---------------------------------------------------------------- screens
 func to_title() -> void:
+	encounter = {}
+	ow_menu_open = false
+	menu_return = ""
 	new_battle(); phase = "title"; paused = false; screen = "title"
 
 func start_fight(n: int) -> void:
@@ -3672,7 +3910,11 @@ func show_results() -> void:
 	var RR := Color("#9e2c2c")
 	var win: bool = r == "win"
 	var xp_full := raid_xp_award(G.n_red, win) if r != "draw" else raid_xp_award(G.n_red, false)
-	if r == "draw":
+	if not encounter.is_empty():
+		var exp_e: int = WORLD.encounter_xp(encounter)
+		xp_full = exp_e if win else int(roundf(float(exp_e) * 0.25))
+		raid_name = "Wild Lv." + str(int(encounter.get("level", 1)))
+	if r == "draw" and encounter.is_empty():
 		xp_full = raid_xp_award(G.n_red, false)
 	var ups: Array = []
 	# Fighters get full XP; bench gets half on a win, none on a loss or draw.
@@ -3744,6 +3986,13 @@ func _input(event: InputEvent) -> void:
 		else: on_release(event.position / dpr)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		on_key(event.physical_keycode)
+	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and drag_on:
+		var mp2: Vector2 = event.position / dpr
+		if mp2.distance_to(drag_from) > 8.0:
+			drag_moved = true
+		if drag_moved:
+			WMAP.drag(mp2 - drag_last)
+		drag_last = mp2
 
 func btn_at(p: Vector2) -> Dictionary:
 	for i in range(buttons.size() - 1, -1, -1):
@@ -3757,12 +4006,27 @@ func on_press(p: Vector2) -> void:
 		pressed_id = b.id
 		return
 	pressed_id = ""
+	if screen == "map":
+		drag_on = true
+		drag_moved = false
+		drag_from = p
+		drag_last = p
+		return
+	if screen == "stats":
+		return
 	if screen == "overworld":
+		if ow_menu_open:
+			ow_menu_open = false
+			return
 		ow_tap(p)
 		return
 	canvas_tap(p.x, p.y)
 
 func on_release(p: Vector2) -> void:
+	if drag_on:
+		drag_on = false
+		if not drag_moved and screen == "map":
+			WMAP.tap(p)
 	var id := pressed_id
 	pressed_id = ""
 	if id == "": return
@@ -3789,9 +4053,19 @@ func canvas_tap(cx: float, cy: float) -> void:
 	if best != null: toggle_queue(best)
 
 func on_key(k: int) -> void:
+	if screen == "map" or screen == "stats":
+		if k == KEY_ESCAPE or k == KEY_P or k == KEY_M:
+			resume_overworld()
+		return
+	if screen == "overworld":
+		if k == KEY_ESCAPE or k == KEY_P:
+			ow_menu_open = not ow_menu_open
+		elif k == KEY_M:
+			ow_open_menu_screen("map")
+		return
 	if screen == "chars" or screen == "inv" or screen == "party" or screen == "overworld":
 		if k == KEY_ESCAPE or k == KEY_P:
-			to_title()
+			menu_back()
 			return
 		if screen == "overworld":
 			return
@@ -3823,6 +4097,7 @@ func on_key(k: int) -> void:
 		var bl: Array = G.units.filter(func(u): return u.team == "blue")
 		var i := k - KEY_1
 		if i < bl.size(): toggle_queue(bl[i])
+	elif k == KEY_R: run_battle()
 	elif k == KEY_A: queue_all()
 	elif k == KEY_C: clear_queue()
 	elif k == KEY_P or k == KEY_ESCAPE: toggle_pause()
@@ -3835,6 +4110,11 @@ func _ready() -> void:
 	build_abilities()
 	sfx = preload("res://scripts/sfx.gd").new()
 	add_child(sfx)
+	WORLD = WorldScript.new()
+	WORLD.load_all()
+	WMAP = WorldMapUI.new()
+	WMAP.setup(WORLD)
+	STATS = StatsUI.new()
 	load_cfg()
 	sfx.muted = muted
 	if OS.has_feature("web"):
@@ -3848,6 +4128,8 @@ func _ready() -> void:
 			var kv2 := a.substr(2).split("=")
 			params[kv2[0]] = kv2[1]
 	if params.get("boss", "") == "goblin": USE_NECRO = false
+	if params.has("enc"): WORLD.enc_mult = maxf(0.0, float(params.enc))
+	if params.get("gates", "") == "off": WORLD.gates_enabled = false
 	build_kinds()
 	load_all()
 	set_orientation(false)
