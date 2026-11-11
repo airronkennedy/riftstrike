@@ -169,134 +169,134 @@ var HERO_MP: Dictionary = {} # hero name -> MP carried between fights (saved)
 # Rows: [id, name, blurb, kind, params]. Unlock level comes from the row position.
 var AB_CLASS_ROWS := {
 	"Airron": [
-		["rift_cut", "Rift Cut", "A sharp opening strike that tears a seam in the air.", "damage_single", {"mult": 2.4}],
-		["seam_ward", "Seam Ward", "Folds the rift around himself to blunt incoming blows.", "buff_self", {"buffs": [["def", 20], ["armor", 6]], "turns": 2}],
-		["riftbrand_slash", "Riftbrand Slash", "A heavy cut that also strips the target's armor.", "damage_single", {"mult": 3.2, "debuff": [["armor", -6]], "dturns": 2}],
-		["rending_arc", "Rending Arc", "A wide rift arc that catches every enemy.", "damage_all_enemies", {"mult": 1.6}],
-		["knights_oath", "Knight's Oath", "Swears to the squad. The whole party gains Defense.", "buff_party", {"buffs": [["def", 15]], "turns": 2}],
-		["rift_lunge", "Rift Lunge", "Steps through the rift for a crushing single blow.", "damage_single", {"mult": 4.2}],
-		["sundering_wave", "Sundering Wave", "A wave of torn space hits all foes and cracks their guard.", "damage_all_enemies", {"mult": 2.2, "debuff": [["def", -15]], "dturns": 2}],
-		["bulwark_rally", "Bulwark Rally", "Rallies the line: party gains Armor and ATK.", "buff_party", {"buffs": [["armor", 8], ["atk", 10]], "turns": 2}],
-		["fault_line", "Fault Line", "Splits the ground under every enemy.", "damage_all_enemies", {"mult": 2.8}],
-		["worldsplitter", "Worldsplitter", "Capstone. Cleaves the rift itself — a massive hit on every foe.", "damage_all_enemies", {"mult": 3.4, "self_buff": [["atk", 15]], "sturns": 2}],
+		["rift_cut", "Rift Cut", "A sharp opening strike that tears a seam in the air.", "damage_single", {"mult": 2.9}],
+		["seam_ward", "Seam Ward", "Folds the rift around himself to blunt incoming blows.", "buff_self", {"buffs": [["def", 30], ["armor", 9]], "turns": 2}],
+		["riftbrand_slash", "Riftbrand Slash", "A heavy cut that also strips the target's armor.", "damage_single", {"mult": 3.8, "debuff": [["armor", -6]], "dturns": 2}],
+		["rending_arc", "Rending Arc", "A wide rift arc that catches every enemy.", "damage_all_enemies", {"mult": 1.8}],
+		["knights_oath", "Knight's Oath", "Swears to the squad. The whole party gains Defense.", "buff_party", {"buffs": [["def", 22]], "turns": 2}],
+		["rift_lunge", "Rift Lunge", "Steps through the rift for a crushing single blow.", "damage_single", {"mult": 5.0}],
+		["sundering_wave", "Sundering Wave", "A wave of torn space hits all foes and cracks their guard.", "damage_all_enemies", {"mult": 2.5, "debuff": [["def", -15]], "dturns": 2}],
+		["bulwark_rally", "Bulwark Rally", "Rallies the line: party gains Armor and ATK.", "buff_party", {"buffs": [["armor", 12], ["atk", 15]], "turns": 2}],
+		["fault_line", "Fault Line", "Splits the ground under every enemy.", "damage_all_enemies", {"mult": 3.2}],
+		["worldsplitter", "Worldsplitter", "Capstone. Cleaves the rift itself — a massive hit on every foe.", "damage_all_enemies", {"mult": 3.9, "self_buff": [["atk", 22]], "sturns": 2}],
 	],
 	"Christian": [
-		["shield_break", "Shield Break", "Cracks a target's guard, lowering its Defense.", "damage_single", {"mult": 2.2, "debuff": [["def", -20]], "dturns": 2}],
-		["brace_up", "Brace Up", "Plants his feet and toughens up.", "buff_self", {"buffs": [["def", 18], ["armor", 5]], "turns": 2}],
-		["heavy_swing", "Heavy Swing", "One big, honest swing at a single foe.", "damage_single", {"mult": 3.2}],
-		["armor_crack", "Armor Crack", "A breaker's blow that shreds armor for longer.", "damage_single", {"mult": 2.6, "debuff": [["armor", -10]], "dturns": 3}],
-		["battle_cry", "Battle Cry", "A roar that lifts the whole party's ATK.", "buff_party", {"buffs": [["atk", 12]], "turns": 2}],
-		["crushing_blow", "Crushing Blow", "Crushes one foe and smashes its Defense.", "damage_single", {"mult": 4.2, "debuff": [["def", -25]], "dturns": 2}],
-		["line_breaker", "Line Breaker", "Charges the enemy line, hitting all and lowering Defense.", "damage_all_enemies", {"mult": 2.0, "debuff": [["def", -12]], "dturns": 2}],
-		["iron_resolve", "Iron Resolve", "Steels himself: big ATK and Defense for three turns.", "buff_self", {"buffs": [["atk", 20], ["def", 20]], "turns": 3}],
-		["earthshaker", "Earthshaker", "Slams the ground — every enemy is rocked.", "damage_all_enemies", {"mult": 2.8}],
-		["final_verdict", "Final Verdict", "Capstone. A finishing blow that breaks any guard.", "damage_single", {"mult": 6.2, "debuff": [["def", -30]], "dturns": 2}],
+		["shield_break", "Shield Break", "Cracks a target's guard, lowering its Defense.", "damage_single", {"mult": 2.6, "debuff": [["def", -20]], "dturns": 2}],
+		["brace_up", "Brace Up", "Plants his feet and toughens up.", "buff_self", {"buffs": [["def", 27], ["armor", 8]], "turns": 2}],
+		["heavy_swing", "Heavy Swing", "One big, honest swing at a single foe.", "damage_single", {"mult": 3.8}],
+		["armor_crack", "Armor Crack", "A breaker's blow that shreds armor for longer.", "damage_single", {"mult": 3.1, "debuff": [["armor", -10]], "dturns": 3}],
+		["battle_cry", "Battle Cry", "A roar that lifts the whole party's ATK.", "buff_party", {"buffs": [["atk", 18]], "turns": 2}],
+		["crushing_blow", "Crushing Blow", "Crushes one foe and smashes its Defense.", "damage_single", {"mult": 5.0, "debuff": [["def", -25]], "dturns": 2}],
+		["line_breaker", "Line Breaker", "Charges the enemy line, hitting all and lowering Defense.", "damage_all_enemies", {"mult": 2.3, "debuff": [["def", -12]], "dturns": 2}],
+		["iron_resolve", "Iron Resolve", "Steels himself: big ATK and Defense for three turns.", "buff_self", {"buffs": [["atk", 30], ["def", 30]], "turns": 3}],
+		["earthshaker", "Earthshaker", "Slams the ground — every enemy is rocked.", "damage_all_enemies", {"mult": 3.2}],
+		["final_verdict", "Final Verdict", "Capstone. A finishing blow that breaks any guard.", "damage_single", {"mult": 7.4, "debuff": [["def", -30]], "dturns": 2}],
 	],
 	"Weston": [
-		["quick_mark", "Quick Mark", "Finds the opening first: hits and marks the target (DEF down).", "damage_single", {"mult": 2.0, "debuff": [["def", -15]], "dturns": 2}],
-		["fleet_foot", "Fleet Foot", "Light on his feet: Speed and Crit up.", "buff_self", {"buffs": [["speed", 12], ["crit", 10]], "turns": 2}],
-		["twin_shot", "Twin Shot", "Two arrows nocked as one — a strong single shot.", "damage_single", {"mult": 3.0}],
-		["volley", "Volley", "Arrows over the whole enemy line.", "damage_all_enemies", {"mult": 1.6}],
-		["hunters_call", "Hunter's Call", "Calls the hunt: party Crit up.", "buff_party", {"buffs": [["crit", 10]], "turns": 2}],
-		["pinning_shot", "Pinning Shot", "Pins one foe hard and slows it.", "damage_single", {"mult": 3.8, "debuff": [["speed", -15]], "dturns": 2}],
-		["arrow_rain", "Arrow Rain", "A heavy rain of arrows on every enemy.", "damage_all_enemies", {"mult": 2.2}],
-		["trailwise", "Trailwise", "Leads the party: Speed and ATK up.", "buff_party", {"buffs": [["speed", 12], ["atk", 8]], "turns": 2}],
-		["storm_of_arrows", "Storm of Arrows", "A storm of shafts batters all foes.", "damage_all_enemies", {"mult": 2.8}],
-		["skyfall_volley", "Skyfall Volley", "Capstone. The sky falls on every enemy and opens their guard.", "damage_all_enemies", {"mult": 3.4, "debuff": [["def", -15]], "dturns": 2}],
+		["quick_mark", "Quick Mark", "Finds the opening first: hits and marks the target (DEF down).", "damage_single", {"mult": 2.4, "debuff": [["def", -15]], "dturns": 2}],
+		["fleet_foot", "Fleet Foot", "Light on his feet: Speed and Crit up.", "buff_self", {"buffs": [["speed", 18], ["crit", 15]], "turns": 2}],
+		["twin_shot", "Twin Shot", "Two arrows nocked as one — a strong single shot.", "damage_single", {"mult": 3.6}],
+		["volley", "Volley", "Arrows over the whole enemy line.", "damage_all_enemies", {"mult": 1.8}],
+		["hunters_call", "Hunter's Call", "Calls the hunt: party Crit up.", "buff_party", {"buffs": [["crit", 15]], "turns": 2}],
+		["pinning_shot", "Pinning Shot", "Pins one foe hard and slows it.", "damage_single", {"mult": 4.6, "debuff": [["speed", -15]], "dturns": 2}],
+		["arrow_rain", "Arrow Rain", "A heavy rain of arrows on every enemy.", "damage_all_enemies", {"mult": 2.5}],
+		["trailwise", "Trailwise", "Leads the party: Speed and ATK up.", "buff_party", {"buffs": [["speed", 18], ["atk", 12]], "turns": 2}],
+		["storm_of_arrows", "Storm of Arrows", "A storm of shafts batters all foes.", "damage_all_enemies", {"mult": 3.2}],
+		["skyfall_volley", "Skyfall Volley", "Capstone. The sky falls on every enemy and opens their guard.", "damage_all_enemies", {"mult": 3.9, "debuff": [["def", -15]], "dturns": 2}],
 	],
 	"Wiesen": [
-		["piercing_shot", "Piercing Shot", "A precise, punching arrow that pierces armor.", "damage_single", {"mult": 2.6, "debuff": [["armor", -6]], "dturns": 2}],
-		["steady_aim", "Steady Aim", "Breathes out and lines up: ATK and Crit up.", "buff_self", {"buffs": [["atk", 15], ["crit", 10]], "turns": 2}],
-		["headshot", "Headshot", "A clean shot at one target's weak spot.", "damage_single", {"mult": 3.4}],
-		["ricochet", "Ricochet", "One arrow skips off every enemy.", "damage_all_enemies", {"mult": 1.6}],
-		["spotters_eye", "Spotter's Eye", "Calls out openings: party Crit up.", "buff_party", {"buffs": [["crit", 12]], "turns": 2}],
-		["armor_piercer", "Armor Piercer", "A heavy bolt that shreds armor for three turns.", "damage_single", {"mult": 4.0, "debuff": [["armor", -12]], "dturns": 3}],
-		["suppressing_fire", "Suppressing Fire", "Pins down all enemies and weakens their ATK.", "damage_all_enemies", {"mult": 2.0, "debuff": [["atk", -12]], "dturns": 2}],
-		["deadeye_focus", "Deadeye Focus", "Total focus: huge ATK and Crit.", "buff_self", {"buffs": [["atk", 30], ["crit", 15]], "turns": 2}],
-		["longshot", "Longshot", "A shot from impossible range at one foe.", "damage_single", {"mult": 5.2}],
-		["one_clean_shot", "One Clean Shot", "Capstone. The perfect shot — enormous single-target damage.", "damage_single", {"mult": 7.0}],
+		["piercing_shot", "Piercing Shot", "A precise, punching arrow that pierces armor.", "damage_single", {"mult": 3.1, "debuff": [["armor", -6]], "dturns": 2}],
+		["steady_aim", "Steady Aim", "Breathes out and lines up: ATK and Crit up.", "buff_self", {"buffs": [["atk", 22], ["crit", 15]], "turns": 2}],
+		["headshot", "Headshot", "A clean shot at one target's weak spot.", "damage_single", {"mult": 4.1}],
+		["ricochet", "Ricochet", "One arrow skips off every enemy.", "damage_all_enemies", {"mult": 1.8}],
+		["spotters_eye", "Spotter's Eye", "Calls out openings: party Crit up.", "buff_party", {"buffs": [["crit", 18]], "turns": 2}],
+		["armor_piercer", "Armor Piercer", "A heavy bolt that shreds armor for three turns.", "damage_single", {"mult": 4.8, "debuff": [["armor", -12]], "dturns": 3}],
+		["suppressing_fire", "Suppressing Fire", "Pins down all enemies and weakens their ATK.", "damage_all_enemies", {"mult": 2.3, "debuff": [["atk", -12]], "dturns": 2}],
+		["deadeye_focus", "Deadeye Focus", "Total focus: huge ATK and Crit.", "buff_self", {"buffs": [["atk", 45], ["crit", 22]], "turns": 2}],
+		["longshot", "Longshot", "A shot from impossible range at one foe.", "damage_single", {"mult": 6.2}],
+		["one_clean_shot", "One Clean Shot", "Capstone. The perfect shot — enormous single-target damage.", "damage_single", {"mult": 8.4}],
 	],
 	"Lanning": [
-		["iron_wall", "Iron Wall", "Braces and soaks the hit: big Defense and Armor.", "buff_self", {"buffs": [["def", 25], ["armor", 8]], "turns": 2}],
-		["shield_bash", "Shield Bash", "Bashes one foe and dulls its ATK.", "damage_single", {"mult": 2.2, "debuff": [["atk", -12]], "dturns": 2}],
-		["bastion", "Bastion", "Becomes a wall for everyone: party Armor up.", "buff_party", {"buffs": [["armor", 6]], "turns": 2}],
-		["rallying_stand", "Rallying Stand", "Steadies the line, healing the whole party a little.", "heal_party", {"pct": 0.12}],
-		["stone_skin", "Stone Skin", "Skin like stone: Armor and Defense for three turns.", "buff_self", {"buffs": [["armor", 16], ["def", 20]], "turns": 3}],
-		["ground_slam", "Ground Slam", "Slams the ground, hitting all foes and slowing them.", "damage_all_enemies", {"mult": 1.8, "debuff": [["speed", -12]], "dturns": 2}],
-		["aegis_line", "Aegis Line", "Raises a shield line: party Defense and Armor up.", "buff_party", {"buffs": [["def", 20], ["armor", 6]], "turns": 2}],
+		["iron_wall", "Iron Wall", "Braces and soaks the hit: big Defense and Armor.", "buff_self", {"buffs": [["def", 38], ["armor", 12]], "turns": 2}],
+		["shield_bash", "Shield Bash", "Bashes one foe and dulls its ATK.", "damage_single", {"mult": 2.6, "debuff": [["atk", -12]], "dturns": 2}],
+		["bastion", "Bastion", "Becomes a wall for everyone: party Armor up.", "buff_party", {"buffs": [["armor", 9]], "turns": 2}],
+		["rallying_stand", "Rallying Stand", "Steadies the line, healing the whole party a little.", "heal_party", {"pct": 0.20}],
+		["stone_skin", "Stone Skin", "Skin like stone: Armor and Defense for three turns.", "buff_self", {"buffs": [["armor", 24], ["def", 30]], "turns": 3}],
+		["ground_slam", "Ground Slam", "Slams the ground, hitting all foes and slowing them.", "damage_all_enemies", {"mult": 2.1, "debuff": [["speed", -12]], "dturns": 2}],
+		["aegis_line", "Aegis Line", "Raises a shield line: party Defense and Armor up.", "buff_party", {"buffs": [["def", 30], ["armor", 9]], "turns": 2}],
 		["second_wind", "Second Wind", "Pulls the weakest ally back up with a large heal.", "heal_single", {"pct": 0.45}],
-		["fortress", "Fortress", "The party becomes a fortress for three turns.", "buff_party", {"buffs": [["def", 25], ["armor", 10]], "turns": 3}],
+		["fortress", "Fortress", "The party becomes a fortress for three turns.", "buff_party", {"buffs": [["def", 38], ["armor", 15]], "turns": 3}],
 		["unbreakable", "Unbreakable", "Capstone. Heals the party and makes it nearly unbreakable.", "heal_party", {"pct": 0.30, "party_buff": [["armor", 12], ["def", 20]], "pturns": 3}],
 	],
 	"Rico": [
-		["raid_step", "Raid Step", "Hits and shifts off the line, gaining Speed.", "damage_single", {"mult": 2.4, "self_buff": [["speed", 10]], "sturns": 2}],
-		["hit_and_run", "Hit and Run", "Strikes and slips away, guarding himself.", "damage_single", {"mult": 2.8, "self_buff": [["def", 12]], "sturns": 1}],
-		["plunder_strike", "Plunder Strike", "Steals the fight from one foe, lowering its ATK.", "damage_single", {"mult": 3.2, "debuff": [["atk", -10]], "dturns": 2}],
-		["whirling_raid", "Whirling Raid", "Spins through the whole enemy line.", "damage_all_enemies", {"mult": 1.8}],
-		["war_drums", "War Drums", "Beats the drums: party Speed up.", "buff_party", {"buffs": [["speed", 12]], "turns": 2}],
-		["flank_rush", "Flank Rush", "Rushes the flank for a big hit, then Speed and Crit up.", "damage_single", {"mult": 4.2, "self_buff": [["speed", 12], ["crit", 10]], "sturns": 2}],
-		["reavers_sweep", "Reaver's Sweep", "A reckless sweep across every enemy.", "damage_all_enemies", {"mult": 2.4}],
-		["bloodrush", "Bloodrush", "All-in aggression: huge ATK and Speed.", "buff_self", {"buffs": [["atk", 30], ["speed", 15]], "turns": 2}],
-		["raiders_storm", "Raider's Storm", "Storms all foes and keeps the momentum (ATK up).", "damage_all_enemies", {"mult": 3.0, "self_buff": [["atk", 15]], "sturns": 2}],
-		["warpath", "Warpath", "Capstone. Tears through every foe and drives the party forward.", "damage_all_enemies", {"mult": 3.6, "party_buff": [["speed", 12], ["atk", 10]], "pturns": 2}],
+		["raid_step", "Raid Step", "Hits and shifts off the line, gaining Speed.", "damage_single", {"mult": 2.9, "self_buff": [["speed", 15]], "sturns": 2}],
+		["hit_and_run", "Hit and Run", "Strikes and slips away, guarding himself.", "damage_single", {"mult": 3.4, "self_buff": [["def", 18]], "sturns": 1}],
+		["plunder_strike", "Plunder Strike", "Steals the fight from one foe, lowering its ATK.", "damage_single", {"mult": 3.8, "debuff": [["atk", -10]], "dturns": 2}],
+		["whirling_raid", "Whirling Raid", "Spins through the whole enemy line.", "damage_all_enemies", {"mult": 2.1}],
+		["war_drums", "War Drums", "Beats the drums: party Speed up.", "buff_party", {"buffs": [["speed", 18]], "turns": 2}],
+		["flank_rush", "Flank Rush", "Rushes the flank for a big hit, then Speed and Crit up.", "damage_single", {"mult": 5.0, "self_buff": [["speed", 18], ["crit", 15]], "sturns": 2}],
+		["reavers_sweep", "Reaver's Sweep", "A reckless sweep across every enemy.", "damage_all_enemies", {"mult": 2.8}],
+		["bloodrush", "Bloodrush", "All-in aggression: huge ATK and Speed.", "buff_self", {"buffs": [["atk", 45], ["speed", 22]], "turns": 2}],
+		["raiders_storm", "Raider's Storm", "Storms all foes and keeps the momentum (ATK up).", "damage_all_enemies", {"mult": 3.5, "self_buff": [["atk", 22]], "sturns": 2}],
+		["warpath", "Warpath", "Capstone. Tears through every foe and drives the party forward.", "damage_all_enemies", {"mult": 4.1, "party_buff": [["speed", 18], ["atk", 15]], "pturns": 2}],
 	],
 }
 var AB_SUB_ROWS := {
 	"Riftblade": [
-		["rift_edge", "Rift Edge", "A quick rift-edged cut on one foe.", "damage_single", {"mult": 2.2}],
-		["seam_burst", "Seam Burst", "Bursts a seam under every enemy.", "damage_all_enemies", {"mult": 1.4}],
-		["blade_focus", "Blade Focus", "Hones the edge: ATK and Crit up.", "buff_self", {"buffs": [["atk", 20], ["crit", 10]], "turns": 2}],
-		["rift_rend", "Rift Rend", "Rends one foe and its armor.", "damage_single", {"mult": 4.0, "debuff": [["armor", -10]], "dturns": 2}],
-		["riftstorm", "Riftstorm", "A storm of rift blades hits all foes hard.", "damage_all_enemies", {"mult": 2.8}],
+		["rift_edge", "Rift Edge", "A quick rift-edged cut on one foe.", "damage_single", {"mult": 2.6}],
+		["seam_burst", "Seam Burst", "Bursts a seam under every enemy.", "damage_all_enemies", {"mult": 1.6}],
+		["blade_focus", "Blade Focus", "Hones the edge: ATK and Crit up.", "buff_self", {"buffs": [["atk", 30], ["crit", 15]], "turns": 2}],
+		["rift_rend", "Rift Rend", "Rends one foe and its armor.", "damage_single", {"mult": 4.8, "debuff": [["armor", -10]], "dturns": 2}],
+		["riftstorm", "Riftstorm", "A storm of rift blades hits all foes hard.", "damage_all_enemies", {"mult": 3.2}],
 	],
 	"Vanguard": [
-		["hold_the_line", "Hold the Line", "Digs in: Defense up.", "buff_self", {"buffs": [["def", 20]], "turns": 2}],
-		["shoulder_charge", "Shoulder Charge", "Charges one foe and slows it.", "damage_single", {"mult": 2.4, "debuff": [["speed", -10]], "dturns": 2}],
-		["front_guard", "Front Guard", "Guards the whole party: Defense up.", "buff_party", {"buffs": [["def", 15]], "turns": 2}],
-		["rally_point", "Rally Point", "Heals the party a little and adds Armor.", "heal_party", {"pct": 0.15, "party_buff": [["armor", 5]], "pturns": 2}],
-		["vanguards_wall", "Vanguard's Wall", "A full wall: big party Defense and Armor.", "buff_party", {"buffs": [["def", 25], ["armor", 10]], "turns": 3}],
+		["hold_the_line", "Hold the Line", "Digs in: Defense up.", "buff_self", {"buffs": [["def", 30]], "turns": 2}],
+		["shoulder_charge", "Shoulder Charge", "Charges one foe and slows it.", "damage_single", {"mult": 2.9, "debuff": [["speed", -10]], "dturns": 2}],
+		["front_guard", "Front Guard", "Guards the whole party: Defense up.", "buff_party", {"buffs": [["def", 22]], "turns": 2}],
+		["rally_point", "Rally Point", "Heals the party a little and adds Armor.", "heal_party", {"pct": 0.15, "party_buff": [["armor", 8]], "pturns": 2}],
+		["vanguards_wall", "Vanguard's Wall", "A full wall: big party Defense and Armor.", "buff_party", {"buffs": [["def", 38], ["armor", 15]], "turns": 3}],
 	],
 	"Scout": [
-		["swift_strike", "Swift Strike", "A fast strike, then Speed up.", "damage_single", {"mult": 2.0, "self_buff": [["speed", 10]], "sturns": 2}],
-		["scout_ahead", "Scout Ahead", "Finds the path: party Speed up.", "buff_party", {"buffs": [["speed", 10]], "turns": 2}],
-		["expose", "Expose", "Exposes one foe: hit and big Defense down.", "damage_single", {"mult": 2.4, "debuff": [["def", -20]], "dturns": 2}],
-		["smoke_screen", "Smoke Screen", "Covers the party: Defense and Speed up.", "buff_party", {"buffs": [["def", 18], ["speed", 8]], "turns": 2}],
-		["ambush", "Ambush", "Springs an ambush on every enemy.", "damage_all_enemies", {"mult": 2.6}],
+		["swift_strike", "Swift Strike", "A fast strike, then Speed up.", "damage_single", {"mult": 2.4, "self_buff": [["speed", 15]], "sturns": 2}],
+		["scout_ahead", "Scout Ahead", "Finds the path: party Speed up.", "buff_party", {"buffs": [["speed", 15]], "turns": 2}],
+		["expose", "Expose", "Exposes one foe: hit and big Defense down.", "damage_single", {"mult": 2.9, "debuff": [["def", -20]], "dturns": 2}],
+		["smoke_screen", "Smoke Screen", "Covers the party: Defense and Speed up.", "buff_party", {"buffs": [["def", 27], ["speed", 12]], "turns": 2}],
+		["ambush", "Ambush", "Springs an ambush on every enemy.", "damage_all_enemies", {"mult": 3.0}],
 	],
 	"Sharpshot": [
-		["aimed_shot", "Aimed Shot", "A careful shot at one foe.", "damage_single", {"mult": 2.4}],
-		["weak_point", "Weak Point", "Hits a weak point and lowers Armor.", "damage_single", {"mult": 2.2, "debuff": [["armor", -10]], "dturns": 2}],
-		["keen_eyes", "Keen Eyes", "Sharpens the squad: party Crit up.", "buff_party", {"buffs": [["crit", 12]], "turns": 2}],
-		["scatter_shot", "Scatter Shot", "Scatters shots across all foes.", "damage_all_enemies", {"mult": 2.0}],
-		["killshot", "Killshot", "A lethal single shot.", "damage_single", {"mult": 5.0}],
+		["aimed_shot", "Aimed Shot", "A careful shot at one foe.", "damage_single", {"mult": 2.9}],
+		["weak_point", "Weak Point", "Hits a weak point and lowers Armor.", "damage_single", {"mult": 2.6, "debuff": [["armor", -10]], "dturns": 2}],
+		["keen_eyes", "Keen Eyes", "Sharpens the squad: party Crit up.", "buff_party", {"buffs": [["crit", 18]], "turns": 2}],
+		["scatter_shot", "Scatter Shot", "Scatters shots across all foes.", "damage_all_enemies", {"mult": 2.3}],
+		["killshot", "Killshot", "A lethal single shot.", "damage_single", {"mult": 6.0}],
 	],
 	"Ironhide": [
-		["harden", "Harden", "Hardens up: Armor up.", "buff_self", {"buffs": [["armor", 10]], "turns": 2}],
-		["iron_hide", "Iron Hide", "Iron skin: big Defense and Armor.", "buff_self", {"buffs": [["def", 25], ["armor", 12]], "turns": 2}],
+		["harden", "Harden", "Hardens up: Armor up.", "buff_self", {"buffs": [["armor", 15]], "turns": 2}],
+		["iron_hide", "Iron Hide", "Iron skin: big Defense and Armor.", "buff_self", {"buffs": [["def", 38], ["armor", 18]], "turns": 2}],
 		["shrug_off", "Shrug Off", "Shrugs off the damage, healing himself a lot.", "heal_single", {"pct": 0.40, "self": true}],
-		["iron_bond", "Iron Bond", "Shares the iron: party Armor up.", "buff_party", {"buffs": [["armor", 8]], "turns": 2}],
-		["living_fortress", "Living Fortress", "Party Armor and Defense way up for three turns.", "buff_party", {"buffs": [["armor", 12], ["def", 20]], "turns": 3}],
+		["iron_bond", "Iron Bond", "Shares the iron: party Armor up.", "buff_party", {"buffs": [["armor", 12]], "turns": 2}],
+		["living_fortress", "Living Fortress", "Party Armor and Defense way up for three turns.", "buff_party", {"buffs": [["armor", 18], ["def", 30]], "turns": 3}],
 	],
 	"Raider": [
-		["raid_strike", "Raid Strike", "A raider's opening hit on one foe.", "damage_single", {"mult": 2.2}],
-		["loot_run", "Loot Run", "Hits one foe and runs off faster.", "damage_single", {"mult": 2.6, "self_buff": [["speed", 12]], "sturns": 2}],
-		["pillage", "Pillage", "Pillages the line: hits all and lowers Armor.", "damage_all_enemies", {"mult": 1.6, "debuff": [["armor", -6]], "dturns": 2}],
-		["warband_rush", "Warband Rush", "The warband surges: party ATK and Speed up.", "buff_party", {"buffs": [["atk", 12], ["speed", 8]], "turns": 2}],
-		["sack_the_line", "Sack the Line", "Sacks every foe and breaks their Defense.", "damage_all_enemies", {"mult": 2.8, "debuff": [["def", -15]], "dturns": 2}],
+		["raid_strike", "Raid Strike", "A raider's opening hit on one foe.", "damage_single", {"mult": 2.6}],
+		["loot_run", "Loot Run", "Hits one foe and runs off faster.", "damage_single", {"mult": 3.1, "self_buff": [["speed", 18]], "sturns": 2}],
+		["pillage", "Pillage", "Pillages the line: hits all and lowers Armor.", "damage_all_enemies", {"mult": 1.8, "debuff": [["armor", -6]], "dturns": 2}],
+		["warband_rush", "Warband Rush", "The warband surges: party ATK and Speed up.", "buff_party", {"buffs": [["atk", 18], ["speed", 12]], "turns": 2}],
+		["sack_the_line", "Sack the Line", "Sacks every foe and breaks their Defense.", "damage_all_enemies", {"mult": 3.2, "debuff": [["def", -15]], "dturns": 2}],
 	],
 	"Sage": [
 		["mend", "Mend", "Heals one ally for a large amount (lowest HP first).", "heal_single", {"pct": 0.50}],
-		["mana_ward", "Mana Ward", "Wards the party: Defense and Armor up.", "buff_party", {"buffs": [["def", 12], ["armor", 4]], "turns": 2}],
+		["mana_ward", "Mana Ward", "Wards the party: Defense and Armor up.", "buff_party", {"buffs": [["def", 18], ["armor", 6]], "turns": 2}],
 		["soothing_rain", "Soothing Rain", "Heals the whole party for a medium amount.", "heal_party", {"pct": 0.25}],
-		["renewal", "Renewal", "Heals the whole party and adds Defense.", "heal_party", {"pct": 0.30, "party_buff": [["def", 12]], "pturns": 2}],
+		["renewal", "Renewal", "Heals the whole party and adds Defense.", "heal_party", {"pct": 0.30, "party_buff": [["def", 18]], "pturns": 2}],
 		["grand_restoration", "Grand Restoration", "Heals the whole party for a large amount.", "heal_party", {"pct": 0.50}],
 	],
 	"Duelist": [
-		["riposte", "Riposte", "Strikes one foe and guards the counter.", "damage_single", {"mult": 2.2, "self_buff": [["def", 12]], "sturns": 1}],
-		["feint", "Feint", "A feint that opens the guard (big Defense down).", "damage_single", {"mult": 2.0, "debuff": [["def", -18]], "dturns": 2}],
-		["en_garde", "En Garde", "Ready stance: Crit and Speed up.", "buff_self", {"buffs": [["crit", 15], ["speed", 10]], "turns": 2}],
-		["perfect_lunge", "Perfect Lunge", "One perfect lunge — heavy single-target damage.", "damage_single", {"mult": 4.2}],
-		["duels_end", "Duel's End", "Ends the duel: huge hit, then Crit up.", "damage_single", {"mult": 5.2, "self_buff": [["crit", 15]], "sturns": 2}],
+		["riposte", "Riposte", "Strikes one foe and guards the counter.", "damage_single", {"mult": 2.6, "self_buff": [["def", 18]], "sturns": 1}],
+		["feint", "Feint", "A feint that opens the guard (big Defense down).", "damage_single", {"mult": 2.4, "debuff": [["def", -18]], "dturns": 2}],
+		["en_garde", "En Garde", "Ready stance: Crit and Speed up.", "buff_self", {"buffs": [["crit", 22], ["speed", 15]], "turns": 2}],
+		["perfect_lunge", "Perfect Lunge", "One perfect lunge — heavy single-target damage.", "damage_single", {"mult": 5.0}],
+		["duels_end", "Duel's End", "Ends the duel: huge hit, then Crit up.", "damage_single", {"mult": 6.2, "self_buff": [["crit", 22]], "sturns": 2}],
 	],
 }
 
@@ -1041,7 +1041,7 @@ func new_battle(n: int = 0) -> void:
 
 ## Raids follow the party's level on the same curve as wild fights (encounters.json "scaling"),
 ## normalised at RAID_REF_LV: parties at or below it see the original raid numbers.
-var RAID_REF_LV := 10
+var RAID_REF_LV := 15
 func raid_level_mult() -> Dictionary:
 	if WORLD == null:
 		return {}
@@ -1768,6 +1768,17 @@ func queue_ability(u, id: String) -> void:
 	u.pop = 160.0
 	sfx.tone(988, 0.07, "triangle", 0.035)
 
+## Players can't aim, so a single-target ability picks for them: the biggest foe it can KO outright,
+## otherwise the weakest foe (setting up the next kill) — never a nearly-dead goblin that wastes a nuke.
+func ability_target(u, foes: Array, mult: float):
+	var best_kill = null
+	var weakest = null
+	for f in foes:
+		var est: int = mitigate_raw(float(u.atk) * mult * surge_mult(), f)
+		if est >= f.hp and (best_kill == null or f.hp > best_kill.hp): best_kill = f
+		if weakest == null or f.hp < weakest.hp: weakest = f
+	return best_kill if best_kill != null else weakest
+
 ## Replaces the unit's normal attack for this turn. Spends the full MP bar.
 func start_ability(u, id: String) -> bool:
 	var ab: Dictionary = ABILITY_DEFS[id]
@@ -1783,9 +1794,7 @@ func start_ability(u, id: String) -> bool:
 			return false
 		t = u.plan.target if (u.plan != null and u.plan.target != null and not u.plan.target.dead) else pick(foes)
 		if kind == "damage_single":
-			# Players can't aim, so a big single hit goes where it can finish someone: the foe with the least HP.
-			for f in foes:
-				if f.hp < t.hp: t = f
+			t = ability_target(u, foes, float(p.get("mult", 1.0)))
 		if u.plan != null: u.plan.target = t
 	elif kind == "heal_single":
 		t = u if bool(p.get("self", false)) else lowest_ally(u)

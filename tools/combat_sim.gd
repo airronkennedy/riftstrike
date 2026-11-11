@@ -47,6 +47,7 @@ func fight(mode: int, enc: Dictionary) -> Dictionary:
 	g.phase = "battle"; g.paused = false; g.screen = ""
 	g.begin_player_turn()
 	g.AUTO = true
+	g.combat_trace = []
 	var guard := 0
 	var casts := 0
 	var seen := {}
@@ -76,6 +77,18 @@ func fight(mode: int, enc: Dictionary) -> Dictionary:
 	for u in g.G.units:
 		if u.team == "red": rd += u.dmg
 	res["red_dmg"] = rd
+	var cb := 0.0; var abd := 0.0; var tot := 0.0
+	for e in g.combat_trace:
+		var blue := false
+		for u in g.G.units:
+			if u.name == e.src and u.team == "blue": blue = true
+		if not blue: continue
+		tot += e.dmg
+		if e.combo: cb += e.dmg
+		if e.ab: abd += e.dmg
+	res["combo_share"] = cb / maxf(1.0, tot)
+	res["ab_share"] = abd / maxf(1.0, tot)
+	g.combat_trace = null
 	# finish ending phase so the next fight starts clean
 	var g2 := 0
 	while g.phase == "ending" and g2 < 400:
@@ -87,7 +100,9 @@ func summarize(tag: String, rs: Array) -> void:
 	var w := 0; var l := 0; var d := 0; var s := 0
 	var turns := 0.0; var casts := 0.0; var alive := 0.0; var hp := 0.0; var maxt := 0
 	var dmg := {}
+	var cs := 0.0; var abs_ := 0.0
 	for r in rs:
+		cs += r.combo_share; abs_ += r.ab_share
 		match r.result:
 			"win": w += 1
 			"lose": l += 1
@@ -101,7 +116,7 @@ func summarize(tag: String, rs: Array) -> void:
 	var share := {}
 	for k in dmg: share[k] = snappedf(dmg[k] / maxf(1.0, tot), 0.01)
 	print("SIM ", JSON.stringify({"tag": tag, "n": rs.size(), "win": w, "lose": l, "draw": d, "stuck": s,
-		"turns": snappedf(turns / n, 0.1), "max_turns": maxt, "casts": snappedf(casts / n, 0.1), "alive": snappedf(alive / n, 0.1), "hp": snappedf(hp / n, 0.01), "share": share}))
+		"turns": snappedf(turns / n, 0.1), "max_turns": maxt, "casts": snappedf(casts / n, 0.1), "combo": snappedf(cs / n, 0.01), "abdmg": snappedf(abs_ / n, 0.01), "alive": snappedf(alive / n, 0.1), "hp": snappedf(hp / n, 0.01), "share": share}))
 
 func _run() -> void:
 	await wait(300)
