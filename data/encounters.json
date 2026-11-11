@@ -2,11 +2,11 @@
  "_readme": "Wild encounter tables. Encounters roll once per 'step' (step_px of walking) on wild-grass tiles (\") inside the listed area. rate = chance per step. grace_steps = safe steps after a battle or entering grass. pity_steps = force an encounter after this many steps without one. Each group: weight, kinds (torch/barrel/tnt; 1-3 of them), level range. URL ?enc=3 multiplies rate for quick testing; ?enc=0 turns encounters off. An area may have 'zones' (keyed by zone name from world_tiles.json) that override rate/groups inside that part of the area.",
  "step_px": 64,
  "grace_steps": 4,
- "pity_steps": 22,
+ "pity_steps": 40,
  "xp_per_level": 9,
  "areas": {
   "brookside_wilds": {
-   "rate": 0.09,
+   "rate": 0.045,
    "groups": [
     {
      "weight": 5,
@@ -65,7 +65,7 @@
    ],
    "zones": {
     "Whisperreed Marsh": {
-     "rate": 0.1,
+     "rate": 0.05,
      "groups": [
       {
        "weight": 4,
@@ -104,7 +104,7 @@
      ]
     },
     "Old Mill Road": {
-     "rate": 0.08,
+     "rate": 0.04,
      "groups": [
       {
        "weight": 4,
@@ -145,7 +145,7 @@
    }
   },
   "hollowpine_wood": {
-   "rate": 0.1,
+   "rate": 0.05,
    "groups": [
     {
      "weight": 4,
@@ -185,7 +185,7 @@
    ]
   },
   "saltmere_shore": {
-   "rate": 0.1,
+   "rate": 0.05,
    "groups": [
     {
      "weight": 4,

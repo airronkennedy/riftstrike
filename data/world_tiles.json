@@ -1,19 +1,19 @@
 {
- "_readme": "Tile rects are [col0,row0,col1,row1] inclusive (64px tiles). First matching rect wins. 'start' is the new-game tile. Gate rects tie X tiles to world.json gates.",
+ "_readme": "Tile rects are [col0,row0,col1,row1] inclusive (64px tiles). First matching rect wins. 'start' is the new-game tile. Gate rects tie X tiles to world.json gates. Layout 2: every Act I area is 2x wider and 2x taller (4x the tiles) than layout 1.",
  "tile": 64,
  "start": [
-  10,
-  8
+  20,
+  16
  ],
  "areas": [
   {
    "id": "rivenbrook",
    "rects": [
     [
-     1,
-     1,
-     16,
-     12
+     2,
+     2,
+     33,
+     25
     ]
    ]
   },
@@ -21,22 +21,22 @@
    "id": "brookside_wilds",
    "rects": [
     [
-     17,
-     1,
-     38,
-     14
-    ],
-    [
+     34,
      2,
-     13,
-     31,
-     30
+     77,
+     29
     ],
     [
-     39,
-     3,
-     62,
-     13
+     4,
+     26,
+     63,
+     61
+    ],
+    [
+     78,
+     6,
+     125,
+     27
     ]
    ],
    "zones": [
@@ -44,10 +44,10 @@
      "name": "Brookside Meadow",
      "rects": [
       [
-       17,
-       1,
-       38,
-       14
+       34,
+       2,
+       77,
+       29
       ]
      ]
     },
@@ -55,10 +55,10 @@
      "name": "Whisperreed Marsh",
      "rects": [
       [
-       2,
-       13,
-       31,
-       30
+       4,
+       26,
+       63,
+       61
       ]
      ]
     },
@@ -66,10 +66,10 @@
      "name": "Old Mill Road",
      "rects": [
       [
-       39,
-       3,
-       62,
-       13
+       78,
+       6,
+       125,
+       27
       ]
      ]
     }
@@ -79,10 +79,10 @@
    "id": "thornwick",
    "rects": [
     [
-     63,
-     1,
-     80,
-     15
+     126,
+     2,
+     161,
+     31
     ]
    ]
   },
@@ -90,10 +90,10 @@
    "id": "hollowpine_wood",
    "rects": [
     [
-     81,
-     1,
-     110,
-     19
+     162,
+     2,
+     221,
+     39
     ]
    ]
   },
@@ -101,10 +101,10 @@
    "id": "ironbridge_fort",
    "rects": [
     [
-     101,
-     20,
-     110,
-     34
+     202,
+     40,
+     221,
+     69
     ]
    ]
   },
@@ -112,16 +112,16 @@
    "id": "saltmere_shore",
    "rects": [
     [
-     58,
-     34,
-     63,
-     43
+     116,
+     68,
+     127,
+     87
     ],
     [
-     56,
-     16,
-     100,
-     33
+     112,
+     32,
+     201,
+     67
     ]
    ],
    "zones": [
@@ -129,10 +129,10 @@
      "name": "Gullcliff Lighthouse",
      "rects": [
       [
-       58,
-       34,
-       63,
-       43
+       116,
+       68,
+       127,
+       87
       ]
      ]
     }
@@ -144,10 +144,10 @@
    "id": "g_fort_north",
    "rects": [
     [
-     103,
-     20,
-     109,
-     20
+     206,
+     40,
+     219,
+     41
     ]
    ]
   },
@@ -155,10 +155,10 @@
    "id": "g_fort_south",
    "rects": [
     [
-     101,
-     23,
-     101,
-     27
+     202,
+     46,
+     203,
+     55
     ]
    ]
   },
@@ -166,10 +166,10 @@
    "id": "g_lighthouse_door",
    "rects": [
     [
-     58,
-     42,
-     63,
-     42
+     116,
+     84,
+     127,
+     85
     ]
    ]
   }
@@ -177,66 +177,66 @@
  "props": [
   {
    "img": "tower",
-   "x": 50,
-   "y": 5,
+   "x": 100.5,
+   "y": 10.5,
    "s": 0.62,
    "note": "the old mill"
   },
   {
    "img": "ghouse",
-   "x": 46,
-   "y": 10,
+   "x": 92.5,
+   "y": 20.5,
    "s": 0.8
   },
   {
    "img": "ghouse",
-   "x": 66,
-   "y": 4,
+   "x": 132.5,
+   "y": 8.5,
    "s": 0.84
   },
   {
    "img": "ghouse",
-   "x": 75,
-   "y": 4,
+   "x": 150.5,
+   "y": 8.5,
    "s": 0.84,
    "flip": true
   },
   {
    "img": "ghouse",
-   "x": 66,
-   "y": 12,
+   "x": 132.5,
+   "y": 24.5,
    "s": 0.86
   },
   {
    "img": "ghouse",
-   "x": 76,
-   "y": 12,
+   "x": 152.5,
+   "y": 24.5,
    "s": 0.82,
    "flip": true
   },
   {
    "img": "tower",
-   "x": 78,
-   "y": 8,
+   "x": 156.5,
+   "y": 16.5,
    "s": 0.7
   },
   {
    "img": "tower",
-   "x": 104,
-   "y": 28,
+   "x": 208.5,
+   "y": 56.5,
    "s": 0.8,
    "note": "fort keep (sealed)"
   },
   {
    "img": "tower",
-   "x": 108,
-   "y": 26,
+   "x": 216.5,
+   "y": 52.5,
    "s": 0.7
   },
   {
    "img": "tower",
-   "x": 61,
-   "y": 43,
+   "x": 122.5,
+   "y": 86.5,
    "s": 0.8,
    "note": "lighthouse"
   }

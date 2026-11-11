@@ -3275,29 +3275,40 @@ func ow_add_tree(x: float, y: float, scl: float, ph: int) -> void:
 	ow_add_block(x, y, 22 * scl / 0.6, 16 * scl / 0.6)
 
 
-func ow_add_house(x: float, y: float, scl: float, flip := false) -> void:
+var OW_K := 1.0 # town decor spacing scale (world.json town_scale) for the larger tile layout
+
+func ow_add_house(x0: float, y0: float, scl: float, flip := false) -> void:
+	var x: float = x0 * OW_K
+	var y: float = y0 * OW_K
 	OW_PROPS.append({"kind": "house", "x": x, "y": y, "s": scl, "ph": 0, "fw": 128.0, "fh": 192.0, "n": 1, "ax": 64.0, "ay": 171.0, "img": "ghouse", "flip": flip, "fps": 1.0})
 	ow_add_block(x, y + 2, 70 * scl, 36 * scl)
 
 
-func ow_add_tower(x: float, y: float, scl: float) -> void:
+func ow_add_tower(x0: float, y0: float, scl: float) -> void:
+	var x: float = x0 * OW_K
+	var y: float = y0 * OW_K
 	OW_PROPS.append({"kind": "tower", "x": x, "y": y, "s": scl, "ph": 0, "fw": 128.0, "fh": 256.0, "n": 1, "ax": 64.0, "ay": 235.0, "img": "tower", "fps": 1.0})
 	ow_add_block(x, y + 2, 48 * scl / 0.7, 30 * scl / 0.7)
 
 
-func ow_add_rock(x: float, y: float, which: String, block := true) -> void:
+func ow_add_rock(x0: float, y0: float, which: String, block := true) -> void:
+	var x: float = x0 * OW_K
+	var y: float = y0 * OW_K
 	OW_PROPS.append({"kind": "rock", "x": x, "y": y, "s": 1.0, "ph": 0, "fw": 128.0, "fh": 128.0, "n": 8, "ax": 64.0, "ay": 72.0, "img": which, "fps": 7.0})
 	if block:
 		ow_add_block(x, y, 36, 22)
 
 
-func ow_add_deco(id: String, x: float, y: float, block := false) -> void:
+func ow_add_deco(id: String, x0: float, y0: float, block := false) -> void:
+	var x: float = x0 * OW_K
+	var y: float = y0 * OW_K
 	OW_DECO.append([id, x, y])
 	if block:
 		ow_add_block(x, y, 22, 16)
 
 
 func build_overworld() -> void:
+	OW_K = float(WORLD.data.get("town_scale", 1.0)) if WORLD != null and WORLD.ok else 1.0
 	OW_BLOCK = []
 	OW_PROPS = []
 	OW_DECO = []
@@ -3307,6 +3318,12 @@ func build_overworld() -> void:
 	ow_add_house(540, 250, 0.84, true)
 	ow_add_house(270, 470, 0.9)
 	ow_add_tower(900, 270, 0.72)
+	if OW_K > 1.0:
+		# The bigger Rivenbrook gets a few more cottages so the town isn't an empty field.
+		for hp in [[720, 420, 0.86, false], [880, 600, 0.82, true], [500, 700, 0.88, false], [150, 330, 0.84, true], [980, 740, 0.8, false], [660, 170, 0.8, true], [160, 640, 0.86, false]]:
+			ow_add_house(float(hp[0]), float(hp[1]), float(hp[2]), bool(hp[3]))
+		for dd in [["01", 740, 470], ["13", 900, 650], ["02", 520, 750], ["10", 180, 380], ["12", 1000, 790], ["11", 690, 220], ["03", 190, 690]]:
+			ow_add_deco(str(dd[0]), float(dd[1]), float(dd[2]), false)
 	# Yard "fences" of stones in front of cottages and a small sheep pasture.
 	for t in [[340, 330], [372, 332], [404, 330], [500, 300], [532, 302], [564, 300], [250, 520], [282, 522], [314, 520], [250, 552], [314, 552], [220, 700], [252, 702], [284, 700], [316, 702], [348, 700], [220, 760], [348, 760], [220, 728], [348, 728]]:
 		ow_add_deco("04" if int(t[0] + t[1]) % 2 == 0 else "05", t[0], t[1], true)
@@ -3323,8 +3340,8 @@ func build_overworld() -> void:
 	ow_add_rock(200, 240, "rocks3", true)
 	ow_add_rock(980, 500, "rocks1", false)
 	OW_SHEEP = [
-		{"x": 270, "y": 730, "ph": 0, "flip": false},
-		{"x": 320, "y": 748, "ph": 3, "flip": true},
+		{"x": 270 * OW_K, "y": 730 * OW_K, "ph": 0, "flip": false},
+		{"x": 320 * OW_K, "y": 748 * OW_K, "ph": 3, "flip": true},
 	]
 	# Start in the central plaza if new, otherwise keep a still-valid spot.
 	var start: Vector2 = WORLD.start_pos() if WORLD != null and WORLD.ok else Vector2(640, 520)

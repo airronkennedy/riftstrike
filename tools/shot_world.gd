@@ -47,11 +47,11 @@ func _run() -> void:
 	await shot("06_stats_breakdown")
 	g.resume_overworld()
 	# walk east out of town into the meadow
-	g.ow_x = 1150.0; g.ow_y = 500.0; g.ow_tx = g.ow_x; g.ow_ty = g.ow_y
+	g.ow_x = 40 * 64 + 32.0; g.ow_y = 16 * 64 + 40.0; g.ow_tx = g.ow_x; g.ow_ty = g.ow_y
 	g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
 	await wait(700)
 	await shot("07_meadow_banner")
-	g.ow_x = 10 * 64 + 32.0; g.ow_y = 18 * 64 + 40.0; g.ow_tx = g.ow_x; g.ow_ty = g.ow_y; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
+	g.ow_x = 20 * 64 + 32.0; g.ow_y = 37 * 64 + 40.0; g.ow_tx = g.ow_x; g.ow_ty = g.ow_y; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
 	await wait(500)
 	await shot("07b_marsh_zone")
 	print("zone ", g.WORLD.cur_area, " / ", g.WORLD.cur_zone)
@@ -60,11 +60,11 @@ func _run() -> void:
 	await shot("07c_map_you_marsh")
 	g.resume_overworld()
 	# into wild grass at (23,4)
-	g.ow_x = 23 * 64 + 32.0; g.ow_y = 4 * 64 + 40.0; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
+	g.ow_x = 46 * 64 + 32.0; g.ow_y = 8 * 64 + 40.0; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
 	g.WORLD.enc_mult = 4.0
 	var guard := 0
 	while g.phase != "battle" and guard < 400:
-		var tx: float = (20 if (guard / 40) % 2 == 0 else 27) * 64 + 32.0
+		var tx: float = (41 if (guard / 40) % 2 == 0 else 55) * 64 + 32.0
 		if absf(g.ow_x - tx) < 8: guard += 40 - guard % 40
 		g.ow_tx = tx; g.ow_ty = g.ow_y
 		await wait(50)
@@ -80,11 +80,11 @@ func _run() -> void:
 	await shot("10_after_run")
 	print("after run phase ", g.phase, " screen ", g.screen, " pos ", g.ow_x, " same ", absf(g.ow_x - px) < 0.1)
 	# gate toast near the fort north gate
-	g.ow_x = 105 * 64 + 32.0; g.ow_y = 18 * 64 + 40.0; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
-	g.ow_tx = g.ow_x; g.ow_ty = 22 * 64.0
+	g.ow_x = 211 * 64 + 32.0; g.ow_y = 37 * 64 + 40.0; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
+	g.ow_tx = g.ow_x; g.ow_ty = 44 * 64.0
 	await wait(900)
 	await shot("11_fort_gate")
-	g.ow_x = 70 * 64 + 32.0; g.ow_y = 8 * 64 + 40.0; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y; g.ow_tx = g.ow_x; g.ow_ty = g.ow_y
+	g.ow_x = 141 * 64 + 32.0; g.ow_y = 17 * 64 + 40.0; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y; g.ow_tx = g.ow_x; g.ow_ty = g.ow_y
 	await wait(900)
 	await shot("12_thornwick")
 	# full encounter win flow with AUTO

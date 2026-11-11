@@ -930,6 +930,9 @@
    "story_beat": "Placeholder: opens after the ending."
   }
  ],
- "tile_layout": 1,
- "tile_layout_scale": {}
+ "tile_layout": 2,
+ "tile_layout_scale": {
+  "1": 2.0
+ },
+ "town_scale": 2.0
 }
