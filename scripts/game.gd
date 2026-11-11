@@ -103,6 +103,7 @@ var ROSTER_BLUE := [["warrior", "Airron", 360, 265], ["warrior", "Christian", 36
 	["pawn", "Lanning", 315, 185], ["pawn", "Rico", 315, 470],
 	["archer", "Weston", 205, 265], ["archer", "Wiesen", 205, 395]]
 var GOB_NAMES := ["Rusk", "Kael", "Sable", "Drenn", "Voss", "Iven"]
+# Active Play squad. The character catalog can grow past this squad later.
 var HERO_NAMES := ["Airron", "Christian", "Weston", "Wiesen", "Lanning", "Rico"]
 # Personal cores — class and subclass bonuses stack on top.
 var HERO_BASE := {
@@ -114,6 +115,8 @@ var HERO_BASE := {
 	"Rico": {"hp": 240, "atk": 48, "def": 24, "armor": 8, "crit": 8, "mana": 6, "speed": 16},
 }
 # Classes: big, focused packages + a combat kit. Subclasses: smaller mix-and-match bonuses.
+# Target is 10 classes; add new ones to CLASS_DEFS and CLASS_IDS when they are ready.
+# Do not ship placeholder or TBD playable classes.
 var CLASS_DEFS := {
 	"Knight": {"kind": "warrior", "blurb": "Heavy blows and thick armor",
 		"hp": 40, "atk": 22, "def": 8, "armor": 14, "crit": 0, "mana": 2, "speed": 0},
@@ -140,13 +143,24 @@ var SUB_DEFS := {
 	"Duelist": {"blurb": "Pick your opening", "crit": 6, "atk": 4, "speed": 3},
 }
 var SUB_IDS := ["Riftblade", "Vanguard", "Scout", "Sharpshot", "Ironhide", "Raider", "Sage", "Duelist"]
+# Unique character abilities. Combat effects are not wired yet — data + UI only.
+# Each catalog character should keep a unique subclass and a unique ability as the roster grows.
+var ABILITY_DEFS := {
+	"rift_cut": {"name": "Rift Cut", "blurb": "A sharp opening strike"},
+	"shield_break": {"name": "Shield Break", "blurb": "Cracks a target's guard"},
+	"quick_mark": {"name": "Quick Mark", "blurb": "Finds the opening first"},
+	"piercing_shot": {"name": "Piercing Shot", "blurb": "A precise, punching arrow"},
+	"iron_wall": {"name": "Iron Wall", "blurb": "Braces and soaks the hit"},
+	"raid_step": {"name": "Raid Step", "blurb": "Hits and shifts off the line"},
+}
+# Class is locked to the character. Only subclass is swappable in the Characters page.
 var CHAR := {
-	"Airron": {"cls": "Knight", "sub": "Riftblade"},
-	"Christian": {"cls": "Warrior", "sub": "Vanguard"},
-	"Weston": {"cls": "Ranger", "sub": "Scout"},
-	"Wiesen": {"cls": "Marksman", "sub": "Sharpshot"},
-	"Lanning": {"cls": "Guardian", "sub": "Ironhide"},
-	"Rico": {"cls": "Warrior", "sub": "Raider"},
+	"Airron": {"cls": "Knight", "sub": "Riftblade", "ability": "rift_cut"},
+	"Christian": {"cls": "Warrior", "sub": "Vanguard", "ability": "shield_break"},
+	"Weston": {"cls": "Ranger", "sub": "Scout", "ability": "quick_mark"},
+	"Wiesen": {"cls": "Marksman", "sub": "Sharpshot", "ability": "piercing_shot"},
+	"Lanning": {"cls": "Guardian", "sub": "Ironhide", "ability": "iron_wall"},
+	"Rico": {"cls": "Warrior", "sub": "Raider", "ability": "raid_step"},
 }
 var GOB_CLASS := {
 	"torch": {"cls": "Skirmisher", "sub": "Emberblade", "atk": 72, "def": 36, "armor": 8, "crit": 8, "mana": 6, "speed": 14},
@@ -172,6 +186,8 @@ func compute_hero_stats(name: String) -> Dictionary:
 	var sub: String = loadout.sub
 	if not CLASS_DEFS.has(cls): cls = "Knight"
 	if not SUB_DEFS.has(sub): sub = "Riftblade"
+	var ability_id: String = str(loadout.get("ability", ""))
+	var ab: Dictionary = ABILITY_DEFS[ability_id] if ABILITY_DEFS.has(ability_id) else {"name": ability_id, "blurb": ""}
 	var d: Dictionary = HERO_BASE[name].duplicate()
 	pack_add(d, CLASS_DEFS[cls])
 	pack_add(d, SUB_DEFS[sub])
@@ -185,6 +201,7 @@ func compute_hero_stats(name: String) -> Dictionary:
 		"speed": clamp_range(d.speed, 1, 40),
 		"cls": cls, "sub": sub, "kind": CLASS_DEFS[cls].kind,
 		"blurb": CLASS_DEFS[cls].blurb, "sub_blurb": SUB_DEFS[sub].blurb, "scale": 1.0,
+		"ability": ability_id, "ability_name": ab.name, "ability_blurb": ab.blurb,
 	}
 
 func char_stats(name: String, kind: String, team: String, n_red: int) -> Dictionary:
@@ -1384,12 +1401,10 @@ func load_cfg() -> void:
 		if typeof(raw) != TYPE_STRING or raw == "":
 			continue
 		var parts: PackedStringArray = raw.split("|")
-		if parts.size() < 2:
-			continue
-		if CLASS_DEFS.has(parts[0]):
-			CHAR[name].cls = parts[0]
-		if SUB_DEFS.has(parts[1]):
-			CHAR[name].sub = parts[1]
+		# Class is locked to the character; ignore any class saved by older builds.
+		var sub := parts[1] if parts.size() >= 2 else (parts[0] if parts.size() == 1 else "")
+		if SUB_DEFS.has(sub):
+			CHAR[name].sub = sub
 
 func open_chars() -> void:
 	char_sel = 0
@@ -1432,18 +1447,6 @@ func select_hero(i: int) -> void:
 	char_bar = {}
 	char_delta_t = 0.0
 	sfx.tone(523, 0.05, "square", 0.03)
-
-func cycle_class(dir: int) -> void:
-	var name := selected_hero()
-	char_prev = compute_hero_stats(name)
-	var i := CLASS_IDS.find(CHAR[name].cls)
-	if i < 0:
-		i = 0
-	CHAR[name].cls = CLASS_IDS[(i + dir + CLASS_IDS.size()) % CLASS_IDS.size()]
-	char_delta_t = 900.0
-	save_cfg()
-	apply_loadout_preview(name)
-	sfx.tone(784 if dir > 0 else 659, 0.05, "square", 0.03)
 
 func cycle_sub(dir: int) -> void:
 	var name := selected_hero()
@@ -1491,6 +1494,33 @@ func draw_stat_bar(x: float, y: float, w: float, h: float, label: String, value:
 		var dc := Color("#1a7a32") if delta > 0 else Color("#a4321a")
 		dc.a = clampf(char_delta_t / 400.0, 0.0, 1.0)
 		text(ds, bx + bw + 8 + text_w(shown, 13) + 6, y + 9, 13, dc, "left")
+
+func draw_locked_row(x: float, y: float, w: float, tag: String, value: String, hint: String, compact: bool) -> float:
+	# Compact (phone landscape): one tight line so class + ability still fit above the bars.
+	if compact:
+		text(tag, x, y + 12, 11, Color("#5b3b20"), "left")
+		var mid := Rect2(x + 82, y + 2, maxf(64.0, w - 82), 20)
+		var plate := Color("#2a1a10")
+		plate.a = 0.14
+		draw_rect(mid, plate)
+		var fsz := clampf3(13, mid.size.x / maxf(7.0, float(value.length()) * 0.62), 16)
+		text(value, mid.position.x + mid.size.x / 2.0, y + 13, fsz, Color("#2a1a10"))
+		return 24
+	text(tag, x, y + 2, 11, Color("#5b3b20"), "left")
+	var ah := 42.0
+	var aw := 46.0
+	var row_y := y + 10
+	var mid := Rect2(x + aw + 6, row_y, w - aw * 2 - 12, ah)
+	var plate := Color("#2a1a10")
+	plate.a = 0.14
+	draw_rect(mid, plate)
+	var fsz := clampf3(14, mid.size.x / maxf(7.0, float(value.length()) * 0.62), 20)
+	text(value, mid.position.x + mid.size.x / 2.0, row_y + ah * 0.58, fsz, Color("#2a1a10"))
+	var h := 10 + ah
+	if hint != "":
+		text(hint, x + w / 2, row_y + ah + 12, 11, Color("#7a5a32"))
+		h += 16
+	return h + 6
 
 func draw_cycle_row(id: String, x: float, y: float, w: float, tag: String, value: String, hint: String, on_prev: Callable, on_next: Callable) -> float:
 	var ah := 42.0
@@ -1551,14 +1581,17 @@ func draw_chars() -> void:
 	var dx: float = inner.position.x + left_w + 4
 	var dw: float = inner.position.x + inner.size.x - dx
 	var y: float = top
-	var spr_h: float = 88.0 if short else 120.0
+	var spr_h: float = 72.0 if short else 120.0
 	draw_hero_sprite(st.kind, dx + 44, y + spr_h - 4, 0.82 if short else 1.05)
 	text(name, dx + 88, y + 18, 24.0 if short else 30.0, Color("#2a1a10"), "left")
 	text(st.cls + "  ·  " + st.sub, dx + 88, y + (40 if short else 48), 13.0 if short else 15.0, Color("#7a5a32"), "left")
 	y += spr_h + (2 if short else 6)
-	y += draw_cycle_row("cls", dx, y, dw, "CLASS", st.cls, st.blurb, func(): cycle_class(-1), func(): cycle_class(1))
+	var cls_hint := "" if short else String(st.blurb)
+	y += draw_locked_row(dx, y, dw, "CLASS", st.cls, cls_hint, short)
 	var sub_hint := "" if short else String(st.sub_blurb)
 	y += draw_cycle_row("sub", dx, y, dw, "SUBCLASS", st.sub, sub_hint, func(): cycle_sub(-1), func(): cycle_sub(1))
+	var ab_hint := "" if short else String(st.ability_blurb)
+	y += draw_locked_row(dx, y, dw, "ABILITY", String(st.ability_name), ab_hint, short)
 	var rows := [
 		["hp", "HP", 620.0, Color("#4fd36b"), ""],
 		["atk", "ATK", 100.0, Color("#e85a3a"), ""],
@@ -1591,7 +1624,7 @@ func draw_chars() -> void:
 	var footer_y: float = inner.position.y + inner.size.y - 6
 	if not short:
 		text("Defense cuts a percent of a hit. Armor subtracts a flat amount. Mana returns each turn.", dx + dw / 2, footer_y, 10, Color("#7a5a32"))
-		text("Tap the arrows — or the name — to swap and watch the stats move.", dx + dw / 2, footer_y - 14, 10, Color("#7a5a32"))
+		text("Tap arrows or the subclass name to swap and watch the stats move. Class and ability stay locked.", dx + dw / 2, footer_y - 14, 10, Color("#7a5a32"))
 
 
 func draw_title() -> void:
@@ -1621,7 +1654,7 @@ func draw_title() -> void:
 	var hint_fs := clampf3(13, vw * 0.036, 16)
 	var hint_lines := []
 	if not short:
-		for para in ["Open Characters to swap class and subclass, then pick a raid. Hits that land together COMBO."]:
+		for para in ["Open Characters to swap subclass, then pick a raid. Hits that land together COMBO."]:
 			hint_lines += wrap_words(para, hint_fs, vw - 24)
 	var ch_w := minf(280.0, vw * 0.62)
 	var total := L + 10 + rib_h + mtop + rib_h + mbot + bh + 10 + rows.size() * bh + (rows.size() - 1) * 10 + 2
@@ -1983,13 +2016,13 @@ func on_key(k: int) -> void:
 		if k == KEY_ESCAPE or k == KEY_P:
 			to_title()
 		elif k == KEY_LEFT:
-			cycle_class(-1)
-		elif k == KEY_RIGHT:
-			cycle_class(1)
-		elif k == KEY_UP:
 			cycle_sub(-1)
-		elif k == KEY_DOWN:
+		elif k == KEY_RIGHT:
 			cycle_sub(1)
+		elif k == KEY_UP:
+			select_hero((char_sel - 1 + HERO_NAMES.size()) % HERO_NAMES.size())
+		elif k == KEY_DOWN:
+			select_hero((char_sel + 1) % HERO_NAMES.size())
 		elif k >= KEY_1 and k <= KEY_6:
 			select_hero(k - KEY_1)
 		return
