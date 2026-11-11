@@ -130,6 +130,16 @@ var CLASS_DEFS := {
 		"hp": 80, "atk": 0, "def": 22, "armor": 16, "crit": 0, "mana": 4, "speed": 0},
 	"Warden": {"kind": "pawn", "blurb": "Steady defense and mana",
 		"hp": 50, "atk": 4, "def": 16, "armor": 8, "crit": 0, "mana": 14, "speed": 2},
+	# Upcoming classes for the new character models. Real definitions (shown in the Compendium),
+	# NOT in CLASS_IDS and NOT assigned in CHAR yet. Their 10-ability kits live in
+	# scripts/upcoming_classes.gd; when the art lands, move the kit into AB_CLASS_ROWS[hero],
+	# set CHAR[hero].cls, drop "upcoming", and add the class to CLASS_IDS.
+	"Spell Breaker": {"kind": "warrior", "blurb": "Breaks guards, wards and spells", "upcoming": true, "hero": "Airron",
+		"hp": 28, "atk": 18, "def": 8, "armor": 8, "crit": 6, "mana": 8, "speed": 8},
+	"Paladin": {"kind": "warrior", "blurb": "Holy armor that heals the line", "upcoming": true, "hero": "Christian",
+		"hp": 44, "atk": 12, "def": 12, "armor": 12, "crit": 0, "mana": 8, "speed": 2},
+	"Warlock": {"kind": "archer", "blurb": "Dark bolts and draining curses", "upcoming": true, "hero": "Wiesen",
+		"hp": 8, "atk": 24, "def": 2, "armor": 2, "crit": 10, "mana": 12, "speed": 6},
 }
 var CLASS_IDS := ["Knight", "Warrior", "Ranger", "Marksman", "Guardian", "Warden"]
 var SUB_DEFS := {
@@ -528,6 +538,8 @@ var ow_ready := false
 const WorldScript = preload("res://scripts/world.gd")
 const WorldMapUI = preload("res://scripts/world_map_ui.gd")
 const StatsUI = preload("res://scripts/stats_ui.gd")
+const CompendiumUI = preload("res://scripts/compendium.gd")
+var COMP = null
 var WORLD = null
 var WMAP = null
 var STATS = null
@@ -2712,6 +2724,11 @@ func open_inv() -> void:
 	screen = "inv"
 	sfx.tone(660, 0.06, "square", 0.035)
 
+func open_compendium() -> void:
+	COMP.open()
+	screen = "compendium"
+	sfx.tone(660, 0.06, "square", 0.035)
+
 func open_party() -> void:
 	party_sel = 0
 	char_sel = 0
@@ -3555,7 +3572,7 @@ func draw_title() -> void:
 	var rbh: float = 50.0 if short else 62.0
 	var gap: float = 10.0
 	var lab_h: float = 18.0 if short else 24.0
-	var menu_one_row: bool = sw >= 4.0 * 120.0 + 3.0 * gap + pad * 2.0
+	var menu_one_row: bool = sw >= 5.0 * 112.0 + 4.0 * gap + pad * 2.0
 	var menu_rows: int = 1 if menu_one_row else 2
 	var raid_one_row: bool = sw >= 3.0 * 130.0 + 2.0 * gap + pad * 2.0
 	var raid_rows: int = 1 if raid_one_row else 2
@@ -3590,16 +3607,19 @@ func draw_title() -> void:
 		["chars", "Characters", "soft", func(): open_chars()],
 		["inv", "Inventory", "soft", func(): open_inv()],
 		["party", "Party", "soft", func(): open_party()],
+		["cmp", "Compendium", "soft", func(): open_compendium()],
 		["ow", "Overworld", "primary", func(): open_overworld()],
 	]
 	var mfs: float = 15.0 if short else 18.0
-	var per: int = 4 if menu_one_row else 2
-	var mw: float = (iw - gap * float(per - 1)) / float(per)
-	for mi in menus.size():
-		var m: Array = menus[mi]
-		var mx: float = ix + float(mi % per) * (mw + gap)
-		var my: float = iy + float(int(mi / per)) * (mbh + gap)
-		pill(m[0], Rect2(mx, my, mw, mbh), m[1], m[2], mfs, m[3])
+	var row_counts: Array = [menus.size()] if menu_one_row else [3, menus.size() - 3]
+	var mi: int = 0
+	for ri in row_counts.size():
+		var per: int = int(row_counts[ri])
+		var mw: float = (iw - gap * float(per - 1)) / float(per)
+		for ci in per:
+			var m: Array = menus[mi]
+			pill(m[0], Rect2(ix + float(ci) * (mw + gap), iy + float(ri) * (mbh + gap), mw, mbh), m[1], m[2], mfs, m[3])
+			mi += 1
 	iy += float(menu_rows) * (mbh + gap)
 	section_label("QUICK RAID  ·  pick a fight", ix, iy + lab_h * 0.4, short)
 	iy += lab_h
@@ -4078,6 +4098,7 @@ func _draw() -> void:
 	elif screen == "chars": draw_chars()
 	elif screen == "inv": draw_inv()
 	elif screen == "party": draw_party()
+	elif screen == "compendium": COMP.draw(self, VWc, VHc)
 	elif screen == "results": draw_results()
 	elif phase == "battle" or phase == "ending": draw_battle_ui()
 
@@ -4275,6 +4296,9 @@ func on_key(k: int) -> void:
 		elif k == KEY_M:
 			ow_open_menu_screen("map")
 		return
+	if screen == "compendium":
+		COMP.key(self, k)
+		return
 	if screen == "chars" or screen == "inv" or screen == "party" or screen == "overworld":
 		if k == KEY_ESCAPE or k == KEY_P:
 			menu_back()
@@ -4327,6 +4351,7 @@ func _ready() -> void:
 	WMAP = WorldMapUI.new()
 	WMAP.setup(WORLD)
 	STATS = StatsUI.new()
+	COMP = CompendiumUI.new()
 	load_cfg()
 	sfx.muted = muted
 	if OS.has_feature("web"):
