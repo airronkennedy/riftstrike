@@ -2335,7 +2335,8 @@ func remap_units(to_port: bool) -> void:
 			_rm(u, "x", "y", to_port); _rm(u, "hx", "hy", to_port)
 	for p in projectiles:
 		_rm(p, "x", "y", to_port); _rm(p, "sx", "sy", to_port); _rm(p, "tx", "ty", to_port)
-	for e in fx: _rm(e, "x", "y", to_port)
+	for e in fx:
+		if e.has("x"): _rm(e, "x", "y", to_port) # "aura" fx follow their unit and have no position of their own
 	for t in texts: _rm(t, "x", "y", to_port)
 
 func compute_dpr(vp: Vector2) -> float:
