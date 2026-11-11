@@ -1,0 +1,9 @@
+# Godot 4
+.godot/
+/android/
+*.tmp
+export/
+build/
+*.zip
+__MACOSX/
+.DS_Store
