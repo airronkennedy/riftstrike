@@ -37,7 +37,7 @@ func _init() -> void:
 	var wild: Array = []
 	for r in W.H:
 		for c in W.W:
-			if W.ch_at(c, r) == W.C_WILD and W.area_at(c * 64 + 32, r * 64 + 32) == "brookside_meadow":
+			if W.ch_at(c, r) == W.C_WILD and W.area_at(c * 64 + 32, r * 64 + 32) == "brookside_wilds":
 				wild.append(Vector2(c * 64 + 32, r * 64 + 32))
 	print("meadow wild tiles ", wild.size())
 	var steps_between: Array = []

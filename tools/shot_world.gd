@@ -29,6 +29,12 @@ func _run() -> void:
 	g.ow_open_menu_screen("map")
 	await wait(300)
 	await shot("03_map_region")
+	g.WMAP.sel = "ironbridge_fort"
+	g.WMAP.zoom_by(1.6)
+	await wait(200)
+	await shot("03b_map_zoom_sel")
+	g.WMAP.zoom = 1.0
+	g.WMAP.sel = "kingshold"
 	g.WMAP.tab = "local"
 	await wait(200)
 	await shot("04_map_local")
@@ -45,6 +51,14 @@ func _run() -> void:
 	g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
 	await wait(700)
 	await shot("07_meadow_banner")
+	g.ow_x = 10 * 64 + 32.0; g.ow_y = 18 * 64 + 40.0; g.ow_tx = g.ow_x; g.ow_ty = g.ow_y; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
+	await wait(500)
+	await shot("07b_marsh_zone")
+	print("zone ", g.WORLD.cur_area, " / ", g.WORLD.cur_zone)
+	g.ow_open_menu_screen("map")
+	await wait(300)
+	await shot("07c_map_you_marsh")
+	g.resume_overworld()
 	# into wild grass at (23,4)
 	g.ow_x = 23 * 64 + 32.0; g.ow_y = 4 * 64 + 40.0; g.ow_camx = g.ow_x; g.ow_camy = g.ow_y
 	g.WORLD.enc_mult = 4.0
@@ -75,7 +89,7 @@ func _run() -> void:
 	await shot("12_thornwick")
 	# full encounter win flow with AUTO
 	g.WORLD.enc_mult = 1.0
-	g.start_encounter({"area": "brookside_meadow", "kinds": ["torch", "barrel"], "level": 3})
+	g.start_encounter({"area": "brookside_wilds", "kinds": ["torch", "barrel"], "level": 3})
 	g.AUTO = true
 	g.speed = 3
 	guard = 0

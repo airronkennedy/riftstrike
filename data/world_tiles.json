@@ -18,36 +18,61 @@
    ]
   },
   {
-   "id": "brookside_meadow",
+   "id": "brookside_wilds",
    "rects": [
     [
      17,
      1,
      38,
      14
-    ]
-   ]
-  },
-  {
-   "id": "whisperreed_marsh",
-   "rects": [
+    ],
     [
      2,
      13,
      31,
      30
-    ]
-   ]
-  },
-  {
-   "id": "old_mill_road",
-   "rects": [
+    ],
     [
      39,
      3,
      62,
      13
     ]
+   ],
+   "zones": [
+    {
+     "name": "Brookside Meadow",
+     "rects": [
+      [
+       17,
+       1,
+       38,
+       14
+      ]
+     ]
+    },
+    {
+     "name": "Whisperreed Marsh",
+     "rects": [
+      [
+       2,
+       13,
+       31,
+       30
+      ]
+     ]
+    },
+    {
+     "name": "Old Mill Road",
+     "rects": [
+      [
+       39,
+       3,
+       62,
+       13
+      ]
+     ]
+    }
    ]
   },
   {
@@ -84,25 +109,33 @@
    ]
   },
   {
-   "id": "gullcliff_lighthouse",
+   "id": "saltmere_shore",
    "rects": [
     [
      58,
      34,
      63,
      43
-    ]
-   ]
-  },
-  {
-   "id": "saltmere_shore",
-   "rects": [
+    ],
     [
      56,
      16,
      100,
      33
     ]
+   ],
+   "zones": [
+    {
+     "name": "Gullcliff Lighthouse",
+     "rects": [
+      [
+       58,
+       34,
+       63,
+       43
+      ]
+     ]
+    }
    ]
   }
  ],

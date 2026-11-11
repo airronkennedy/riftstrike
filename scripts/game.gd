@@ -2606,6 +2606,7 @@ func save_cfg() -> void:
 		cf.set_value("world", "flags", ",".join(fl))
 		if ow_ready:
 			cf.set_value("world", "pos", "%d|%d" % [int(ow_x), int(ow_y)])
+			cf.set_value("world", "layout", int(WORLD.data.get("tile_layout", 1)))
 	cf.save("user://riftstrike.cfg")
 
 func load_cfg() -> void:
@@ -2680,6 +2681,17 @@ func load_cfg() -> void:
 				ow_x = float(pp2[0])
 				ow_y = float(pp2[1])
 				ow_ready = true
+				# Saves from an older tile layout: scale the position, or fall back to the start.
+				var saved_layout: int = int(cf.get_value("world", "layout", 1))
+				var cur_layout: int = int(WORLD.data.get("tile_layout", 1))
+				if saved_layout != cur_layout:
+					var sc_tbl: Dictionary = WORLD.data.get("tile_layout_scale", {})
+					if sc_tbl.has(str(saved_layout)):
+						var k: float = float(sc_tbl[str(saved_layout)])
+						ow_x *= k
+						ow_y *= k
+					else:
+						ow_ready = false
 	# Drop equipment ids that somehow also sit in the bag, and vice versa, is fine
 	# (bag and equipment are separate). Rebuild if an equipped id is invalid already handled.
 
@@ -3468,7 +3480,7 @@ func draw_overworld() -> void:
 	rbox(Rect2(VWc / 2 - hw / 2, 8, hw, hh), hh / 2.0, Color(UI_SHEET.r, UI_SHEET.g, UI_SHEET.b, 0.94), Color(1, 1, 1, 0.6), 2.0, 6.0)
 	text(here, VWc / 2, 8 + hh / 2.0, fit_size(here, hfs, hw - 28.0, 11.0), UI_INK)
 	if WORLD.cur_area != "":
-		chip("Recommended " + WORLD.rec_text(WORLD.cur_area), VWc / 2, 8 + hh + 16, 11.0 if short else 12.0, Color(0.06, 0.14, 0.15, 0.72), Color("#ffe6a8"), "center")
+		chip(("%s  ·  " % WORLD.cur_zone if WORLD.cur_zone != "" else "") + "Recommended " + WORLD.rec_text(WORLD.cur_area), VWc / 2, 8 + hh + 16, 11.0 if short else 12.0, Color(0.06, 0.14, 0.15, 0.72), Color("#ffe6a8"), "center")
 	var lead := lead_name()
 	var st := compute_hero_stats(lead)
 	chip(lead + "  ·  Lv." + str(int(st.level)) + "  " + st.cls, VWc - 10, 8 + hh / 2.0, 12.0 if short else 13.0, Color(0.06, 0.14, 0.15, 0.72), Color.WHITE, "right")

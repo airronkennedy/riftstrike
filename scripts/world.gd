@@ -28,9 +28,14 @@ var CW := 0
 var CHH := 0
 var flags: Dictionary = {}
 var gates_enabled := true
+var folded: Dictionary = {} # retired area id -> kept area id
+var flag_aliases: Dictionary = {}
+var zones: Array = [] # [{name, area, rects}] named parts inside an area
+var area_bbox: Dictionary = {} # id -> Rect2i of its tile rects
 
 # runtime
 var cur_area := ""
+var cur_zone := ""
 var banner_t := -1.0
 var banner_area := ""
 var toast := ""
@@ -60,6 +65,8 @@ func load_all() -> bool:
 		err = "world data missing"
 		return false
 	gates_enabled = bool(data.get("gates_enabled", true))
+	folded = data.get("folded", {})
+	flag_aliases = data.get("flag_aliases", {})
 	for a in data.get("areas", []):
 		var ad: Dictionary = a
 		areas[str(ad.id)] = ad
@@ -107,9 +114,15 @@ func _load_grid() -> void:
 	for a in tiles_cfg.get("areas", []):
 		var ad: Dictionary = a
 		var idx: int = area_ids.size()
-		area_ids.append(str(ad.id))
+		area_ids.append(canon(str(ad.id)))
+		for z in ad.get("zones", []):
+			var zd: Dictionary = z
+			zones.append({"name": str(zd.get("name", "")), "area": canon(str(ad.id)), "rects": zd.get("rects", [])})
 		for rc in ad.get("rects", []):
 			var q: Array = rc
+			var rr := Rect2i(int(q[0]), int(q[1]), int(q[2]) - int(q[0]) + 1, int(q[3]) - int(q[1]) + 1)
+			var aid: String = canon(str(ad.id))
+			area_bbox[aid] = rr if not area_bbox.has(aid) else (area_bbox[aid] as Rect2i).merge(rr)
 			for y in range(int(q[1]), int(q[3]) + 1):
 				for x in range(int(q[0]), int(q[2]) + 1):
 					if x >= 0 and y >= 0 and x < W and y < H and area_grid[y * W + x] == -1:
@@ -199,8 +212,44 @@ func area_at(x: float, y: float) -> String:
 	return area_ids[i] if i >= 0 else ""
 
 
+func canon(id: String) -> String:
+	# Retired (folded) area ids resolve to the area that absorbed them.
+	if areas.has(id):
+		return id
+	return str(folded.get(id, id))
+
+
 func area(id: String) -> Dictionary:
-	return areas.get(id, {})
+	return areas.get(canon(id), {})
+
+
+func zone_at(x: float, y: float) -> String:
+	var c: int = int(floor(x / TILE))
+	var r: int = int(floor(y / TILE))
+	for z in zones:
+		var zd: Dictionary = z
+		for rc in zd.rects:
+			var q: Array = rc
+			if c >= int(q[0]) and c <= int(q[2]) and r >= int(q[1]) and r <= int(q[3]):
+				return str(zd.name)
+	return ""
+
+
+func enc_table(area_id: String, zone: String = "") -> Dictionary:
+	var tbl: Dictionary = enc_cfg.get("areas", {}).get(canon(area_id), {})
+	if zone != "" and tbl.has("zones"):
+		var zt: Dictionary = tbl.zones
+		if zt.has(zone):
+			return zt[zone]
+	return tbl
+
+
+# Player position inside an area's built tiles, 0..1 on each axis (for the region map).
+func area_frac(id: String, x: float, y: float) -> Vector2:
+	if not area_bbox.has(id):
+		return Vector2(0.5, 0.5)
+	var bb: Rect2i = area_bbox[id]
+	return Vector2(clampf((x / TILE - bb.position.x) / maxf(1.0, bb.size.x), 0.0, 1.0), clampf((y / TILE - bb.position.y) / maxf(1.0, bb.size.y), 0.0, 1.0))
 
 
 func area_name(id: String) -> String:
@@ -249,7 +298,8 @@ func gate_open(gid: String) -> bool:
 	return true
 
 
-func set_flag(f: String, on: bool = true) -> void:
+func set_flag(f0: String, on: bool = true) -> void:
+	var f: String = str(flag_aliases.get(f0, f0))
 	if on:
 		flags[f] = true
 	else:
@@ -343,6 +393,7 @@ func tick(x: float, y: float, dt: float, moving: bool) -> Dictionary:
 			toast_t = -1.0
 	var out: Dictionary = {}
 	var a: String = area_at(x, y)
+	cur_zone = zone_at(x, y) if a != "" else ""
 	if a != "" and a != cur_area:
 		cur_area = a
 		banner_area = a
@@ -360,12 +411,12 @@ func tick(x: float, y: float, dt: float, moving: bool) -> Dictionary:
 				grace -= 1
 				continue
 			steps_since += 1
-			var tbl: Dictionary = enc_cfg.get("areas", {}).get(a, {})
+			var tbl: Dictionary = enc_table(a, cur_zone)
 			if tbl.is_empty():
 				continue
 			var rate: float = float(tbl.get("rate", 0.08)) * enc_mult
 			if randf() < rate or steps_since >= int(enc_cfg.get("pity_steps", 22)):
-				var e: Dictionary = roll_encounter(a)
+				var e: Dictionary = roll_encounter(a, cur_zone)
 				if not e.is_empty():
 					steps_since = 0
 					grace = int(enc_cfg.get("grace_steps", 4))
@@ -379,8 +430,9 @@ func reset_grace() -> void:
 	step_acc = 0.0
 
 
-func roll_encounter(area_id: String) -> Dictionary:
-	var tbl: Dictionary = enc_cfg.get("areas", {}).get(area_id, {})
+func roll_encounter(area_id0: String, zone: String = "") -> Dictionary:
+	var area_id: String = canon(area_id0)
+	var tbl: Dictionary = enc_table(area_id, zone)
 	var groups: Array = tbl.get("groups", [])
 	if groups.is_empty():
 		return {}
@@ -433,7 +485,7 @@ func to_save() -> Dictionary:
 func from_save(d: Dictionary) -> void:
 	flags = {}
 	for f in d.get("flags", []):
-		flags[str(f)] = true
+		set_flag(str(f))
 
 
 # ------------------------------------------------------------- drawing (inside g._draw, camera xf set)
