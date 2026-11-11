@@ -274,6 +274,7 @@ var shake_mag := 0.0
 var banner = null
 var now := 0.0
 var hitstop := 0.0
+var sync_pending := []
 var params := {}
 var sfx
 var results_t := 0.0
@@ -284,6 +285,7 @@ func new_battle(n: int = 0) -> void:
 		for ou in G.units:
 			ou.plan = null; ou.act = null; ou.burn = null
 		G.queue = []; G.cur = null
+	sync_pending = []
 	var units := []
 	if n == 0: n = int(params.get("enemies", "0"))
 	if n == 0: n = last_raid
@@ -341,35 +343,6 @@ func plan_actions(queue: Array) -> void:
 		var p := Plan.new()
 		p.target = foes[0] if params.get("focus", "") == "1" else pick(foes)
 		u.plan = p
-	var groups := {}
-	for u in queue:
-		if u.plan == null or u.plan.target == null: continue
-		var id: String = u.plan.target.id
-		if not groups.has(id): groups[id] = []
-		groups[id].append(u)
-	for id in groups:
-		var g: Array = groups[id]
-		if g.size() >= 2:
-			for u in g: u.plan.combo = g
-
-func combo_mates(u, t) -> Array:
-	if u.plan == null or u.plan.combo == null or t == null: return []
-	return u.plan.combo.filter(func(m): return not m.dead and m.plan != null and m.plan.target == t and not m.plan.combo_done)
-
-func is_combo_finisher(u, t) -> bool:
-	# Last contact in time among the group, not last in queue order —
-	# staggered launches plus different anim lengths can land out of order.
-	var mates := combo_mates(u, t)
-	if mates.size() < 2: return false
-	for m in mates:
-		if m != u and not m.plan.contact_done:
-			return false
-	return true
-
-func is_last_contact(u, a, proj) -> bool:
-	if u.kind == "warrior" and a != null and a.swing == 0: return false
-	if proj != null and not proj.last: return false
-	return true
 
 func start_action(u) -> bool:
 	var foes := alive(enemy_of(u))
@@ -388,8 +361,6 @@ func start_action(u) -> bool:
 		sfx.special()
 	else:
 		u.gauge = minf(100, u.gauge + 22)
-	if u.plan != null and u.plan.combo != null and combo_mates(u, t).size() >= 2:
-		add_text(u.x, u.y - u.K.head * uS(u) - (48 if special else 30), "COMBO x" + str(combo_mates(u, t).size()), "#ffd23f", 15, 900, true)
 	return true
 
 func begin_swing(u) -> void:
@@ -471,28 +442,76 @@ func move_to(u, gx: float, gy: float, sp: float, dt: float) -> bool:
 	set_anim(u, "run")
 	return false
 
-func deliver_hit(u, t, a, proj) -> String:
+const SYNC_WINDOW := 90.0 # ms — only count as a combo if strikes land in this same moment
+
+func contact_eta(t) -> float:
+	var best := 1e9
 	if t == null or t.dead:
-		add_text(u.x + u.facing * 30, u.y - 50, "miss", "#dddddd", 12, 500); return ""
-	var mates := combo_mates(u, t)
-	var combo: bool = mates.size() >= 2 and u.plan != null and u.plan.target == t
-	if combo:
-		if not is_combo_finisher(u, t) or not is_last_contact(u, a, proj):
-			if is_last_contact(u, a, proj):
-				u.plan.contact_done = true
-			t.flash = 90.0; t.shake = 120.0; t.kx = (1.0 if t.x >= u.x else -1.0) * 4
-			add_text(t.x + rand(-12, 12), t.y - t.K.head * uS(t) - 6, "COMBO", "#ffd23f", 14, 620, true)
-			fx.append({"type": "spark", "x": t.x, "y": t.y - 32, "t": 0.0, "life": 160.0, "big": false, "rot": randf() * 6})
-			sfx.hit()
-			return "setup"
-		u.plan.contact_done = true
+		return best
+	for u in G.units:
+		if u.dead or u.act == null: continue
+		var a = u.act
+		if a.target != t: continue
+		if a.stage == "atk" and not a.hit_done and u.K.ranged == "" and a.d:
+			var eta: float = a.d.hit * 1000.0 / maxf(1.0, a.d.fps) - a.t
+			best = minf(best, maxf(0.0, eta))
+	for p in projectiles:
+		if p.target != t: continue
+		if p.kind == "dyn":
+			best = minf(best, maxf(0.0, p.dur - p.t))
+			continue
+		if p.kind == "arrow" or p.kind == "bolt":
+			var dx: float = t.x - p.x
+			var dy: float = (t.y - 30) - p.y
+			var d := sqrt(dx * dx + dy * dy)
+			var eta: float = p.delay + d / maxf(1.0, p.speed) * 1000.0
+			best = minf(best, maxf(0.0, eta))
+	return best
+
+func flush_sync(dt: float) -> void:
+	if sync_pending.is_empty():
+		return
+	for h in sync_pending:
+		h.age += dt
+	var by_t := {}
+	for h in sync_pending:
+		if h.t == null: continue
+		var id: String = h.t.id
+		if not by_t.has(id): by_t[id] = []
+		by_t[id].append(h)
+	var keep := []
+	for id in by_t:
+		var group: Array = by_t[id]
+		var t = group[0].t
+		var first_age := 0.0
+		for h in group:
+			if h.age > first_age: first_age = h.age
+		var remain: float = SYNC_WINDOW - first_age
+		var eta: float = contact_eta(t) if (t != null and not t.dead) else 1e9
+		if remain > 0.0 and eta <= remain:
+			keep.append_array(group)
+			continue
+		resolve_sync_group(group)
+	sync_pending = keep
+
+func resolve_sync_group(group: Array) -> void:
+	var t = group[0].t
+	if t == null or t.dead:
+		return
+	var units := []
+	for h in group:
+		if h.u != null and not h.u.dead and units.find(h.u) < 0:
+			units.append(h.u)
+	if units.size() >= 2:
 		var sum := 0
-		for m in mates:
-			sum += m.atk; m.plan.combo_done = true
-		var dmg := maxi(1, int(roundf(sum * 3 * surge_mult() * def_mit(t.def))))
-		deal_damage(u, t, dmg, {"combo": true, "members": mates, "n": mates.size()})
-		return "combo"
-	return ""
+		for u in units:
+			sum += u.atk
+		var dmg := maxi(1, int(roundf(sum * 3.0 * surge_mult() * def_mit(t.def))))
+		deal_damage(group[group.size() - 1].u, t, dmg, {"combo": true, "members": units, "n": units.size()})
+	else:
+		for h in group:
+			if t.dead: return
+			apply_hit(h.u, t, h.mult, h.special, false, h.color)
 
 func resolve_hit(u, a) -> void:
 	var t = a.target
@@ -520,14 +539,11 @@ func resolve_hit(u, a) -> void:
 		projectiles.append(p)
 		sfx.tone(500, 0.06, "triangle", 0.02, 1.6)
 		return
-	var cr := deliver_hit(u, t, a, null)
-	if cr == "setup": return
+	if t == null or t.dead:
+		add_text(u.x + u.facing * 30, u.y - 50, "miss", "#dddddd", 12, 500); return
 	var final: bool = not (u.kind == "warrior" and a.swing == 0)
-	if cr != "combo":
-		if t.dead:
-			add_text(u.x + u.facing * 30, u.y - 50, "miss", "#dddddd", 12, 500); return
-		var base := 0.6 if u.kind == "warrior" else (0.8 if u.kind == "torch" else 1.0)
-		hit(u, t, base * (2.5 if sp else 1.0), sp and final)
+	var base := 0.6 if u.kind == "warrior" else (0.8 if u.kind == "torch" else 1.0)
+	hit(u, t, base * (2.5 if sp else 1.0), sp and final)
 	if u.kind == "pawn": t.kx = u.facing * 16
 	if u.kind == "torch" and not t.dead: t.burn = {"t": 380.0, "owner": u, "mult": 0.3 * (2 if sp else 1)}
 	if u.kind == "barrel" and not sp:
@@ -554,7 +570,14 @@ func splash(u, x: float, y: float, r: float, mult: float, except) -> void:
 		if dx * dx + dy * dy <= r * r: hit(u, e, 2.5 * mult, true, true)
 
 func hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "") -> void:
-	if t.dead: return
+	if t == null or t.dead: return
+	if is_splash:
+		apply_hit(u, t, mult, special, true, color)
+		return
+	sync_pending.append({"u": u, "t": t, "mult": mult, "special": special, "color": color, "age": 0.0})
+
+func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "") -> void:
+	if t == null or t.dead: return
 	var crit := not special and not is_splash and randf() < 0.1
 	var dmg := maxi(1, int(roundf(u.atk * rand(0.85, 1.15) * mult * (1.5 if crit else 1.0) * surge_mult() * def_mit(t.def))))
 	deal_damage(u, t, dmg, {"special": special, "isSplash": is_splash, "crit": crit, "color": color})
@@ -626,8 +649,7 @@ func update_projectiles(dt: float) -> void:
 			p.ang = atan2(dy, dx)
 			if d <= st + 6 or t.dead:
 				if not t.dead:
-					var cr := deliver_hit(p.owner, t, p.act, p)
-					if cr == "": hit(p.owner, t, p.mult, p.special)
+					hit(p.owner, t, p.mult, p.special)
 				if p.pierce:
 					splash(p.owner, tx, ty + 30, 75, 0.4, t)
 					fx.append({"type": "ring", "x": tx, "y": ty + 26, "t": 0.0, "life": 300.0, "color": Color("#ff5a7a") if p.kind == "bolt" else Color("#9fe3ff")})
@@ -646,14 +668,14 @@ func update_projectiles(dt: float) -> void:
 			if k >= 1:
 				explode(p.tx, p.ty, 1.25 if p.special else 0.7)
 				if not t.dead:
-					var cr2 := deliver_hit(p.owner, t, p.act, p)
-					if cr2 == "": hit(p.owner, t, 2.5 if p.special else 1.0, p.special)
+					hit(p.owner, t, 2.5 if p.special else 1.0, p.special)
 				if p.special: splash(p.owner, p.tx, p.ty, 95, 0.4, t)
 				landed(p); projectiles.remove_at(i)
 
 # ---------------------------------------------------------------- turn controller
 func busy() -> bool:
 	if projectiles.size() > 0: return true
+	if sync_pending.size() > 0: return true
 	for u in G.units:
 		if u.act != null: return true
 	return false
@@ -749,6 +771,7 @@ func step(dt: float) -> void:
 		var order := shuffled(G.units)
 		for u in order: update_unit(u, dt)
 		update_projectiles(dt)
+		flush_sync(dt)
 		if phase == "battle":
 			controller(dt)
 			var b := alive("blue").size()
