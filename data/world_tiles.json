@@ -1,5 +1,5 @@
 {
- "_readme": "Tile rects are [col0,row0,col1,row1] inclusive (64px tiles). First matching rect wins. 'start' is the new-game tile. Gate rects tie X tiles to world.json gates. Layout 2: every Act I area is 2x wider and 2x taller (4x the tiles) than layout 1.",
+ "_readme": "Tile rects are [col0,row0,col1,row1] inclusive (64px tiles). First matching rect wins. 'start' is the new-game tile. Gate rects tie X tiles to world.json gates. Layout 3 (tools/build_world_acts.py): Act I is the hand-tuned layout 2 verbatim (cols 0-223, rows 0-91), the canvas grows east and south to 448x208 for Acts II-V; Act I coordinates did not move. 'style' names a look in 'styles' (code tints only, no extra art). 'spawn' is the ?warp= tile. Props: img keys from world.gd PROP_DEFS.",
  "tile": 64,
  "start": [
   20,
@@ -105,7 +105,24 @@
      40,
      221,
      69
+    ],
+    [
+     222,
+     50,
+     231,
+     57
+    ],
+    [
+     206,
+     70,
+     217,
+     93
     ]
+   ],
+   "style": "fort",
+   "spawn": [
+    212,
+    52
    ]
   },
   {
@@ -133,6 +150,630 @@
        68,
        127,
        87
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "redcap_hills",
+   "rects": [
+    [
+     232,
+     2,
+     345,
+     33
+    ],
+    [
+     245,
+     34,
+     245,
+     34
+    ],
+    [
+     246,
+     34,
+     246,
+     34
+    ],
+    [
+     247,
+     34,
+     247,
+     34
+    ],
+    [
+     245,
+     35,
+     245,
+     35
+    ],
+    [
+     246,
+     35,
+     246,
+     35
+    ]
+   ],
+   "style": "redcap",
+   "spawn": [
+    246,
+    30
+   ]
+  },
+  {
+   "id": "emberfall",
+   "rects": [
+    [
+     232,
+     36,
+     275,
+     75
+    ]
+   ],
+   "style": "ember",
+   "spawn": [
+    252,
+    54
+   ]
+  },
+  {
+   "id": "kindlegrass_steppe",
+   "rects": [
+    [
+     276,
+     36,
+     345,
+     80
+    ]
+   ],
+   "style": "steppe",
+   "spawn": [
+    280,
+    53
+   ],
+   "zones": [
+    {
+     "name": "Glasswind Canyon",
+     "rects": [
+      [
+       276,
+       66,
+       345,
+       80
+      ]
+     ],
+     "style": "canyon"
+    }
+   ]
+  },
+  {
+   "id": "sunken_abbey",
+   "rects": [
+    [
+     290,
+     81,
+     335,
+     105
+    ]
+   ],
+   "style": "abbey",
+   "spawn": [
+    301,
+    82
+   ]
+  },
+  {
+   "id": "mirefen",
+   "rects": [
+    [
+     346,
+     2,
+     405,
+     60
+    ],
+    [
+     375,
+     61,
+     375,
+     61
+    ],
+    [
+     376,
+     61,
+     376,
+     61
+    ]
+   ],
+   "style": "fen",
+   "spawn": [
+    350,
+    46
+   ],
+   "zones": [
+    {
+     "name": "Foxglove Hamlet",
+     "rects": [
+      [
+       348,
+       38,
+       372,
+       58
+      ]
+     ],
+     "style": "foxglove"
+    },
+    {
+     "name": "Mirefen Deep",
+     "rects": [
+      [
+       380,
+       3,
+       404,
+       26
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "lanternkeep",
+   "rects": [
+    [
+     346,
+     62,
+     405,
+     105
+    ]
+   ],
+   "style": "lantern",
+   "spawn": [
+    375,
+    64
+   ],
+   "zones": [
+    {
+     "name": "Underroot Catacomb",
+     "rects": [
+      [
+       346,
+       83,
+       405,
+       105
+      ]
+     ],
+     "style": "catacomb"
+    }
+   ]
+  },
+  {
+   "id": "smokewater_caldera",
+   "rects": [
+    [
+     406,
+     30,
+     445,
+     105
+    ]
+   ],
+   "style": "caldera",
+   "spawn": [
+    412,
+    97
+   ]
+  },
+  {
+   "id": "frostveil",
+   "rects": [
+    [
+     290,
+     106,
+     375,
+     158
+    ],
+    [
+     376,
+     139,
+     376,
+     139
+    ],
+    [
+     377,
+     139,
+     377,
+     139
+    ],
+    [
+     376,
+     140,
+     376,
+     140
+    ],
+    [
+     377,
+     140,
+     377,
+     140
+    ],
+    [
+     376,
+     141,
+     376,
+     141
+    ],
+    [
+     329,
+     159,
+     329,
+     159
+    ],
+    [
+     330,
+     159,
+     330,
+     159
+    ],
+    [
+     331,
+     159,
+     331,
+     159
+    ]
+   ],
+   "style": "snow",
+   "spawn": [
+    330,
+    136
+   ],
+   "zones": [
+    {
+     "name": "Frostveil Bridge",
+     "rects": [
+      [
+       290,
+       106,
+       375,
+       119
+      ]
+     ],
+     "style": "frostlake"
+    }
+   ]
+  },
+  {
+   "id": "moonlit_terraces",
+   "rects": [
+    [
+     378,
+     106,
+     445,
+     150
+    ],
+    [
+     393,
+     151,
+     393,
+     151
+    ],
+    [
+     394,
+     151,
+     394,
+     151
+    ],
+    [
+     427,
+     151,
+     427,
+     151
+    ],
+    [
+     428,
+     151,
+     428,
+     151
+    ]
+   ],
+   "style": "terraces",
+   "spawn": [
+    381,
+    140
+   ]
+  },
+  {
+   "id": "seers_spire",
+   "rects": [
+    [
+     412,
+     152,
+     445,
+     205
+    ]
+   ],
+   "style": "spire",
+   "spawn": [
+    428,
+    155
+   ]
+  },
+  {
+   "id": "deepvault",
+   "rects": [
+    [
+     378,
+     152,
+     409,
+     205
+    ]
+   ],
+   "style": "prison",
+   "spawn": [
+    394,
+    155
+   ],
+   "zones": [
+    {
+     "name": "Molten Capital",
+     "rects": [
+      [
+       378,
+       177,
+       409,
+       205
+      ]
+     ],
+     "style": "molten"
+    }
+   ]
+  },
+  {
+   "id": "hoarfrost_pass",
+   "rects": [
+    [
+     290,
+     160,
+     375,
+     205
+    ]
+   ],
+   "style": "snow",
+   "spawn": [
+    330,
+    162
+   ]
+  },
+  {
+   "id": "kingshold",
+   "rects": [
+    [
+     150,
+     94,
+     288,
+     205
+    ],
+    [
+     289,
+     199,
+     289,
+     199
+    ],
+    [
+     289,
+     200,
+     289,
+     200
+    ],
+    [
+     289,
+     201,
+     289,
+     201
+    ]
+   ],
+   "style": "royal",
+   "spawn": [
+    211,
+    96
+   ],
+   "zones": [
+    {
+     "name": "Kingshold Citadel",
+     "rects": [
+      [
+       196,
+       132,
+       278,
+       196
+      ]
+     ],
+     "style": "citadel"
+    },
+    {
+     "name": "Withered Royal Garden",
+     "rects": [
+      [
+       150,
+       129,
+       195,
+       205
+      ]
+     ],
+     "style": "withered"
+    },
+    {
+     "name": "Kingshold Approach",
+     "rects": [
+      [
+       150,
+       94,
+       288,
+       131
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "drakespire_peak",
+   "rects": [
+    [
+     96,
+     150,
+     148,
+     205
+    ],
+    [
+     149,
+     179,
+     149,
+     179
+    ],
+    [
+     149,
+     180,
+     149,
+     180
+    ],
+    [
+     149,
+     181,
+     149,
+     181
+    ]
+   ],
+   "style": "drake",
+   "spawn": [
+    145,
+    180
+   ]
+  },
+  {
+   "id": "starfall_archive",
+   "rects": [
+    [
+     70,
+     94,
+     148,
+     148
+    ],
+    [
+     149,
+     103,
+     149,
+     103
+    ],
+    [
+     149,
+     104,
+     149,
+     104
+    ],
+    [
+     149,
+     105,
+     149,
+     105
+    ]
+   ],
+   "style": "archive",
+   "spawn": [
+    145,
+    104
+   ]
+  },
+  {
+   "id": "rift_heart",
+   "rects": [
+    [
+     4,
+     94,
+     68,
+     148
+    ],
+    [
+     69,
+     121,
+     69,
+     121
+    ],
+    [
+     69,
+     122,
+     69,
+     122
+    ],
+    [
+     69,
+     123,
+     69,
+     123
+    ],
+    [
+     13,
+     149,
+     13,
+     149
+    ],
+    [
+     14,
+     149,
+     14,
+     149
+    ],
+    [
+     15,
+     149,
+     15,
+     149
+    ],
+    [
+     16,
+     149,
+     16,
+     149
+    ]
+   ],
+   "style": "rift",
+   "spawn": [
+    66,
+    122
+   ]
+  },
+  {
+   "id": "riftsea_expanse",
+   "rects": [
+    [
+     4,
+     150,
+     94,
+     205
+    ]
+   ],
+   "style": "riftsea",
+   "spawn": [
+    14,
+    152
+   ],
+   "zones": [
+    {
+     "name": "Riftsea Depths",
+     "rects": [
+      [
+       56,
+       182,
+       94,
+       205
+      ]
+     ]
+    },
+    {
+     "name": "Shattered Expanse",
+     "rects": [
+      [
+       4,
+       150,
+       94,
+       205
       ]
      ]
     }
@@ -170,6 +811,122 @@
      84,
      127,
      85
+    ]
+   ]
+  },
+  {
+   "id": "g_ironbridge_span",
+   "rects": [
+    [
+     220,
+     53,
+     221,
+     54
+    ]
+   ]
+  },
+  {
+   "id": "g_royal_ward",
+   "rects": [
+    [
+     210,
+     68,
+     213,
+     69
+    ]
+   ]
+  },
+  {
+   "id": "g_frostveil_seal",
+   "rects": [
+    [
+     303,
+     104,
+     306,
+     105
+    ],
+    [
+     366,
+     104,
+     371,
+     105
+    ]
+   ]
+  },
+  {
+   "id": "g_caldera_bridge",
+   "rects": [
+    [
+     404,
+     98,
+     405,
+     99
+    ]
+   ]
+  },
+  {
+   "id": "g_deepvault_door",
+   "rects": [
+    [
+     392,
+     152,
+     396,
+     153
+    ]
+   ]
+  },
+  {
+   "id": "g_royal_ward_north",
+   "rects": [
+    [
+     288,
+     199,
+     291,
+     201
+    ]
+   ]
+  },
+  {
+   "id": "g_drake_altar",
+   "rects": [
+    [
+     148,
+     179,
+     151,
+     181
+    ]
+   ]
+  },
+  {
+   "id": "g_archive_doors",
+   "rects": [
+    [
+     148,
+     103,
+     151,
+     105
+    ]
+   ]
+  },
+  {
+   "id": "g_rift_heart",
+   "rects": [
+    [
+     68,
+     121,
+     71,
+     123
+    ]
+   ]
+  },
+  {
+   "id": "g_postgame",
+   "rects": [
+    [
+     13,
+     147,
+     16,
+     149
     ]
    ]
   }
@@ -222,23 +979,3111 @@
   },
   {
    "img": "tower",
-   "x": 208.5,
-   "y": 56.5,
-   "s": 0.8,
-   "note": "fort keep (sealed)"
-  },
-  {
-   "img": "tower",
-   "x": 216.5,
-   "y": 52.5,
-   "s": 0.7
-  },
-  {
-   "img": "tower",
    "x": 122.5,
    "y": 86.5,
    "s": 0.8,
    "note": "lighthouse"
+  },
+  {
+   "img": "castle_red",
+   "x": 212,
+   "y": 48,
+   "s": 0.62,
+   "note": "commander's hall (boss_ironbridge)"
+  },
+  {
+   "img": "tower_red",
+   "x": 205,
+   "y": 44,
+   "s": 0.6
+  },
+  {
+   "img": "tower_red",
+   "x": 218,
+   "y": 66,
+   "s": 0.6
+  },
+  {
+   "img": "tower_red",
+   "x": 205,
+   "y": 66,
+   "s": 0.6
+  },
+  {
+   "img": "house_red",
+   "x": 217,
+   "y": 58,
+   "s": 0.78,
+   "note": "barracks"
+  },
+  {
+   "img": "house_red",
+   "x": 206,
+   "y": 64,
+   "s": 0.76,
+   "flip": true,
+   "note": "armory"
+  },
+  {
+   "img": "fire",
+   "x": 209,
+   "y": 52,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 215,
+   "y": 52,
+   "s": 0.5
+  },
+  {
+   "img": "deco18",
+   "x": 214,
+   "y": 62,
+   "s": 0.55,
+   "note": "training dummy"
+  },
+  {
+   "img": "deco18",
+   "x": 209,
+   "y": 62,
+   "s": 0.55,
+   "flip": true,
+   "note": "training dummy"
+  },
+  {
+   "img": "warrior",
+   "x": 207,
+   "y": 45,
+   "s": 0.42
+  },
+  {
+   "img": "warrior",
+   "x": 219,
+   "y": 47,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "archer",
+   "x": 212,
+   "y": 66,
+   "s": 0.42
+  },
+  {
+   "img": "warrior",
+   "x": 219,
+   "y": 53,
+   "s": 0.42,
+   "flip": true,
+   "note": "span guard"
+  },
+  {
+   "img": "deco01",
+   "x": 256.4,
+   "y": 9.0,
+   "s": 0.8
+  },
+  {
+   "img": "deco02",
+   "x": 255.7,
+   "y": 9.86602540378444,
+   "s": 0.8
+  },
+  {
+   "img": "deco03",
+   "x": 254.3,
+   "y": 9.86602540378444,
+   "s": 0.8
+  },
+  {
+   "img": "deco01",
+   "x": 253.6,
+   "y": 9.0,
+   "s": 0.8
+  },
+  {
+   "img": "deco02",
+   "x": 254.3,
+   "y": 8.133974596215563,
+   "s": 0.8
+  },
+  {
+   "img": "deco03",
+   "x": 255.7,
+   "y": 8.13397459621556,
+   "s": 0.8
+  },
+  {
+   "img": "deco01",
+   "x": 289.4,
+   "y": 9.0,
+   "s": 0.8
+  },
+  {
+   "img": "deco02",
+   "x": 288.7,
+   "y": 9.86602540378444,
+   "s": 0.8
+  },
+  {
+   "img": "deco03",
+   "x": 287.3,
+   "y": 9.86602540378444,
+   "s": 0.8
+  },
+  {
+   "img": "deco01",
+   "x": 286.6,
+   "y": 9.0,
+   "s": 0.8
+  },
+  {
+   "img": "deco02",
+   "x": 287.3,
+   "y": 8.133974596215563,
+   "s": 0.8
+  },
+  {
+   "img": "deco03",
+   "x": 288.7,
+   "y": 8.13397459621556,
+   "s": 0.8
+  },
+  {
+   "img": "deco01",
+   "x": 324.4,
+   "y": 28.0,
+   "s": 0.8
+  },
+  {
+   "img": "deco02",
+   "x": 323.7,
+   "y": 28.866025403784437,
+   "s": 0.8
+  },
+  {
+   "img": "deco03",
+   "x": 322.3,
+   "y": 28.866025403784437,
+   "s": 0.8
+  },
+  {
+   "img": "deco01",
+   "x": 321.6,
+   "y": 28.0,
+   "s": 0.8
+  },
+  {
+   "img": "deco02",
+   "x": 322.3,
+   "y": 27.133974596215563,
+   "s": 0.8
+  },
+  {
+   "img": "deco03",
+   "x": 323.7,
+   "y": 27.133974596215563,
+   "s": 0.8
+  },
+  {
+   "img": "deco01",
+   "x": 339.4,
+   "y": 13.0,
+   "s": 0.8
+  },
+  {
+   "img": "deco02",
+   "x": 338.7,
+   "y": 13.86602540378444,
+   "s": 0.8
+  },
+  {
+   "img": "deco03",
+   "x": 337.3,
+   "y": 13.86602540378444,
+   "s": 0.8
+  },
+  {
+   "img": "deco01",
+   "x": 336.6,
+   "y": 13.0,
+   "s": 0.8
+  },
+  {
+   "img": "deco02",
+   "x": 337.3,
+   "y": 12.133974596215563,
+   "s": 0.8
+  },
+  {
+   "img": "deco03",
+   "x": 338.7,
+   "y": 12.13397459621556,
+   "s": 0.8
+  },
+  {
+   "img": "ghouse_ruin",
+   "x": 312,
+   "y": 28,
+   "s": 0.8,
+   "note": "goblin camp"
+  },
+  {
+   "img": "ghouse",
+   "x": 318,
+   "y": 29,
+   "s": 0.8,
+   "flip": true
+  },
+  {
+   "img": "deco16",
+   "x": 315,
+   "y": 30,
+   "s": 0.7
+  },
+  {
+   "img": "fire",
+   "x": 315,
+   "y": 28,
+   "s": 0.5
+  },
+  {
+   "img": "house_yellow",
+   "x": 272,
+   "y": 26,
+   "s": 0.78,
+   "note": "shepherd hut"
+  },
+  {
+   "img": "sheep",
+   "x": 268,
+   "y": 28,
+   "s": 0.62,
+   "flip": true
+  },
+  {
+   "img": "sheep",
+   "x": 275,
+   "y": 29,
+   "s": 0.62
+  },
+  {
+   "img": "sheep",
+   "x": 278,
+   "y": 27,
+   "s": 0.62,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 270,
+   "y": 27,
+   "s": 0.42
+  },
+  {
+   "img": "goldmine",
+   "x": 240,
+   "y": 42,
+   "s": 0.7,
+   "note": "mine mouth"
+  },
+  {
+   "img": "pawn",
+   "x": 242.2,
+   "y": 44,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "goldmine",
+   "x": 254,
+   "y": 42,
+   "s": 0.7,
+   "note": "mine mouth"
+  },
+  {
+   "img": "pawn",
+   "x": 256.2,
+   "y": 44,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "goldmine",
+   "x": 266,
+   "y": 42,
+   "s": 0.7,
+   "note": "mine mouth"
+  },
+  {
+   "img": "pawn",
+   "x": 268.2,
+   "y": 44,
+   "s": 0.42
+  },
+  {
+   "img": "house_yellow",
+   "x": 236,
+   "y": 49,
+   "s": 0.8587141980986311
+  },
+  {
+   "img": "house_red",
+   "x": 242,
+   "y": 48,
+   "s": 0.8409763337731155
+  },
+  {
+   "img": "house_red",
+   "x": 236,
+   "y": 58,
+   "s": 0.8776277801390465
+  },
+  {
+   "img": "house_red",
+   "x": 243,
+   "y": 59,
+   "s": 0.8530289565931783,
+   "flip": true
+  },
+  {
+   "img": "house_yellow",
+   "x": 261,
+   "y": 48,
+   "s": 0.8743635335874181,
+   "flip": true
+  },
+  {
+   "img": "house_red",
+   "x": 268,
+   "y": 48,
+   "s": 0.8153483839488846,
+   "flip": true
+  },
+  {
+   "img": "house_red",
+   "x": 262,
+   "y": 59,
+   "s": 0.812760940051261,
+   "flip": true
+  },
+  {
+   "img": "house_yellow",
+   "x": 269,
+   "y": 59,
+   "s": 0.8766958446558588,
+   "flip": true
+  },
+  {
+   "img": "house_red",
+   "x": 238,
+   "y": 63,
+   "s": 0.8142463868137078,
+   "flip": true
+  },
+  {
+   "img": "house_red",
+   "x": 249,
+   "y": 64,
+   "s": 0.864684544928867,
+   "flip": true
+  },
+  {
+   "img": "house_red",
+   "x": 257,
+   "y": 64,
+   "s": 0.8040594634083684
+  },
+  {
+   "img": "house_yellow",
+   "x": 270,
+   "y": 70,
+   "s": 0.8323367559692302
+  },
+  {
+   "img": "tower_red",
+   "x": 272,
+   "y": 51,
+   "s": 0.62,
+   "note": "east watch"
+  },
+  {
+   "img": "wtower",
+   "x": 235,
+   "y": 70,
+   "s": 0.5,
+   "note": "ore hoist"
+  },
+  {
+   "img": "wtower",
+   "x": 270,
+   "y": 40,
+   "s": 0.48
+  },
+  {
+   "img": "fire",
+   "x": 249,
+   "y": 51,
+   "s": 0.55,
+   "note": "forge"
+  },
+  {
+   "img": "fire",
+   "x": 256,
+   "y": 51,
+   "s": 0.55,
+   "note": "forge"
+  },
+  {
+   "img": "deco17",
+   "x": 250,
+   "y": 58,
+   "s": 0.7,
+   "note": "signpost"
+  },
+  {
+   "img": "pawn",
+   "x": 250,
+   "y": 55,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 255,
+   "y": 54,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 244,
+   "y": 53,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 259,
+   "y": 56,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 240,
+   "y": 64,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 265,
+   "y": 47,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 248,
+   "y": 46,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 233,
+   "y": 53,
+   "s": 0.42
+  },
+  {
+   "img": "warrior",
+   "x": 274,
+   "y": 52,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "warrior",
+   "x": 274,
+   "y": 55,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "deco05",
+   "x": 234,
+   "y": 51,
+   "s": 0.9
+  },
+  {
+   "img": "deco05",
+   "x": 238,
+   "y": 51,
+   "s": 0.9
+  },
+  {
+   "img": "deco04",
+   "x": 240,
+   "y": 61,
+   "s": 0.9
+  },
+  {
+   "img": "deco05",
+   "x": 244,
+   "y": 61,
+   "s": 0.9
+  },
+  {
+   "img": "deco05",
+   "x": 264,
+   "y": 51,
+   "s": 0.9
+  },
+  {
+   "img": "deco05",
+   "x": 266,
+   "y": 61,
+   "s": 0.9
+  },
+  {
+   "img": "deco05",
+   "x": 271,
+   "y": 61,
+   "s": 0.9
+  },
+  {
+   "img": "deco05",
+   "x": 247,
+   "y": 66,
+   "s": 0.9
+  },
+  {
+   "img": "deco05",
+   "x": 259,
+   "y": 66,
+   "s": 0.9
+  },
+  {
+   "img": "rocks4",
+   "x": 241,
+   "y": 42,
+   "s": 0.9,
+   "note": "ore pile",
+   "mod": [
+    1.0,
+    0.74,
+    0.5,
+    1.0
+   ]
+  },
+  {
+   "img": "rocks4",
+   "x": 256,
+   "y": 42,
+   "s": 0.9,
+   "note": "ore pile",
+   "mod": [
+    1.0,
+    0.74,
+    0.5,
+    1.0
+   ]
+  },
+  {
+   "img": "rocks4",
+   "x": 263,
+   "y": 42,
+   "s": 0.9,
+   "note": "ore pile",
+   "mod": [
+    1.0,
+    0.74,
+    0.5,
+    1.0
+   ]
+  },
+  {
+   "img": "rocks4",
+   "x": 237,
+   "y": 45,
+   "s": 0.9,
+   "note": "ore pile",
+   "mod": [
+    1.0,
+    0.74,
+    0.5,
+    1.0
+   ]
+  },
+  {
+   "img": "deco17",
+   "x": 250,
+   "y": 52,
+   "s": 0.55,
+   "note": "market stall sign"
+  },
+  {
+   "img": "deco17",
+   "x": 255,
+   "y": 56,
+   "s": 0.55,
+   "note": "market stall sign"
+  },
+  {
+   "img": "deco17",
+   "x": 250,
+   "y": 56,
+   "s": 0.55,
+   "note": "market stall sign"
+  },
+  {
+   "img": "pawn",
+   "x": 238,
+   "y": 67,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 243,
+   "y": 68,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 268,
+   "y": 65,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "rocks2",
+   "x": 290,
+   "y": 71,
+   "s": 1.0,
+   "mod": [
+    0.7,
+    0.95,
+    1.1
+   ]
+  },
+  {
+   "img": "rocks2",
+   "x": 305,
+   "y": 73,
+   "s": 1.0,
+   "mod": [
+    0.7,
+    0.95,
+    1.1
+   ]
+  },
+  {
+   "img": "rocks2",
+   "x": 320,
+   "y": 70,
+   "s": 1.0,
+   "mod": [
+    0.7,
+    0.95,
+    1.1
+   ]
+  },
+  {
+   "img": "rocks2",
+   "x": 336,
+   "y": 74,
+   "s": 1.0,
+   "mod": [
+    0.7,
+    0.95,
+    1.1
+   ]
+  },
+  {
+   "img": "rocks2",
+   "x": 298,
+   "y": 75,
+   "s": 1.0,
+   "mod": [
+    0.7,
+    0.95,
+    1.1
+   ]
+  },
+  {
+   "img": "rocks2",
+   "x": 328,
+   "y": 76,
+   "s": 1.0,
+   "mod": [
+    0.7,
+    0.95,
+    1.1
+   ]
+  },
+  {
+   "img": "tower_yellow",
+   "x": 318,
+   "y": 44,
+   "s": 0.55,
+   "note": "wind shrine"
+  },
+  {
+   "img": "tower_ruin",
+   "x": 289,
+   "y": 40,
+   "s": 0.7
+  },
+  {
+   "img": "house_yellow",
+   "x": 309,
+   "y": 56,
+   "s": 0.76,
+   "note": "waystation"
+  },
+  {
+   "img": "fire",
+   "x": 312,
+   "y": 57,
+   "s": 0.45
+  },
+  {
+   "img": "pawn",
+   "x": 307,
+   "y": 57,
+   "s": 0.42
+  },
+  {
+   "img": "deco17",
+   "x": 303,
+   "y": 50,
+   "s": 0.7,
+   "note": "signpost: abbey / fen"
+  },
+  {
+   "img": "castle_ruin",
+   "x": 301.5,
+   "y": 86,
+   "s": 0.6,
+   "note": "sunken chapel"
+  },
+  {
+   "img": "tower_ruin",
+   "x": 294,
+   "y": 85,
+   "s": 0.55
+  },
+  {
+   "img": "tower_ruin",
+   "x": 326,
+   "y": 85,
+   "s": 0.55
+  },
+  {
+   "img": "tower",
+   "x": 301.5,
+   "y": 100,
+   "s": 0.55,
+   "note": "bell tower: Warden of Bells",
+   "mod": [
+    0.75,
+    0.85,
+    0.9
+   ]
+  },
+  {
+   "img": "deco16",
+   "x": 298,
+   "y": 92,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 305,
+   "y": 92,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 293,
+   "y": 90,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 330,
+   "y": 90,
+   "s": 0.6
+  },
+  {
+   "img": "fire",
+   "x": 299,
+   "y": 98,
+   "s": 0.45
+  },
+  {
+   "img": "fire",
+   "x": 306,
+   "y": 98,
+   "s": 0.45
+  },
+  {
+   "img": "house_purple",
+   "x": 357,
+   "y": 43,
+   "s": 0.7680787903972952
+  },
+  {
+   "img": "house_purple",
+   "x": 364,
+   "y": 43,
+   "s": 0.7728437034205393
+  },
+  {
+   "img": "house_purple",
+   "x": 352,
+   "y": 51,
+   "s": 0.746662858052785,
+   "flip": true
+  },
+  {
+   "img": "house_blue",
+   "x": 368,
+   "y": 51,
+   "s": 0.7402749523974644
+  },
+  {
+   "img": "house_purple",
+   "x": 358,
+   "y": 55,
+   "s": 0.7584018746817985,
+   "flip": true
+  },
+  {
+   "img": "house_blue",
+   "x": 366,
+   "y": 55,
+   "s": 0.7681265736081437,
+   "flip": true
+  },
+  {
+   "img": "deco18",
+   "x": 361,
+   "y": 50,
+   "s": 0.55,
+   "note": "foxglove scarecrow"
+  },
+  {
+   "img": "pawn",
+   "x": 358,
+   "y": 47,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 362,
+   "y": 49,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 360,
+   "y": 52,
+   "s": 0.42
+  },
+  {
+   "img": "sheep",
+   "x": 353,
+   "y": 47,
+   "s": 0.62
+  },
+  {
+   "img": "ghouse",
+   "x": 389,
+   "y": 27,
+   "s": 0.78,
+   "note": "bog witch hut"
+  },
+  {
+   "img": "fire",
+   "x": 392,
+   "y": 28,
+   "s": 0.4
+  },
+  {
+   "img": "tower_ruin",
+   "x": 392,
+   "y": 13,
+   "s": 0.7,
+   "note": "drowned watchtower"
+  },
+  {
+   "img": "fire",
+   "x": 354,
+   "y": 70,
+   "s": 0.5,
+   "note": "hanging lantern"
+  },
+  {
+   "img": "fire",
+   "x": 366,
+   "y": 70,
+   "s": 0.5,
+   "note": "hanging lantern"
+  },
+  {
+   "img": "fire",
+   "x": 386,
+   "y": 70,
+   "s": 0.5,
+   "note": "hanging lantern"
+  },
+  {
+   "img": "fire",
+   "x": 398,
+   "y": 70,
+   "s": 0.5,
+   "note": "hanging lantern"
+  },
+  {
+   "img": "fire",
+   "x": 360,
+   "y": 79,
+   "s": 0.5,
+   "note": "hanging lantern"
+  },
+  {
+   "img": "fire",
+   "x": 392,
+   "y": 79,
+   "s": 0.5,
+   "note": "hanging lantern"
+  },
+  {
+   "img": "fire",
+   "x": 373,
+   "y": 66,
+   "s": 0.5,
+   "note": "hanging lantern"
+  },
+  {
+   "img": "fire",
+   "x": 378,
+   "y": 66,
+   "s": 0.5,
+   "note": "hanging lantern"
+  },
+  {
+   "img": "castle_yellow",
+   "x": 375.5,
+   "y": 75,
+   "s": 0.7,
+   "note": "Warden of Lanterns"
+  },
+  {
+   "img": "tower_yellow",
+   "x": 353,
+   "y": 73,
+   "s": 0.6
+  },
+  {
+   "img": "tower_yellow",
+   "x": 398,
+   "y": 73,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 353,
+   "y": 90,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 385,
+   "y": 99,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 395,
+   "y": 88,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 366,
+   "y": 86,
+   "s": 0.6
+  },
+  {
+   "img": "castle_ruin",
+   "x": 357,
+   "y": 100,
+   "s": 0.55,
+   "note": "ossuary"
+  },
+  {
+   "img": "fire",
+   "x": 434,
+   "y": 90,
+   "s": 0.55,
+   "note": "steam vent"
+  },
+  {
+   "img": "fire",
+   "x": 440,
+   "y": 60,
+   "s": 0.55,
+   "note": "steam vent"
+  },
+  {
+   "img": "fire",
+   "x": 414,
+   "y": 40,
+   "s": 0.55,
+   "note": "steam vent"
+  },
+  {
+   "img": "fire",
+   "x": 412,
+   "y": 70,
+   "s": 0.55,
+   "note": "steam vent"
+  },
+  {
+   "img": "castle_ruin",
+   "x": 426,
+   "y": 62,
+   "s": 0.55,
+   "note": "drowned forge island"
+  },
+  {
+   "img": "tower_ruin",
+   "x": 438,
+   "y": 42,
+   "s": 0.6
+  },
+  {
+   "img": "castle_blue",
+   "x": 330,
+   "y": 131,
+   "s": 0.85,
+   "note": "Frostveil palace",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "tower",
+   "x": 302,
+   "y": 127,
+   "s": 0.62,
+   "note": "spire",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "tower",
+   "x": 318,
+   "y": 127,
+   "s": 0.62,
+   "note": "spire",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "tower",
+   "x": 342,
+   "y": 127,
+   "s": 0.62,
+   "note": "spire",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "tower",
+   "x": 358,
+   "y": 127,
+   "s": 0.62,
+   "note": "spire",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "tower",
+   "x": 302,
+   "y": 153,
+   "s": 0.62,
+   "note": "spire",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "tower",
+   "x": 358,
+   "y": 153,
+   "s": 0.62,
+   "note": "spire",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "tower",
+   "x": 324,
+   "y": 145,
+   "s": 0.62,
+   "note": "spire",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "tower",
+   "x": 336,
+   "y": 145,
+   "s": 0.62,
+   "note": "spire",
+   "mod": [
+    0.9,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 296,
+   "y": 133,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 304,
+   "y": 133,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 312,
+   "y": 133,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 348,
+   "y": 133,
+   "s": 0.8,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 356,
+   "y": 133,
+   "s": 0.8,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 364,
+   "y": 133,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 296,
+   "y": 146,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_purple",
+   "x": 304,
+   "y": 146,
+   "s": 0.8,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_purple",
+   "x": 312,
+   "y": 146,
+   "s": 0.8,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 348,
+   "y": 146,
+   "s": 0.8,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 356,
+   "y": 146,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_purple",
+   "x": 364,
+   "y": 146,
+   "s": 0.8,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_purple",
+   "x": 306,
+   "y": 153,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 314,
+   "y": 153,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 346,
+   "y": 153,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 354,
+   "y": 153,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 318,
+   "y": 138,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "house_blue",
+   "x": 344,
+   "y": 138,
+   "s": 0.8,
+   "flip": true,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "fire",
+   "x": 326,
+   "y": 137,
+   "s": 0.45,
+   "note": "hearth brazier"
+  },
+  {
+   "img": "fire",
+   "x": 334,
+   "y": 137,
+   "s": 0.45,
+   "note": "hearth brazier"
+  },
+  {
+   "img": "fire",
+   "x": 306,
+   "y": 130,
+   "s": 0.45,
+   "note": "hearth brazier"
+  },
+  {
+   "img": "fire",
+   "x": 354,
+   "y": 130,
+   "s": 0.45,
+   "note": "hearth brazier"
+  },
+  {
+   "img": "fire",
+   "x": 306,
+   "y": 150,
+   "s": 0.45,
+   "note": "hearth brazier"
+  },
+  {
+   "img": "fire",
+   "x": 354,
+   "y": 150,
+   "s": 0.45,
+   "note": "hearth brazier"
+  },
+  {
+   "img": "pawn",
+   "x": 325,
+   "y": 141,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 335,
+   "y": 142,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 328,
+   "y": 144,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 332,
+   "y": 136,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 308,
+   "y": 140,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 350,
+   "y": 140,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 316,
+   "y": 141,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 344,
+   "y": 141,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 303,
+   "y": 130,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 357,
+   "y": 150,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 310,
+   "y": 150,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 330,
+   "y": 152,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "warrior",
+   "x": 327,
+   "y": 125,
+   "s": 0.42
+  },
+  {
+   "img": "warrior",
+   "x": 333,
+   "y": 125,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "warrior",
+   "x": 373,
+   "y": 139,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "warrior",
+   "x": 330,
+   "y": 157,
+   "s": 0.42
+  },
+  {
+   "img": "archer",
+   "x": 302,
+   "y": 128,
+   "s": 0.42
+  },
+  {
+   "img": "archer",
+   "x": 358,
+   "y": 128,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "house_purple",
+   "x": 432,
+   "y": 109,
+   "s": 0.8,
+   "note": "jailer's lodge (vault_key)"
+  },
+  {
+   "img": "tower_purple",
+   "x": 440,
+   "y": 110,
+   "s": 0.6
+  },
+  {
+   "img": "deco17",
+   "x": 395,
+   "y": 116,
+   "s": 0.6,
+   "note": "moon lamp"
+  },
+  {
+   "img": "deco17",
+   "x": 423,
+   "y": 124,
+   "s": 0.6,
+   "note": "moon lamp"
+  },
+  {
+   "img": "deco17",
+   "x": 407,
+   "y": 132,
+   "s": 0.6,
+   "note": "moon lamp"
+  },
+  {
+   "img": "deco17",
+   "x": 433,
+   "y": 142,
+   "s": 0.6,
+   "note": "moon lamp"
+  },
+  {
+   "img": "deco18",
+   "x": 386,
+   "y": 126,
+   "s": 0.5,
+   "note": "garden scarecrow"
+  },
+  {
+   "img": "deco18",
+   "x": 410,
+   "y": 118,
+   "s": 0.5,
+   "note": "garden scarecrow"
+  },
+  {
+   "img": "deco18",
+   "x": 426,
+   "y": 134,
+   "s": 0.5,
+   "note": "garden scarecrow"
+  },
+  {
+   "img": "pawn",
+   "x": 434,
+   "y": 112,
+   "s": 0.42,
+   "flip": true,
+   "note": "gardener"
+  },
+  {
+   "img": "tower_purple",
+   "x": 428.5,
+   "y": 180,
+   "s": 0.8,
+   "note": "Seer's Spire (Warden of Sights)"
+  },
+  {
+   "img": "fire",
+   "x": 427,
+   "y": 174,
+   "s": 0.45,
+   "note": "scrying flame"
+  },
+  {
+   "img": "fire",
+   "x": 430,
+   "y": 184,
+   "s": 0.45,
+   "note": "scrying flame"
+  },
+  {
+   "img": "fire",
+   "x": 416,
+   "y": 160,
+   "s": 0.45,
+   "note": "scrying flame"
+  },
+  {
+   "img": "fire",
+   "x": 441,
+   "y": 200,
+   "s": 0.45,
+   "note": "scrying flame"
+  },
+  {
+   "img": "fire",
+   "x": 420,
+   "y": 190,
+   "s": 0.45,
+   "note": "scrying flame"
+  },
+  {
+   "img": "fire",
+   "x": 437,
+   "y": 166,
+   "s": 0.45,
+   "note": "scrying flame"
+  },
+  {
+   "img": "castle_ruin",
+   "x": 384,
+   "y": 188,
+   "s": 0.5,
+   "note": "fallen manor"
+  },
+  {
+   "img": "castle_ruin",
+   "x": 402,
+   "y": 186,
+   "s": 0.5
+  },
+  {
+   "img": "tower_ruin",
+   "x": 392,
+   "y": 197,
+   "s": 0.6
+  },
+  {
+   "img": "castle_red",
+   "x": 394.5,
+   "y": 202,
+   "s": 0.55,
+   "note": "Warden of Embers"
+  },
+  {
+   "img": "fire",
+   "x": 393,
+   "y": 160,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 395,
+   "y": 170,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 388,
+   "y": 190,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 400,
+   "y": 192,
+   "s": 0.5
+  },
+  {
+   "img": "deco16",
+   "x": 383,
+   "y": 157,
+   "s": 0.55
+  },
+  {
+   "img": "deco16",
+   "x": 402,
+   "y": 162,
+   "s": 0.55
+  },
+  {
+   "img": "deco16",
+   "x": 385,
+   "y": 167,
+   "s": 0.55
+  },
+  {
+   "img": "deco16",
+   "x": 404,
+   "y": 172,
+   "s": 0.55
+  },
+  {
+   "img": "house_blue",
+   "x": 343,
+   "y": 171,
+   "s": 0.76,
+   "note": "pass hut",
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "fire",
+   "x": 346,
+   "y": 174,
+   "s": 0.45
+  },
+  {
+   "img": "pawn",
+   "x": 341,
+   "y": 174,
+   "s": 0.42,
+   "flip": true,
+   "note": "pass warden"
+  },
+  {
+   "img": "tower_ruin",
+   "x": 300,
+   "y": 190,
+   "s": 0.6,
+   "mod": [
+    0.92,
+    0.97,
+    1.0
+   ]
+  },
+  {
+   "img": "deco17",
+   "x": 332,
+   "y": 165,
+   "s": 0.6,
+   "note": "signpost"
+  },
+  {
+   "img": "house_yellow",
+   "x": 228,
+   "y": 98,
+   "s": 0.8,
+   "flip": true
+  },
+  {
+   "img": "house_yellow",
+   "x": 234,
+   "y": 98,
+   "s": 0.8,
+   "flip": true
+  },
+  {
+   "img": "house_blue",
+   "x": 240,
+   "y": 98,
+   "s": 0.8
+  },
+  {
+   "img": "house_yellow",
+   "x": 246,
+   "y": 98,
+   "s": 0.8,
+   "flip": true
+  },
+  {
+   "img": "house_red",
+   "x": 228,
+   "y": 106,
+   "s": 0.8
+  },
+  {
+   "img": "house_blue",
+   "x": 234,
+   "y": 106,
+   "s": 0.8
+  },
+  {
+   "img": "house_red",
+   "x": 242,
+   "y": 106,
+   "s": 0.8
+  },
+  {
+   "img": "house_blue",
+   "x": 248,
+   "y": 103,
+   "s": 0.8
+  },
+  {
+   "img": "tower_yellow",
+   "x": 222,
+   "y": 101,
+   "s": 0.6,
+   "note": "toll tower"
+  },
+  {
+   "img": "pawn",
+   "x": 230,
+   "y": 102,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 238,
+   "y": 103,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 244,
+   "y": 101,
+   "s": 0.42
+  },
+  {
+   "img": "pawn",
+   "x": 236,
+   "y": 105,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "pawn",
+   "x": 213,
+   "y": 100,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "sheep",
+   "x": 256,
+   "y": 100,
+   "s": 0.62
+  },
+  {
+   "img": "sheep",
+   "x": 259,
+   "y": 101,
+   "s": 0.62,
+   "flip": true
+  },
+  {
+   "img": "sheep",
+   "x": 262,
+   "y": 99,
+   "s": 0.62
+  },
+  {
+   "img": "sheep",
+   "x": 190,
+   "y": 100,
+   "s": 0.62
+  },
+  {
+   "img": "sheep",
+   "x": 193,
+   "y": 101,
+   "s": 0.62,
+   "flip": true
+  },
+  {
+   "img": "house_yellow",
+   "x": 194,
+   "y": 98,
+   "s": 0.78,
+   "note": "royal farm"
+  },
+  {
+   "img": "wtower",
+   "x": 266,
+   "y": 108,
+   "s": 0.5,
+   "note": "mill"
+  },
+  {
+   "img": "castle_blue",
+   "x": 236.5,
+   "y": 186,
+   "s": 1.0,
+   "note": "the king's citadel (boss_kingshold)"
+  },
+  {
+   "img": "tower",
+   "x": 198,
+   "y": 134,
+   "s": 0.7,
+   "note": "citadel tower"
+  },
+  {
+   "img": "tower",
+   "x": 276,
+   "y": 134,
+   "s": 0.7,
+   "note": "citadel tower"
+  },
+  {
+   "img": "tower",
+   "x": 198,
+   "y": 194,
+   "s": 0.7,
+   "note": "citadel tower"
+  },
+  {
+   "img": "tower",
+   "x": 276,
+   "y": 194,
+   "s": 0.7,
+   "note": "citadel tower"
+  },
+  {
+   "img": "tower",
+   "x": 214,
+   "y": 133,
+   "s": 0.7,
+   "note": "citadel tower"
+  },
+  {
+   "img": "tower",
+   "x": 225,
+   "y": 133,
+   "s": 0.7,
+   "note": "citadel tower"
+  },
+  {
+   "img": "fire",
+   "x": 220,
+   "y": 140,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 252,
+   "y": 140,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 210,
+   "y": 160,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 262,
+   "y": 160,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 230,
+   "y": 176,
+   "s": 0.5
+  },
+  {
+   "img": "fire",
+   "x": 244,
+   "y": 176,
+   "s": 0.5
+  },
+  {
+   "img": "warrior",
+   "x": 217,
+   "y": 131,
+   "s": 0.42
+  },
+  {
+   "img": "warrior",
+   "x": 222,
+   "y": 131,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "warrior",
+   "x": 236,
+   "y": 147,
+   "s": 0.42
+  },
+  {
+   "img": "warrior",
+   "x": 240,
+   "y": 147,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "deco16",
+   "x": 233,
+   "y": 170,
+   "s": 0.6,
+   "note": "drake sigil shrine"
+  },
+  {
+   "img": "house_blue",
+   "x": 204,
+   "y": 150,
+   "s": 0.78,
+   "flip": true,
+   "note": "bailey quarters"
+  },
+  {
+   "img": "house_blue",
+   "x": 270,
+   "y": 150,
+   "s": 0.78,
+   "flip": true,
+   "note": "bailey quarters"
+  },
+  {
+   "img": "house_blue",
+   "x": 204,
+   "y": 190,
+   "s": 0.78,
+   "flip": true,
+   "note": "bailey quarters"
+  },
+  {
+   "img": "house_yellow",
+   "x": 270,
+   "y": 190,
+   "s": 0.78,
+   "flip": true,
+   "note": "bailey quarters"
+  },
+  {
+   "img": "house_yellow",
+   "x": 228,
+   "y": 140,
+   "s": 0.78,
+   "note": "bailey quarters"
+  },
+  {
+   "img": "house_yellow",
+   "x": 246,
+   "y": 140,
+   "s": 0.78,
+   "flip": true,
+   "note": "bailey quarters"
+  },
+  {
+   "img": "archer",
+   "x": 212,
+   "y": 168,
+   "s": 0.42
+  },
+  {
+   "img": "archer",
+   "x": 262,
+   "y": 174,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "archer",
+   "x": 230,
+   "y": 141,
+   "s": 0.42
+  },
+  {
+   "img": "archer",
+   "x": 244,
+   "y": 141,
+   "s": 0.42,
+   "flip": true
+  },
+  {
+   "img": "tower_ruin",
+   "x": 172,
+   "y": 144,
+   "s": 0.55,
+   "note": "dead gazebo"
+  },
+  {
+   "img": "tower_ruin",
+   "x": 186,
+   "y": 164,
+   "s": 0.55,
+   "note": "dead gazebo"
+  },
+  {
+   "img": "tower_ruin",
+   "x": 160,
+   "y": 186,
+   "s": 0.55,
+   "note": "dead gazebo"
+  },
+  {
+   "img": "castle_ruin",
+   "x": 160,
+   "y": 166,
+   "s": 0.55,
+   "note": "old summer palace"
+  },
+  {
+   "img": "tower_ruin",
+   "x": 122,
+   "y": 155,
+   "s": 0.8,
+   "note": "drake nest summit"
+  },
+  {
+   "img": "fire",
+   "x": 118,
+   "y": 157,
+   "s": 0.55
+  },
+  {
+   "img": "fire",
+   "x": 126,
+   "y": 157,
+   "s": 0.55
+  },
+  {
+   "img": "deco16",
+   "x": 132,
+   "y": 189,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 110,
+   "y": 172,
+   "s": 0.6
+  },
+  {
+   "img": "deco16",
+   "x": 136,
+   "y": 168,
+   "s": 0.6
+  },
+  {
+   "img": "tower_purple",
+   "x": 84,
+   "y": 100,
+   "s": 0.6,
+   "note": "star tower"
+  },
+  {
+   "img": "tower_purple",
+   "x": 108,
+   "y": 100,
+   "s": 0.6,
+   "note": "star tower"
+  },
+  {
+   "img": "tower_purple",
+   "x": 132,
+   "y": 100,
+   "s": 0.6,
+   "note": "star tower"
+  },
+  {
+   "img": "tower_purple",
+   "x": 84,
+   "y": 142,
+   "s": 0.6,
+   "note": "star tower"
+  },
+  {
+   "img": "tower_purple",
+   "x": 132,
+   "y": 142,
+   "s": 0.6,
+   "note": "star tower"
+  },
+  {
+   "img": "castle_purple",
+   "x": 108,
+   "y": 126,
+   "s": 0.65,
+   "note": "observatory (archive boss)"
+  },
+  {
+   "img": "fire",
+   "x": 96,
+   "y": 118,
+   "s": 0.45,
+   "note": "star lamp",
+   "mod": [
+    0.7,
+    0.8,
+    1.0
+   ]
+  },
+  {
+   "img": "fire",
+   "x": 120,
+   "y": 118,
+   "s": 0.45,
+   "note": "star lamp",
+   "mod": [
+    0.7,
+    0.8,
+    1.0
+   ]
+  },
+  {
+   "img": "fire",
+   "x": 90,
+   "y": 132,
+   "s": 0.45,
+   "note": "star lamp",
+   "mod": [
+    0.7,
+    0.8,
+    1.0
+   ]
+  },
+  {
+   "img": "fire",
+   "x": 126,
+   "y": 132,
+   "s": 0.45,
+   "note": "star lamp",
+   "mod": [
+    0.7,
+    0.8,
+    1.0
+   ]
+  },
+  {
+   "img": "castle_purple",
+   "x": 30,
+   "y": 121,
+   "s": 0.7,
+   "note": "the Rift Heart",
+   "mod": [
+    1.0,
+    0.7,
+    1.0
+   ]
+  },
+  {
+   "img": "tower_ruin",
+   "x": 46,
+   "y": 111,
+   "s": 0.55,
+   "mod": [
+    0.95,
+    0.75,
+    1.0
+   ]
+  },
+  {
+   "img": "tower_ruin",
+   "x": 46,
+   "y": 133,
+   "s": 0.55,
+   "mod": [
+    0.95,
+    0.75,
+    1.0
+   ]
+  },
+  {
+   "img": "tower_ruin",
+   "x": 14,
+   "y": 105,
+   "s": 0.55,
+   "mod": [
+    0.95,
+    0.75,
+    1.0
+   ]
+  },
+  {
+   "img": "tower_ruin",
+   "x": 39,
+   "y": 164,
+   "s": 0.55,
+   "mod": [
+    0.9,
+    0.7,
+    1.0
+   ]
+  },
+  {
+   "img": "tower_ruin",
+   "x": 24,
+   "y": 161,
+   "s": 0.55,
+   "mod": [
+    0.9,
+    0.7,
+    1.0
+   ]
+  },
+  {
+   "img": "tower_ruin",
+   "x": 15,
+   "y": 160,
+   "s": 0.55,
+   "mod": [
+    0.9,
+    0.7,
+    1.0
+   ]
+  },
+  {
+   "img": "tower_ruin",
+   "x": 32,
+   "y": 178,
+   "s": 0.55,
+   "mod": [
+    0.9,
+    0.7,
+    1.0
+   ]
+  },
+  {
+   "img": "castle_ruin",
+   "x": 72,
+   "y": 188,
+   "s": 0.6,
+   "note": "Riftsea Depths"
   }
- ]
+ ],
+ "styles": {
+  "fort": {
+   "floor": [
+    0.78,
+    0.74,
+    0.7
+   ],
+   "wall": [
+    0.85,
+    0.8,
+    0.76
+   ],
+   "map": [
+    0.6,
+    0.55,
+    0.5
+   ]
+  },
+  "ember": {
+   "grass": [
+    1.0,
+    0.8,
+    0.6
+   ],
+   "overlay": [
+    0.35,
+    0.16,
+    0.08,
+    0.22
+   ],
+   "tree": [
+    1.0,
+    0.72,
+    0.5
+   ],
+   "wild": [
+    1.0,
+    0.72,
+    0.45
+   ],
+   "road": [
+    1.0,
+    0.9,
+    0.8
+   ],
+   "wall": [
+    0.85,
+    0.6,
+    0.5
+   ],
+   "rock": [
+    1.0,
+    0.8,
+    0.7
+   ],
+   "embers": true,
+   "map": [
+    0.75,
+    0.45,
+    0.3
+   ]
+  },
+  "steppe": {
+   "grass": [
+    1.05,
+    0.86,
+    0.55
+   ],
+   "overlay": [
+    0.75,
+    0.3,
+    0.1,
+    0.16
+   ],
+   "wild": [
+    1.0,
+    0.55,
+    0.35
+   ],
+   "tree": [
+    1.0,
+    0.8,
+    0.55
+   ],
+   "map": [
+    0.8,
+    0.4,
+    0.25
+   ]
+  },
+  "canyon": {
+   "grass": [
+    0.85,
+    0.9,
+    1.0
+   ],
+   "overlay": [
+    0.55,
+    0.8,
+    1.0,
+    0.22
+   ],
+   "rock": [
+    0.7,
+    0.95,
+    1.0
+   ],
+   "wall": [
+    0.75,
+    0.9,
+    1.0
+   ],
+   "floor": [
+    0.75,
+    0.85,
+    0.95
+   ],
+   "wild": [
+    0.7,
+    0.95,
+    1.0
+   ],
+   "map": [
+    0.5,
+    0.8,
+    0.9
+   ]
+  },
+  "redcap": {
+   "grass": [
+    0.96,
+    0.84,
+    0.8
+   ],
+   "overlay": [
+    0.5,
+    0.1,
+    0.15,
+    0.12
+   ],
+   "wild": [
+    1.0,
+    0.62,
+    0.6
+   ],
+   "tree": [
+    0.95,
+    0.62,
+    0.55
+   ],
+   "map": [
+    0.7,
+    0.3,
+    0.35
+   ]
+  },
+  "fen": {
+   "grass": [
+    0.66,
+    0.76,
+    0.5
+   ],
+   "overlay": [
+    0.12,
+    0.18,
+    0.05,
+    0.3
+   ],
+   "water": [
+    0.24,
+    0.42,
+    0.32,
+    1.0
+   ],
+   "tree": [
+    0.6,
+    0.74,
+    0.55
+   ],
+   "wild": [
+    0.7,
+    0.8,
+    0.45
+   ],
+   "map": [
+    0.3,
+    0.45,
+    0.25
+   ]
+  },
+  "foxglove": {
+   "grass": [
+    0.86,
+    0.92,
+    0.78
+   ],
+   "overlay": [
+    0.5,
+    0.2,
+    0.6,
+    0.08
+   ],
+   "water": [
+    0.24,
+    0.42,
+    0.32,
+    1.0
+   ],
+   "tree": [
+    0.8,
+    0.86,
+    0.72
+   ],
+   "map": [
+    0.55,
+    0.45,
+    0.6
+   ]
+  },
+  "abbey": {
+   "floor": [
+    0.7,
+    0.76,
+    0.8
+   ],
+   "wall": [
+    0.72,
+    0.82,
+    0.86
+   ],
+   "water": [
+    0.2,
+    0.45,
+    0.5,
+    1.0
+   ],
+   "map": [
+    0.45,
+    0.55,
+    0.6
+   ]
+  },
+  "lantern": {
+   "floor": [
+    0.88,
+    0.76,
+    0.55
+   ],
+   "wall": [
+    0.9,
+    0.78,
+    0.6
+   ],
+   "map": [
+    0.75,
+    0.6,
+    0.3
+   ]
+  },
+  "catacomb": {
+   "floor": [
+    0.56,
+    0.5,
+    0.45
+   ],
+   "wall": [
+    0.58,
+    0.52,
+    0.46
+   ],
+   "tree": [
+    0.5,
+    0.56,
+    0.4
+   ],
+   "map": [
+    0.4,
+    0.35,
+    0.3
+   ]
+  },
+  "caldera": {
+   "grass": [
+    0.62,
+    0.46,
+    0.4
+   ],
+   "overlay": [
+    0.15,
+    0.05,
+    0.03,
+    0.42
+   ],
+   "floor": [
+    0.56,
+    0.42,
+    0.38
+   ],
+   "wall": [
+    0.75,
+    0.45,
+    0.35
+   ],
+   "rock": [
+    0.9,
+    0.55,
+    0.45
+   ],
+   "tree": [
+    0.6,
+    0.4,
+    0.3
+   ],
+   "water": [
+    0.5,
+    0.32,
+    0.22,
+    1.0
+   ],
+   "road": [
+    0.7,
+    0.55,
+    0.5
+   ],
+   "embers": true,
+   "map": [
+    0.5,
+    0.2,
+    0.1
+   ]
+  },
+  "snow": {
+   "overlay": [
+    0.94,
+    0.97,
+    1.0,
+    0.8
+   ],
+   "tree": [
+    0.82,
+    0.92,
+    1.0
+   ],
+   "wild": [
+    0.86,
+    0.95,
+    1.0
+   ],
+   "rock": [
+    0.86,
+    0.93,
+    1.0
+   ],
+   "road": [
+    0.92,
+    0.95,
+    1.0
+   ],
+   "water": [
+    0.5,
+    0.72,
+    0.82,
+    1.0
+   ],
+   "wall": [
+    0.92,
+    0.96,
+    1.0
+   ],
+   "floor": [
+    0.86,
+    0.9,
+    0.96
+   ],
+   "snow": true,
+   "map": [
+    0.93,
+    0.96,
+    1.0
+   ]
+  },
+  "frostlake": {
+   "overlay": [
+    0.94,
+    0.97,
+    1.0,
+    0.8
+   ],
+   "water": [
+    0.55,
+    0.78,
+    0.88,
+    1.0
+   ],
+   "snow": true,
+   "map": [
+    0.8,
+    0.9,
+    1.0
+   ]
+  },
+  "terraces": {
+   "grass": [
+    0.72,
+    0.76,
+    0.95
+   ],
+   "overlay": [
+    0.2,
+    0.15,
+    0.45,
+    0.22
+   ],
+   "tree": [
+    0.66,
+    0.7,
+    0.95
+   ],
+   "wild": [
+    0.76,
+    0.7,
+    1.0
+   ],
+   "water": [
+    0.26,
+    0.36,
+    0.6,
+    1.0
+   ],
+   "wall": [
+    0.75,
+    0.75,
+    0.95
+   ],
+   "floor": [
+    0.8,
+    0.8,
+    0.95
+   ],
+   "map": [
+    0.4,
+    0.4,
+    0.7
+   ]
+  },
+  "spire": {
+   "floor": [
+    0.76,
+    0.7,
+    0.95
+   ],
+   "wall": [
+    0.76,
+    0.7,
+    0.96
+   ],
+   "map": [
+    0.55,
+    0.45,
+    0.8
+   ]
+  },
+  "prison": {
+   "floor": [
+    0.56,
+    0.56,
+    0.62
+   ],
+   "wall": [
+    0.58,
+    0.6,
+    0.68
+   ],
+   "map": [
+    0.35,
+    0.35,
+    0.4
+   ]
+  },
+  "molten": {
+   "floor": [
+    0.62,
+    0.46,
+    0.4
+   ],
+   "wall": [
+    0.72,
+    0.42,
+    0.35
+   ],
+   "embers": true,
+   "map": [
+    0.6,
+    0.25,
+    0.15
+   ]
+  },
+  "royal": {
+   "grass": [
+    0.96,
+    1.0,
+    0.86
+   ],
+   "road": [
+    1.0,
+    0.97,
+    0.9
+   ],
+   "tree": [
+    0.9,
+    1.0,
+    0.86
+   ],
+   "map": [
+    0.7,
+    0.7,
+    0.4
+   ]
+  },
+  "citadel": {
+   "floor": [
+    0.88,
+    0.87,
+    0.82
+   ],
+   "wall": [
+    0.92,
+    0.9,
+    0.86
+   ],
+   "map": [
+    0.8,
+    0.8,
+    0.7
+   ]
+  },
+  "withered": {
+   "grass": [
+    0.76,
+    0.7,
+    0.55
+   ],
+   "overlay": [
+    0.3,
+    0.24,
+    0.14,
+    0.28
+   ],
+   "tree": [
+    0.7,
+    0.6,
+    0.45
+   ],
+   "wild": [
+    0.8,
+    0.7,
+    0.5
+   ],
+   "water": [
+    0.32,
+    0.42,
+    0.38,
+    1.0
+   ],
+   "map": [
+    0.5,
+    0.45,
+    0.3
+   ]
+  },
+  "drake": {
+   "grass": [
+    0.7,
+    0.6,
+    0.55
+   ],
+   "overlay": [
+    0.2,
+    0.1,
+    0.08,
+    0.35
+   ],
+   "rock": [
+    0.85,
+    0.65,
+    0.55
+   ],
+   "wall": [
+    0.8,
+    0.6,
+    0.5
+   ],
+   "floor": [
+    0.7,
+    0.58,
+    0.52
+   ],
+   "embers": true,
+   "map": [
+    0.45,
+    0.3,
+    0.25
+   ]
+  },
+  "archive": {
+   "floor": [
+    0.62,
+    0.64,
+    0.86
+   ],
+   "wall": [
+    0.64,
+    0.66,
+    0.9
+   ],
+   "grass": [
+    0.62,
+    0.66,
+    0.9
+   ],
+   "overlay": [
+    0.1,
+    0.1,
+    0.35,
+    0.28
+   ],
+   "water": [
+    0.2,
+    0.25,
+    0.5,
+    1.0
+   ],
+   "map": [
+    0.35,
+    0.35,
+    0.6
+   ]
+  },
+  "rift": {
+   "grass": [
+    0.76,
+    0.52,
+    0.9
+   ],
+   "overlay": [
+    0.35,
+    0.05,
+    0.4,
+    0.32
+   ],
+   "floor": [
+    0.72,
+    0.52,
+    0.86
+   ],
+   "wall": [
+    0.66,
+    0.46,
+    0.86
+   ],
+   "water": [
+    0.3,
+    0.12,
+    0.42,
+    1.0
+   ],
+   "tree": [
+    0.7,
+    0.5,
+    0.9
+   ],
+   "wild": [
+    0.86,
+    0.5,
+    1.0
+   ],
+   "road": [
+    0.85,
+    0.7,
+    0.95
+   ],
+   "map": [
+    0.5,
+    0.2,
+    0.55
+   ]
+  },
+  "riftsea": {
+   "grass": [
+    0.66,
+    0.5,
+    0.86
+   ],
+   "overlay": [
+    0.25,
+    0.05,
+    0.35,
+    0.35
+   ],
+   "floor": [
+    0.62,
+    0.48,
+    0.8
+   ],
+   "water": [
+    0.16,
+    0.06,
+    0.3,
+    1.0
+   ],
+   "wild": [
+    0.8,
+    0.5,
+    1.0
+   ],
+   "road": [
+    0.8,
+    0.66,
+    0.92
+   ],
+   "map": [
+    0.3,
+    0.1,
+    0.4
+   ]
+  }
+ }
 }

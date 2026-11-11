@@ -1,5 +1,5 @@
 {
- "_readme": "Riftstrike world graph (23-area Riftmarch). areas: name, kind, rec level, box = [x,y,w,h] on the 1280x700 region map, map = center in percent, built = walkable|stub|planned, absorbs = old places folded in. links + gates (enabled=false unlocks). 'folded' maps retired area ids to their new area so old saves and data keep working. Tile layout: world_map.txt; area/gate tile rects: world_tiles.json. tile_layout: bump when tile coordinates change; saved overworld positions from another layout are scaled by tile_layout_scale[old] or reset to the start.",
+ "_readme": "Riftstrike world graph (23-area Riftmarch). areas: name, kind, rec level, box = [x,y,w,h] on the 1280x700 region map, map = center in percent, built = walkable|stub|planned, absorbs = old places folded in. links + gates (enabled=false unlocks). 'folded' maps retired area ids to their new area so old saves and data keep working. Tile layout: world_map.txt; area/gate tile rects: world_tiles.json. tile_layout: bump when the tile canvas changes; saved overworld positions from another layout are scaled by tile_layout_scale[old] (1.0 = same coordinates) or reset to the start. Layout 3 grew the canvas east/south for Acts II-V without moving Act I, so layout-2 saves keep their spot.",
  "region": "The Riftmarch",
  "map_size": [
   1280,
@@ -200,7 +200,7 @@
     66.2,
     65.4
    ],
-   "built": "stub",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Garrison over the gorge. Forest and shore paths meet here."
@@ -224,7 +224,7 @@
     78.3,
     64.3
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Mining town on the highland rim."
@@ -248,7 +248,7 @@
     74.6,
     41.1
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "Glasswind Canyon",
    "landmark": "Glasswind Canyon",
    "blurb": "Windy red-grass plains and a crystal canyon. Splits to the abbey or the fen."
@@ -272,7 +272,7 @@
     91.4,
     66.4
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Mushroom hills with tougher wild packs."
@@ -296,7 +296,7 @@
     72.1,
     14.5
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "Warden of Bells",
    "blurb": "Flooded abbey. The Warden of Bells waits below."
@@ -320,7 +320,7 @@
     91.2,
     41.1
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "Mirefen Deep, Foxglove Hamlet",
    "landmark": "Foxglove Hamlet",
    "blurb": "Bog wilds with a hidden village, Foxglove, in the fen."
@@ -344,7 +344,7 @@
     84.4,
     14.5
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "Underroot Catacomb",
    "landmark": "Warden of Lanterns",
    "blurb": "Keep of hanging lanterns, with root-choked catacombs as its lower levels."
@@ -368,7 +368,7 @@
     94.5,
     14.5
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Volcanic lake below the catacombs."
@@ -392,7 +392,7 @@
     59.2,
     14.5
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "Frostveil Bridge",
    "landmark": "",
    "blurb": "Snowbound city of spires, reached over the long frozen bridge."
@@ -416,7 +416,7 @@
     41.4,
     15.2
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Terraced gardens. Splits to the spire or the vault."
@@ -440,7 +440,7 @@
     24.0,
     12.7
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "Warden of Sights",
    "blurb": "Optional tower of the Warden of Sights."
@@ -464,7 +464,7 @@
     35.0,
     39.3
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "Deepvault Prison, Molten Capital",
    "landmark": "Warden of Embers",
    "blurb": "A prison that sinks into a fallen molten city. The Warden of Embers waits at the bottom."
@@ -488,7 +488,7 @@
     49.8,
     39.6
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Icy pass west of Frostveil. The northern way to the crown lands."
@@ -512,7 +512,7 @@
     22.7,
     52.9
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "Kingshold Approach, Kingshold Citadel, Withered Royal Garden",
    "landmark": "",
    "blurb": "The royal road, the king's citadel, and its withered garden, behind the royal ward."
@@ -536,7 +536,7 @@
     7.0,
     61.8
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Optional summit. Needs the drake sigil."
@@ -560,7 +560,7 @@
     7.9,
     33.6
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Library of falling stars. Last stop before the heart."
@@ -584,7 +584,7 @@
     7.9,
     21.1
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "",
    "landmark": "",
    "blurb": "Where the rift began. Needs all four warden seals."
@@ -608,7 +608,7 @@
     9.7,
     8.4
    ],
-   "built": "planned",
+   "built": "walkable",
    "absorbs": "Shattered Expanse, Riftsea Depths",
    "landmark": "",
    "blurb": "Post-game rift fields and the abyss below. Level 99 content."
@@ -930,9 +930,10 @@
    "story_beat": "Placeholder: opens after the ending."
   }
  ],
- "tile_layout": 2,
+ "tile_layout": 3,
  "tile_layout_scale": {
-  "1": 2.0
+  "1": 2.0,
+  "2": 1.0
  },
  "town_scale": 2.0
 }

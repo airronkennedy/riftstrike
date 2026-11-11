@@ -223,6 +223,1539 @@
      ]
     }
    ]
+  },
+  "ironbridge_fort": {
+   "rate": 0.05,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      13,
+      14
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      13,
+      14
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      14,
+      15
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      14,
+      15
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      15,
+      15
+     ]
+    }
+   ]
+  },
+  "redcap_hills": {
+   "rate": 0.055,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      24,
+      26
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      25,
+      26
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      25,
+      27
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      26,
+      27
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      26,
+      27
+     ]
+    }
+   ]
+  },
+  "kindlegrass_steppe": {
+   "rate": 0.045,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      16,
+      18
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      17,
+      19
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      18,
+      20
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      18,
+      20
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      19,
+      20
+     ]
+    }
+   ],
+   "zones": {
+    "Glasswind Canyon": {
+     "rate": 0.055,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        19,
+        21
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        20,
+        21
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        20,
+        22
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        21,
+        22
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        21,
+        22
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "sunken_abbey": {
+   "rate": 0.05,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      23,
+      24
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      23,
+      24
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      24,
+      25
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      24,
+      25
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      25,
+      25
+     ]
+    }
+   ]
+  },
+  "mirefen": {
+   "rate": 0.05,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      20,
+      21
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      20,
+      21
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      21,
+      22
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      21,
+      22
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      22,
+      22
+     ]
+    }
+   ],
+   "zones": {
+    "Mirefen Deep": {
+     "rate": 0.06,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        22,
+        22
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        22,
+        23
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        22,
+        23
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        23,
+        23
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        23,
+        23
+       ]
+      }
+     ]
+    },
+    "Foxglove Hamlet": {
+     "rate": 0.0,
+     "groups": []
+    }
+   }
+  },
+  "lanternkeep": {
+   "rate": 0.05,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      25,
+      26
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      25,
+      26
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      26,
+      27
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      26,
+      27
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      27,
+      27
+     ]
+    }
+   ],
+   "zones": {
+    "Underroot Catacomb": {
+     "rate": 0.055,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        27,
+        29
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        28,
+        29
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        28,
+        30
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        29,
+        30
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        29,
+        30
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "smokewater_caldera": {
+   "rate": 0.055,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      31,
+      33
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      32,
+      33
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      32,
+      34
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      33,
+      34
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      33,
+      34
+     ]
+    }
+   ]
+  },
+  "frostveil": {
+   "rate": 0.0,
+   "groups": [],
+   "_note": "city: no wild encounters"
+  },
+  "moonlit_terraces": {
+   "rate": 0.045,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      33,
+      35
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      34,
+      35
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      34,
+      36
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      35,
+      36
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      35,
+      36
+     ]
+    }
+   ]
+  },
+  "seers_spire": {
+   "rate": 0.055,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      37,
+      39
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      38,
+      39
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      38,
+      40
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      39,
+      40
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      39,
+      40
+     ]
+    }
+   ]
+  },
+  "deepvault": {
+   "rate": 0.05,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      37,
+      39
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      38,
+      39
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      38,
+      40
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      39,
+      40
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      39,
+      40
+     ]
+    }
+   ],
+   "zones": {
+    "Molten Capital": {
+     "rate": 0.06,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        41,
+        43
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        42,
+        43
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        42,
+        44
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        43,
+        44
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        43,
+        44
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "hoarfrost_pass": {
+   "rate": 0.05,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      42,
+      44
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      43,
+      44
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      43,
+      45
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      44,
+      45
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      44,
+      45
+     ]
+    }
+   ]
+  },
+  "kingshold": {
+   "rate": 0.045,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      45,
+      46
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      45,
+      46
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      46,
+      47
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      46,
+      47
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      47,
+      47
+     ]
+    }
+   ],
+   "zones": {
+    "Kingshold Citadel": {
+     "rate": 0.055,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        48,
+        50
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        49,
+        50
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        49,
+        51
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        50,
+        51
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        50,
+        51
+       ]
+      }
+     ]
+    },
+    "Withered Royal Garden": {
+     "rate": 0.05,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        46,
+        48
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        47,
+        48
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        47,
+        49
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        48,
+        49
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        48,
+        49
+       ]
+      }
+     ]
+    }
+   }
+  },
+  "drakespire_peak": {
+   "rate": 0.06,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      55,
+      57
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      56,
+      57
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      56,
+      58
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      57,
+      58
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      57,
+      58
+     ]
+    }
+   ]
+  },
+  "starfall_archive": {
+   "rate": 0.055,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      54,
+      56
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      55,
+      56
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      55,
+      57
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      56,
+      57
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      56,
+      57
+     ]
+    }
+   ]
+  },
+  "rift_heart": {
+   "rate": 0.06,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      58,
+      59
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      58,
+      59
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      59,
+      60
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      59,
+      60
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      60,
+      60
+     ]
+    }
+   ]
+  },
+  "riftsea_expanse": {
+   "rate": 0.06,
+   "groups": [
+    {
+     "weight": 4,
+     "kinds": [
+      "torch",
+      "torch"
+     ],
+     "level": [
+      75,
+      83
+     ]
+    },
+    {
+     "weight": 4,
+     "kinds": [
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      78,
+      85
+     ]
+    },
+    {
+     "weight": 3,
+     "kinds": [
+      "torch",
+      "barrel",
+      "torch"
+     ],
+     "level": [
+      81,
+      89
+     ]
+    },
+    {
+     "weight": 2,
+     "kinds": [
+      "tnt",
+      "tnt",
+      "barrel"
+     ],
+     "level": [
+      84,
+      90
+     ]
+    },
+    {
+     "weight": 1,
+     "kinds": [
+      "torch",
+      "barrel",
+      "tnt"
+     ],
+     "level": [
+      87,
+      90
+     ]
+    }
+   ],
+   "zones": {
+    "Riftsea Depths": {
+     "rate": 0.07,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        88,
+        94
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        90,
+        96
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        92,
+        98
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        95,
+        99
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        97,
+        99
+       ]
+      }
+     ]
+    },
+    "Shattered Expanse": {
+     "rate": 0.06,
+     "groups": [
+      {
+       "weight": 4,
+       "kinds": [
+        "torch",
+        "torch"
+       ],
+       "level": [
+        75,
+        83
+       ]
+      },
+      {
+       "weight": 4,
+       "kinds": [
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        78,
+        85
+       ]
+      },
+      {
+       "weight": 3,
+       "kinds": [
+        "torch",
+        "barrel",
+        "torch"
+       ],
+       "level": [
+        81,
+        89
+       ]
+      },
+      {
+       "weight": 2,
+       "kinds": [
+        "tnt",
+        "tnt",
+        "barrel"
+       ],
+       "level": [
+        84,
+        90
+       ]
+      },
+      {
+       "weight": 1,
+       "kinds": [
+        "torch",
+        "barrel",
+        "tnt"
+       ],
+       "level": [
+        87,
+        90
+       ]
+      }
+     ]
+    }
+   }
   }
  },
  "scaling": {

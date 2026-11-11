@@ -1,6 +1,6 @@
 extends Node2D
 ## RIFTSTRIKE — turn-based 6vN brawl. Godot port of the canvas game (game.js), kept 1:1.
-## Art: Tiny Swords by Pixel Frog (CC0). Boss: Necromancer by CreativeKind.
+## Art: Tiny Swords by Pixel Frog (original release, free for commercial use; see docs/ASSET_LICENSES.md). Boss: Necromancer by CreativeKind.
 ## Everything is drawn immediate-mode in _draw(), mirroring the canvas renderer.
 
 # ---------------------------------------------------------------- world / orientation
@@ -3679,10 +3679,10 @@ func draw_title() -> void:
 	var cfs := 12.0 if short else 14.0
 	var cy := VHc - (4.0 if short else 10.0) - cfs
 	if USE_NECRO:
-		link_text("Art: ", "Tiny Swords by Pixel Frog", " (CC0)", URL_TINY, cx, cy - cfs * 1.6, cfs, Color.WHITE, Color("#ffe27a"), true, "cr1")
+		link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, cy - cfs * 1.6, cfs, Color.WHITE, Color("#ffe27a"), true, "cr1")
 		link_text("Boss: ", "Necromancer by CreativeKind", "", URL_NECRO, cx, cy, cfs, Color.WHITE, Color("#ffe27a"), true, "cr2")
 	else:
-		link_text("Art: ", "Tiny Swords by Pixel Frog", " (CC0)", URL_TINY, cx, cy, cfs, Color.WHITE, Color("#ffe27a"), true, "cr1")
+		link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, cy, cfs, Color.WHITE, Color("#ffe27a"), true, "cr1")
 
 func fmt_n(n: int) -> String:
 	var s := str(absi(n))
@@ -3764,7 +3764,7 @@ func draw_results() -> void:
 		pill("menu", Rect2(cx - tw / 2, y, tw, btn_h), "Title", "soft", 22, func(): results_title())
 		y += btn_h
 	y += (4 if short else 10) + 8
-	link_text("Art: ", "Tiny Swords by Pixel Frog", " (CC0)", URL_TINY, cx, y, 12, UI_MUTED, UI_TEAL_D, false, "cr1")
+	link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, y, 12, UI_MUTED, UI_TEAL_D, false, "cr1")
 	if cred_lines == 2:
 		link_text("Boss: ", "Necromancer by CreativeKind", "", URL_NECRO, cx, y + 16, 12, UI_MUTED, UI_TEAL_D, false, "cr2")
 	restore()

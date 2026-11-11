@@ -676,16 +676,24 @@ func draw_ground(g: Object, view: Rect2, now: float) -> void:
 				continue
 			var st2: Dictionary = style_at(c, r)
 			if ch2 == C_FLOOR or ch2 == C_RUBBLE:
-				var sxf: int = _edge_i(_floorish(c - 1, r), _floorish(c + 1, r))
-				var syf: int = _edge_i(_floorish(c, r - 1), _floorish(c, r + 1))
+				# Flagstones drawn in code: a tinted base, per-stone shading and mortar seams.
 				var fc: Color = st2.get("floor", Color(0.66, 0.66, 0.7))
-				g.img(flat, 320 + sxf * 64, syf * 64, 64, 64, c * TILE, r * TILE, 64, 64, fc)
-				# flagstone seams so interiors read as built floors, not sand
-				var seam := Color(0, 0, 0, 0.12)
-				g.draw_line(Vector2(c * TILE, r * TILE + 32), Vector2(c * TILE + 64, r * TILE + 32), seam, 2.0)
-				var off: int = 16 if r % 2 == 0 else 48
-				g.draw_line(Vector2(c * TILE + off, r * TILE), Vector2(c * TILE + off, r * TILE + 32), seam, 2.0)
-				g.draw_line(Vector2(c * TILE + (off + 32) % 64, r * TILE + 32), Vector2(c * TILE + (off + 32) % 64, r * TILE + 64), seam, 2.0)
+				var base: Color = fc * Color(0.72, 0.72, 0.72)
+				if ch2 == C_RUBBLE:
+					base = base.darkened(0.12)
+				g.draw_rect(Rect2(c * TILE, r * TILE, TILE, TILE), base)
+				var hf: int = _hash(c, r)
+				for k in 4:
+					var sx3: float = c * TILE + float(k % 2) * 32.0 + (16.0 if (r * 2 + k / 2) % 2 == 1 and k % 2 == 0 else 0.0)
+					var sy3: float = r * TILE + float(k / 2) * 32.0
+					var sh: float = float((hf >> k) % 5) * 0.035
+					g.draw_rect(Rect2(sx3 + 2, sy3 + 2, 28, 28), base.lightened(0.06 + sh))
+				var seam := Color(0, 0, 0, 0.18)
+				g.draw_line(Vector2(c * TILE, r * TILE + 1), Vector2(c * TILE + 64, r * TILE + 1), seam, 2.0)
+				g.draw_line(Vector2(c * TILE, r * TILE + 33), Vector2(c * TILE + 64, r * TILE + 33), seam, 2.0)
+				if ch2 == C_RUBBLE and hf % 3 == 0:
+					g.draw_line(Vector2(c * TILE + 8, r * TILE + 12), Vector2(c * TILE + 30, r * TILE + 28), Color(0, 0, 0, 0.3), 2.0)
+					g.draw_line(Vector2(c * TILE + 30, r * TILE + 28), Vector2(c * TILE + 26, r * TILE + 50), Color(0, 0, 0, 0.3), 2.0)
 				continue
 			var sx2: int = _edge_i(_sandy(c - 1, r), _sandy(c + 1, r))
 			var sy2: int = _edge_i(_sandy(c, r - 1), _sandy(c, r + 1))
@@ -750,7 +758,7 @@ func draw_ground(g: Object, view: Rect2, now: float) -> void:
 					var tex: Texture2D = g.IMG["deco11"] if (hv + k) % 3 == 0 else g.IMG["deco10"]
 					g.img(tex, 0, 0, 64, 64, c * TILE + ox - 24 + sway, r * TILE + oy - 40, 48, 48, tt)
 			elif ch3 == C_RUBBLE:
-				for k2 in 2:
+				for k2 in (1 if hv % 5 < 2 else 0):
 					var ox2: float = float((hv * (k2 + 3)) % 40) + 4.0
 					var oy2: float = float((hv * (k2 + 5)) % 36) + 8.0
 					var rt: Texture2D = g.IMG.get("deco06" if (hv + k2) % 2 == 0 else "deco15", g.IMG["deco04"])

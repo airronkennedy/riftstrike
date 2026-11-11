@@ -28,11 +28,19 @@ The preview is a Web export of this project hosted on the `airronkennedy.github.
    Command line: `godot --headless --export-release "Web" ../riftstrike-godot-dist/web/index.html`
 2. Copy the exported files (`index.html`, `index.js`, `index.wasm`, `index.pck`, the worklet `.js` files and icons) into `riftstrike-godot/` in the `airronkennedy.github.io` repo, commit, and push. Pages updates in a minute or two.
 
+## Overworld (layout 3)
+The Riftmarch is one 448x208 tile map (`data/world_map.txt`) with all 23 areas walkable: Act I at the top left
+(hand-tuned, layout 2), the Ember Highlands to the east, Frostveil and its passes to the south east, the Crownlands and
+the Rift to the south west. `python3 tools/build_world_acts.py` rebuilds Acts II-V (it never touches Act I),
+`python3 tools/check_world.py` checks connectivity and links, and `godot --headless --path . --script res://tools/test_world_full.gd`
+checks spawns, props, gates and encounter tables. Web preview helpers: `?warp=frostveil` starts in an area,
+`?gates=off` opens every story gate, `?enc=0` turns encounters off.
+
 ## Later: Windows .exe and iOS
 Add a **Windows Desktop** or **iOS** preset in Project → Export (Godot downloads the export templates). iOS needs a Mac with Xcode and an Apple Developer account to sign and upload.
 
 ## Credits
-- Art: [Tiny Swords by Pixel Frog](https://pixelfrog-assets.itch.io/tiny-swords) (CC0). Only the sprites the game uses are included.
+- Art: [Tiny Swords by Pixel Frog](https://pixelfrog-assets.itch.io/tiny-swords). The files are byte-identical to the original release, which the author now offers as "TS_old version_CC0 Licensed" (CC0). Commercial use is allowed. Please don't redistribute or resell the sprites as an asset pack. Only the sprites the game uses are included. See `docs/ASSET_LICENSES.md` for the full ledger and the one item to verify before release.
 - 6v1 boss: [Necromancer by CreativeKind](https://creativekind.itch.io/necromancer-free) (free pack, credit CreativeKind).
 - Font: Lilita One by Juan Montoreano (SIL Open Font License, see `fonts/OFL-LilitaOne.txt`).
 - Sounds are synthesized in code; no audio files.
