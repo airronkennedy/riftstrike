@@ -61,76 +61,68 @@ func breakdown(g: Object, name: String) -> Dictionary:
 
 
 func draw(g: Object, vw: float, vh: float) -> void:
-	g.draw_rect(Rect2(0, 0, vw, vh), Color(0.06, 0.12, 0.13, 0.94))
 	var short: bool = vh <= 430
-	var bh: float = 40.0 if short else 48.0
-	g.ui_button("st_back", Rect2(8, 6, 104.0 if short else 120.0, bh), "BACK", true, 16, 28, func(): g.close_stats())
-	var tw: float = 130.0 if short else 150.0
-	g.ui_button("st_cmp", Rect2(vw / 2 - tw - 4, 6, tw, bh), "COMPARE", mode != "compare", 15, 28, func(): mode = "compare")
-	g.ui_button("st_brk", Rect2(vw / 2 + 4, 6, tw, bh), "BREAKDOWN", mode != "breakdown", 15, 28, func(): mode = "breakdown")
-	var top: float = 6 + bh + 8
-	var panel := Rect2(8, top, vw - 16, vh - top - 8)
-	g.css9(g.IMG.carved, panel.position.x, panel.position.y, panel.size.x, panel.size.y, 20.0 if short else 26.0)
-	var inner := panel.grow(-(18.0 if short else 24.0))
+	var helper: String = "Every hero side by side. Green = best, red = lowest. Tap a name for details." if mode == "compare" else "Where each stat comes from."
+	var area: Rect2 = g.menu_sheet("st_back", "Stats", helper, func(): g.close_stats(), ["Compare", "Breakdown"], 0 if mode == "compare" else 1, func(i): mode = "compare" if i == 0 else "breakdown", "st_tab")
 	if mode == "compare":
-		_draw_compare(g, inner, short)
+		_draw_compare(g, area, short)
 	else:
-		_draw_breakdown(g, inner, short)
+		_draw_breakdown(g, area, short)
 
 
 func _draw_compare(g: Object, r: Rect2, short: bool) -> void:
 	var names: Array = g.SQUAD.duplicate()
 	var n: int = names.size()
-	var label_w: float = minf(90.0, r.size.x * 0.16)
+	var label_w: float = clampf(r.size.x * 0.13, 62.0, 96.0)
 	var cw: float = (r.size.x - label_w) / maxf(1.0, float(n))
-	var rows: int = KEYS.size() + 3 # header, class/sub, level + stats
-	var rh: float = minf(34.0, r.size.y / float(rows))
-	var fs: float = clampf(rh * 0.46, 11.0, 16.0)
-	var ink := Color("#3a2412")
-	var y: float = r.position.y
+	var head_h: float = 50.0 if short else 64.0
+	var rg: float = 4.0 if short else 6.0
+	var rh: float = minf(40.0, (r.size.y - head_h - 6.0 - rg * float(KEYS.size() - 1)) / float(KEYS.size()))
+	var fs: float = clampf(rh * 0.5, 12.0, 17.0)
 	var finals: Array = []
 	for nm in names:
 		finals.append(g.compute_hero_stats(str(nm)))
+	# hero header cards (tap for breakdown)
 	for i in n:
-		var x: float = r.position.x + label_w + cw * i + cw / 2
+		var hx: float = r.position.x + label_w + cw * i
+		var hr := Rect2(hx + 3.0, r.position.y, cw - 6.0, head_h)
+		var bench: bool = i >= g.PARTY_SIZE
+		var down: bool = g.pressed_id == "st_h%d" % i
+		g.rbox(hr, 18.0, g.UI_CARD, g.UI_TEAL if down else g.UI_LINE, 2.0 if down else 1.5)
 		var nm2: String = str(names[i])
-		var col: Color = Color("#1c4f8a") if i < g.PARTY_SIZE else Color("#7a6a55")
-		g.text(nm2, x, y + rh * 0.5, fs * 1.05, col, "center")
-		g.add_btn("st_h%d" % i, Rect2(x - cw / 2, y, cw, rh * 3), func(): _pick(i))
-	g.text("Party", r.position.x, y + rh * 0.5, fs * 0.85, Color("#7a4a1c"), "left")
-	y += rh
-	for i in n:
-		var x2: float = r.position.x + label_w + cw * i + cw / 2
 		var f: Dictionary = finals[i]
-		g.text(str(f.cls) + " / " + str(f.sub), x2, y + rh * 0.5, fs * 0.78, ink, "center")
-	g.text("Class", r.position.x, y + rh * 0.5, fs * 0.85, Color("#7a4a1c"), "left")
-	y += rh
-	for i in n:
-		var x3: float = r.position.x + label_w + cw * i + cw / 2
-		var f2: Dictionary = finals[i]
-		g.text("Lv." + str(int(f2.level)) + (" · bench" if i >= g.PARTY_SIZE else ""), x3, y + rh * 0.5, fs * 0.8, ink, "center")
-	g.text("Level", r.position.x, y + rh * 0.5, fs * 0.85, Color("#7a4a1c"), "left")
-	y += rh
+		g.text(nm2, hr.get_center().x, hr.position.y + head_h * 0.27, g.fit_size(nm2, 15.0 if short else 17.0, hr.size.x - 10.0, 10.0), g.UI_INK, "center")
+		var l2: String = "Lv." + str(int(f.level)) + "  " + str(f.cls)
+		g.text(l2, hr.get_center().x, hr.position.y + head_h * 0.55, g.fit_size(l2, 11.0, hr.size.x - 10.0, 8.0), g.UI_MUTED, "center")
+		var tag: String = "Bench" if bench else ("Lead" if i == 0 else str(f.sub))
+		g.text(tag, hr.get_center().x, hr.position.y + head_h * 0.8, g.fit_size(tag, 10.0, hr.size.x - 10.0, 7.0), g.UI_GOLD_D if i == 0 else (g.UI_LOCK if bench else g.UI_TEAL_D), "center")
+		g.add_btn("st_h%d" % i, hr, func(): _pick(i))
+	var y: float = r.position.y + head_h + 6.0
 	for ki in KEYS.size():
 		var k: String = KEYS[ki]
-		if ki % 2 == 0:
-			g.draw_rect(Rect2(r.position.x - 4, y, r.size.x + 8, rh), Color(0.55, 0.35, 0.15, 0.10))
-		g.text(LABELS[k], r.position.x, y + rh * 0.5, fs, Color("#7a4a1c"), "left")
+		var row := Rect2(r.position.x, y, r.size.x, rh)
+		g.rbox(row, rh / 2.0, Color(1, 1, 1, 0.7), g.UI_LINE, 1.0)
+		g.text(LABELS[k], r.position.x + 16.0, y + rh * 0.5, fs * 0.85, g.UI_MUTED, "left")
 		var best := -1
 		var worst := 1 << 30
 		for f3 in finals:
 			best = maxi(best, int(f3[k]))
 			worst = mini(worst, int(f3[k]))
-		var vmax: float = maxf(1.0, float(best))
 		for i in n:
-			var x4: float = r.position.x + label_w + cw * i
+			var cxx: float = r.position.x + label_w + cw * i + cw / 2.0
 			var v: int = int(finals[i][k])
-			var bw: float = (cw - 14) * float(v) / vmax
-			g.draw_rect(Rect2(x4 + 7, y + rh - 7, bw, 4), Color("#2a6fb0") if v == best else Color(0.35, 0.25, 0.15, 0.35))
-			var vc: Color = Color("#1c6a3a") if v == best else (Color("#9e2c2c") if v == worst and best != worst else ink)
-			g.text(str(v), x4 + cw / 2, y + rh * 0.42, fs * 1.05, vc, "center")
-		y += rh
-	g.text("Green = best, red = lowest. Tap a name for the full breakdown.", r.get_center().x, minf(y + rh * 0.5, r.end.y - 4), fs * 0.78, Color("#6b4a2a"), "center")
+			var s: String = str(v) + ("%" if k == "crit" else "")
+			if k == "mana":
+				s = "+" + str(v)
+			var is_best: bool = v == best and best != worst
+			var is_worst: bool = v == worst and best != worst
+			if is_best:
+				g.chip(s, cxx, y + rh * 0.5, fs, g.UI_GOOD_L, g.UI_GOOD, "center")
+			elif is_worst:
+				g.chip(s, cxx, y + rh * 0.5, fs, g.UI_BAD_L, g.UI_BAD, "center")
+			else:
+				g.text(s, cxx, y + rh * 0.5, fs, g.UI_INK, "center")
+		y += rh + rg
 
 
 func _pick(i: int) -> void:
@@ -143,51 +135,54 @@ func _draw_breakdown(g: Object, r: Rect2, short: bool) -> void:
 	hero = clampi(hero, 0, names.size() - 1)
 	var name: String = str(names[hero])
 	var b: Dictionary = breakdown(g, name)
-	var ink := Color("#3a2412")
-	var bw: float = 44.0
-	g.ui_button("st_prev", Rect2(r.position.x, r.position.y - 4, bw, 40), "<", false, 18, 16, func(): hero = (hero - 1 + names.size()) % names.size())
-	g.ui_button("st_next", Rect2(r.end.x - bw, r.position.y - 4, bw, 40), ">", false, 18, 16, func(): hero = (hero + 1) % names.size())
-	var fs: float = 17.0 if short else 20.0
-	g.text(name + "  ·  Lv." + str(int(b.level)), r.get_center().x, r.position.y + 10, fs, Color("#1c4f8a"), "center")
+	var ab: float = 36.0 if short else 42.0
+	g.pill("st_prev", Rect2(r.position.x, r.position.y, ab, ab), "", "tealsoft", 18.0, func(): hero = (hero - 1 + names.size()) % names.size(), false, false, false, "", "left")
+	g.pill("st_next", Rect2(r.end.x - ab, r.position.y, ab, ab), "", "tealsoft", 18.0, func(): hero = (hero + 1) % names.size(), false, false, false, "", "right")
+	var fs: float = 18.0 if short else 22.0
+	g.text(name + "  ·  Lv." + str(int(b.level)), r.get_center().x, r.position.y + ab * 0.32, fs, g.UI_INK, "center")
 	var gear: Array = b.gear
 	var sub_line: String = str(b.cls) + " / " + str(b.sub) + "  ·  Focus " + str(g.FOCUS_LABELS.get(str(b.focus), "ATK")) + "  ·  Gear: " + (", ".join(gear) if gear.size() > 0 else "none")
-	g.text(sub_line, r.get_center().x, r.position.y + 10 + fs, 12.0 if short else 13.0, ink, "center")
-	var y: float = r.position.y + 14 + fs * 2.0
+	g.text(sub_line, r.get_center().x, r.position.y + ab * 0.32 + fs * 0.95, g.fit_size(sub_line, 12.0 if short else 13.0, r.size.x - ab * 2.0 - 24.0, 8.0), g.UI_MUTED, "center")
+	var y: float = r.position.y + ab + (6.0 if short else 12.0)
 	var cols: Array = b.cols
-	var label_w: float = minf(80.0, r.size.x * 0.14)
+	var label_w: float = clampf(r.size.x * 0.12, 60.0, 90.0)
 	var ncol: int = cols.size() + 1
-	var cw: float = (r.size.x - label_w) / float(ncol)
-	var rows: int = KEYS.size() + 1
-	var rh: float = minf(32.0, (r.end.y - y) / float(rows))
+	var cw: float = (r.size.x - label_w - 8.0) / float(ncol)
+	var rg: float = 3.0 if short else 5.0
+	var foot: float = 0.0 if short else 18.0
+	var rh: float = minf(36.0, (r.end.y - y - foot - rg * float(KEYS.size())) / float(KEYS.size() + 1))
 	var tfs: float = clampf(rh * 0.5, 11.0, 16.0)
 	for ci in cols.size():
-		g.text(str(cols[ci][0]), r.position.x + label_w + cw * ci + cw / 2, y + rh * 0.5, tfs * 0.9, Color("#7a4a1c"), "center")
-	g.text("TOTAL", r.position.x + label_w + cw * cols.size() + cw / 2, y + rh * 0.5, tfs * 0.9, Color("#1c4f8a"), "center")
-	y += rh
+		g.chip(str(cols[ci][0]), r.position.x + label_w + cw * ci + cw / 2.0, y + rh * 0.5, tfs * 0.78, Color(g.UI_INK.r, g.UI_INK.g, g.UI_INK.b, 0.08), g.UI_MUTED, "center")
+	g.chip("Total", r.position.x + label_w + cw * cols.size() + cw / 2.0, y + rh * 0.5, tfs * 0.78, g.UI_TEAL, Color.WHITE, "center")
+	y += rh + rg
 	var fin: Dictionary = b.final
 	for ki in KEYS.size():
 		var k: String = KEYS[ki]
-		if ki % 2 == 0:
-			g.draw_rect(Rect2(r.position.x - 4, y, r.size.x + 8, rh), Color(0.55, 0.35, 0.15, 0.10))
-		g.text(LABELS[k], r.position.x, y + rh * 0.5, tfs, Color("#7a4a1c"), "left")
+		var row := Rect2(r.position.x, y, r.size.x, rh)
+		g.rbox(row, rh / 2.0, Color(1, 1, 1, 0.7), g.UI_LINE, 1.0)
+		g.text(LABELS[k], r.position.x + 16.0, y + rh * 0.5, tfs * 0.85, g.UI_MUTED, "left")
 		var sum := 0
 		for ci in cols.size():
 			var v: int = int(cols[ci][1][k])
 			sum += v
 			var s: String = str(v)
-			var c: Color = ink
+			var c: Color = g.UI_INK
 			if ci > 0:
 				if v > 0:
 					s = "+" + str(v)
-					c = Color("#1c6a3a")
+					c = g.UI_GOOD
 				elif v < 0:
-					c = Color("#9e2c2c")
+					c = g.UI_BAD
 				else:
 					s = "·"
-					c = Color(0.35, 0.25, 0.15, 0.4)
-			g.text(s, r.position.x + label_w + cw * ci + cw / 2, y + rh * 0.5, tfs, c, "center")
+					c = Color(g.UI_LOCK.r, g.UI_LOCK.g, g.UI_LOCK.b, 0.7)
+			g.text(s, r.position.x + label_w + cw * ci + cw / 2.0, y + rh * 0.5, tfs, c, "center")
 		var tot: int = int(fin[k])
 		var capped: bool = tot != sum
-		g.text(str(tot) + ("*" if capped else ""), r.position.x + label_w + cw * cols.size() + cw / 2, y + rh * 0.5, tfs * 1.1, Color("#1c4f8a"), "center")
-		y += rh
-	g.text("Focus = extra level growth on the subclass's focus stat.  * = clamped to the stat cap/floor.", r.get_center().x, minf(y + 10, r.end.y - 2), 11.0, Color("#6b4a2a"), "center")
+		var tr2 := Rect2(r.position.x + label_w + cw * cols.size() + 6.0, y + 3.0, cw - 8.0, rh - 6.0)
+		g.rbox(tr2, tr2.size.y / 2.0, g.UI_TEAL_L)
+		g.text(str(tot) + ("*" if capped else ""), tr2.get_center().x, tr2.get_center().y, tfs * 1.05, g.UI_TEAL_D, "center")
+		y += rh + rg
+	if not short:
+		g.text("Focus = extra level growth on the subclass's focus stat  ·  * = held at the stat cap", r.get_center().x, r.end.y - 6.0, 11.0, g.UI_MUTED, "center")

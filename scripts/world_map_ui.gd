@@ -81,33 +81,28 @@ func _gate_for(a: String, b: String) -> String:
 
 func draw(g: Object, vw: float, vh: float, now: float, px: float, py: float) -> void:
 	_node_rects = []
-	g.draw_rect(Rect2(0, 0, vw, vh), Color(0.06, 0.12, 0.13, 0.94))
 	var short: bool = vh <= 430
-	var bh: float = 40.0 if short else 48.0
-	g.ui_button("map_back", Rect2(8, 6, 104.0 if short else 120.0, bh), "BACK", true, 16, 28, func(): g.close_world_map())
-	var tw: float = 118.0 if short else 132.0
-	g.ui_button("map_tab_r", Rect2(vw / 2 - tw - 4, 6, tw, bh), "REGION", tab != "region", 15, 28, func(): tab = "region")
-	g.ui_button("map_tab_l", Rect2(vw / 2 + 4, 6, tw, bh), "LOCAL", tab != "local", 15, 28, func(): tab = "local")
-	var zb: float = bh
-	g.sq_button("map_zin", Rect2(vw - 8 - zb, 6, zb, zb), "+", func(): zoom_by(1.25))
-	g.sq_button("map_zout", Rect2(vw - 16 - 2 * zb, 6, zb, zb), "-", func(): zoom_by(0.8))
-	var top: float = 6 + bh + 6
-	var info_w: float = 0.0 if vw < 640 else minf(280.0, vw * 0.3)
-	_map_rect = Rect2(8, top, vw - 16 - info_w - (8 if info_w > 0 else 0), vh - top - 8)
-	if info_w == 0.0:
-		_map_rect.size.y -= 74.0
-	g.draw_rect(_map_rect, Color(0.13, 0.3, 0.32, 1))
+	var helper: String = "Tap an area to see its details. Drag to pan." if tab == "region" else "Built tiles of Act I. The white dot is you."
+	var area: Rect2 = g.menu_sheet("map_back", "Map", helper, func(): g.close_world_map(), ["Region", "Local"], 0 if tab == "region" else 1, func(i): tab = "region" if i == 0 else "local", "map_tab")
+	var info_w: float = 0.0 if area.size.x < 600 else minf(280.0, area.size.x * 0.32)
+	var gap: float = 12.0
+	var info_h: float = 0.0 if info_w > 0 else (70.0 if short else 92.0)
+	_map_rect = Rect2(area.position.x, area.position.y, area.size.x - info_w - (gap if info_w > 0 else 0.0), area.size.y - (info_h + gap if info_h > 0 else 0.0))
+	g.rbox(_map_rect, 22.0, Color(0.13, 0.3, 0.32, 1))
 	if tab == "region":
 		_draw_region(g, now)
 	else:
 		_draw_local(g, now, px, py)
-	# details panel
+	var zb: float = 36.0 if short else 42.0
+	g.pill("map_zin", Rect2(_map_rect.end.x - 10.0 - zb, _map_rect.position.y + 10.0, zb, zb), "+", "soft", 22.0, func(): zoom_by(1.25))
+	g.pill("map_zout", Rect2(_map_rect.end.x - 18.0 - 2.0 * zb, _map_rect.position.y + 10.0, zb, zb), "-", "soft", 22.0, func(): zoom_by(0.8))
+	# details card
 	var pr: Rect2
 	if info_w > 0:
-		pr = Rect2(vw - 8 - info_w, top, info_w, vh - top - 8)
+		pr = Rect2(area.end.x - info_w, area.position.y, info_w, area.size.y)
 	else:
-		pr = Rect2(8, vh - 8 - 70, vw - 16, 70)
-	g.draw_rect(pr, Color(0.98, 0.93, 0.8, 0.96))
+		pr = Rect2(area.position.x, area.end.y - info_h, area.size.x, info_h)
+	g.rbox(pr, 22.0, g.UI_CARD, g.UI_LINE, 1.5)
 	_draw_info(g, pr, info_w == 0.0)
 
 
@@ -164,8 +159,9 @@ func _draw_region(g: Object, now: float) -> void:
 		g.text(W.rec_text(id), p.x, p.y + r + fs * 2.0, fs * 0.85, Color("#ffd98a"), "center", 3, Color(0, 0, 0, 0.9))
 		_node_rects.append([Rect2(p.x - 26, p.y - 16, 52, 40), id])
 	# legend
-	var lx: float = _map_rect.position.x + 10
-	var ly: float = _map_rect.end.y - 14
+	var lx: float = _map_rect.position.x + 22
+	var ly: float = _map_rect.end.y - 22
+	g.rbox(Rect2(_map_rect.position.x + 10, ly - 13, minf(_map_rect.size.x - 20, 470.0), 26), 13.0, Color(0.03, 0.1, 0.11, 0.7))
 	var items: Array = [["town", "Town"], ["wild", "Wild"], ["route", "Route"], ["dungeon", "Dungeon"], ["final", "Final"]]
 	for it in items:
 		g.draw_circle(Vector2(lx + 5, ly), 5, KIND_COL[it[0]])
@@ -177,8 +173,8 @@ func _draw_region(g: Object, now: float) -> void:
 
 func _lock_icon(g: Object, p: Vector2, open: bool) -> void:
 	var col: Color = Color("#58d68d") if open else Color("#ff5a4a")
-	g.draw_rect(Rect2(p.x - 6, p.y - 2, 12, 9), Color(0, 0, 0, 0.8))
-	g.draw_rect(Rect2(p.x - 5, p.y - 1, 10, 7), col)
+	g.rbox(Rect2(p.x - 6, p.y - 2, 12, 10), 3.0, Color(0, 0, 0, 0.8))
+	g.rbox(Rect2(p.x - 5, p.y - 1, 10, 8), 2.5, col)
 	g.draw_arc(p + Vector2(0, -2), 4.0, PI, TAU if not open else PI * 1.6, 10, col, 2.0)
 
 
@@ -206,31 +202,42 @@ func _draw_info(g: Object, pr: Rect2, compact: bool) -> void:
 	var id: String = sel if sel != "" else W.cur_area
 	var a: Dictionary = W.area(id)
 	if a.is_empty():
+		g.text("Tap an area on the map", pr.get_center().x, pr.get_center().y, 13.0, g.UI_MUTED, "center")
 		return
-	var x: float = pr.position.x + 12
-	var y: float = pr.position.y + 16
-	var ink := Color("#3a2412")
-	var fs: float = 15.0 if compact else 18.0
-	g.text(str(a.name), x, y, fs, Color("#1c4f8a"), "left")
+	var x: float = pr.position.x + 16
+	var y: float = pr.position.y + 20
+	var ink: Color = g.UI_INK
+	var walk: bool = str(a.get("built", "")) == "walkable"
+	var fs: float = 16.0 if compact else 20.0
+	var nm: String = str(a.name)
+	g.text(nm, x, y, g.fit_size(nm, fs, pr.size.x - 32.0, 11.0), ink, "left")
 	var acts: Dictionary = W.data.get("acts", {})
-	var line2: String = "Recommended " + W.rec_text(id) + "  ·  " + str(a.kind).capitalize() + ("  ·  optional" if bool(a.get("optional", false)) else "")
+	y += 22 if compact else 28
+	var cx: float = x
+	cx += g.chip("Rec " + W.rec_text(id), cx, y, 11.0, g.UI_GOLD_L, Color("#7a5208")) + 6
+	cx += g.chip(str(a.kind).capitalize(), cx, y, 11.0, Color(g.UI_INK.r, g.UI_INK.g, g.UI_INK.b, 0.08), g.UI_MUTED) + 6
+	var stt: String = _status(id)
 	if compact:
-		g.text(line2 + "  ·  " + _status(id), x, y + 20, 12, ink, "left")
-		g.text(str(a.get("blurb", "")), x, y + 38, 12, ink, "left")
+		stt = "Open" if walk else ("Sealed" if str(a.get("built", "")) == "stub" else "Coming later")
+	if cx + g.text_w(stt, 11.0) + 20 < pr.end.x:
+		cx += g.chip(stt, cx, y, 11.0, g.UI_GOOD_L if walk else g.UI_BAD_L, g.UI_GOOD if walk else g.UI_BAD) + 6
+	if bool(a.get("optional", false)) and cx + 70 < pr.end.x:
+		g.chip("Optional", cx, y, 11.0, g.UI_TEAL_L, g.UI_TEAL_D)
+	if compact:
+		var bl: String = str(a.get("blurb", ""))
+		g.text(bl, x, y + 24, g.fit_size(bl, 12.0, pr.size.x - 32.0, 9.0), g.UI_MUTED, "left")
 		return
-	y += 24
-	g.text(str(acts.get(str(int(a.act)), "")), x, y, 13, Color("#7a4a1c"), "left")
-	y += 20
-	g.text(line2, x, y, 13, ink, "left")
-	y += 20
-	g.text(_status(id), x, y, 13, Color("#1c6a3a") if str(a.get("built", "")) == "walkable" else Color("#9e2c2c"), "left")
-	y += 24
-	for ln in g.wrap_words(str(a.get("blurb", "")), 13, pr.size.x - 24):
+	y += 26
+	var act_s: String = str(acts.get(str(int(a.act)), ""))
+	if act_s != "":
+		g.text(act_s, x, y, g.fit_size(act_s, 12.0, pr.size.x - 32.0, 9.0), g.UI_TEAL_D, "left")
+		y += 20
+	for ln in g.wrap_words(str(a.get("blurb", "")), 13, pr.size.x - 32):
 		g.text(str(ln), x, y, 13, ink, "left")
 		y += 18
-	y += 6
-	g.text("Connects to:", x, y, 13, Color("#7a4a1c"), "left")
-	y += 18
+	y += 8
+	g.text("CONNECTS TO", x, y, 11, g.UI_MUTED, "left")
+	y += 20
 	for l in W.links:
 		var ld: Dictionary = l
 		var other := ""
@@ -241,16 +248,18 @@ func _draw_info(g: Object, pr: Rect2, compact: bool) -> void:
 		if other == "":
 			continue
 		var gid: String = str(ld.get("gate", ""))
-		var tag: String = ""
+		var locked: bool = gid != "" and not W.gate_open(gid)
+		var on: String = W.area_name(other)
+		g.text(on, x, y, g.fit_size(on, 13.0, pr.size.x - 100.0, 9.0), g.UI_LOCK if locked else ink, "left")
 		if gid != "":
-			tag = "  (open)" if W.gate_open(gid) else "  (locked)"
-		g.text("· " + W.area_name(other) + tag, x, y, 12, ink if gid == "" or W.gate_open(gid) else Color("#9e2c2c"), "left")
-		y += 16
-		if gid != "" and not W.gate_open(gid) and y < pr.end.y - 30:
+			g.chip("Locked" if locked else "Open", pr.end.x - 14, y, 10.0, g.UI_BAD_L if locked else g.UI_GOOD_L, g.UI_BAD if locked else g.UI_GOOD, "right")
+		y += 20
+		if locked and y < pr.end.y - 30:
 			var gd: Dictionary = W.gates.get(gid, {})
-			for ln2 in g.wrap_words(str(gd.get("locked_text", "")), 11, pr.size.x - 34):
-				g.text(str(ln2), x + 10, y, 11, Color("#6b4a2a"), "left")
+			for ln2 in g.wrap_words(str(gd.get("locked_text", "")), 11, pr.size.x - 40):
+				g.text(str(ln2), x + 10, y - 2, 11, g.UI_MUTED, "left")
 				y += 14
+			y += 4
 		if y > pr.end.y - 16:
 			break
 

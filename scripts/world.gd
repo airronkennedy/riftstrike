@@ -533,8 +533,8 @@ func draw_hud(g: Object, vw: float, vh: float) -> void:
 		var a: Dictionary = area(banner_area)
 		var kind: String = str(a.get("kind", ""))
 		var lw: float = minf(vw * 0.8, maxf(260.0, g.text_w(nm, fs) + 80.0))
-		g.draw_rect(Rect2(vw / 2 - lw / 2, cy - fs * 0.95, lw, fs * 2.55), Color(0, 0, 0, 0.42 * al))
-		g.draw_rect(Rect2(vw / 2 - lw / 2 + 20, cy + fs * 0.62, lw - 40, 2), Color(1, 0.9, 0.6, 0.85 * al))
+		g.rbox(Rect2(vw / 2 - lw / 2, cy - fs * 0.95, lw, fs * 2.55), 26.0, Color(0.03, 0.1, 0.11, 0.55 * al))
+		g.rbox(Rect2(vw / 2 - lw / 2 + 30, cy + fs * 0.6, lw - 60, 3), 1.5, Color(1, 0.9, 0.6, 0.7 * al))
 		g.text(nm, vw / 2, cy, fs, Color(1, 0.97, 0.88, al), "center", 4, Color(0, 0, 0, 0.85 * al))
 		var sub: String = "Recommended " + rec_text(banner_area)
 		if kind == "wild":
@@ -545,5 +545,5 @@ func draw_hud(g: Object, vw: float, vh: float) -> void:
 		var tfs: float = clampf(vw * 0.03, 14.0, 18.0)
 		var tw: float = minf(vw * 0.9, g.text_w(toast, tfs) + 40.0)
 		var ty: float = vh * 0.66
-		g.draw_rect(Rect2(vw / 2 - tw / 2, ty - tfs, tw, tfs * 2.0), Color(0.25, 0.05, 0.03, 0.7 * al2))
+		g.rbox(Rect2(vw / 2 - tw / 2, ty - tfs, tw, tfs * 2.0), tfs, Color(0.35, 0.08, 0.05, 0.78 * al2))
 		g.text(toast, vw / 2, ty, tfs, Color(1, 0.92, 0.85, al2), "center", 3, Color(0, 0, 0, 0.8 * al2))

@@ -154,6 +154,8 @@ var ABILITY_DEFS: Dictionary = {}
 var AB_CLASS_LIST: Dictionary = {} # hero name -> [ids in unlock order]
 var AB_SUB_LIST: Dictionary = {} # subclass -> [ids in unlock order]
 var AB_EQUIP: Dictionary = {} # hero name -> {"cls": id, "sub": id}
+var AB_AUTO: Dictionary = {} # hero name -> ability id auto-battle fires on a full MP bar ("" = basic attacks only; missing = class ability)
+var HERO_MP: Dictionary = {} # hero name -> MP carried between fights (saved)
 # Rows: [id, name, blurb, kind, params]. Unlock level comes from the row position.
 var AB_CLASS_ROWS := {
 	"Airron": [
@@ -404,6 +406,27 @@ func validate_ab_equip(name: String) -> void:
 	var cur_s: String = str(e.get("sub", ""))
 	if sids.find(cur_s) < 0:
 		e["sub"] = str(sids[0]) if sids.size() > 0 else ""
+	# The auto pick must stay one of the two equipped abilities; otherwise auto just basic-attacks.
+	if AB_AUTO.has(name):
+		var aid: String = str(AB_AUTO[name])
+		if aid != "" and aid != str(e["cls"]) and aid != str(e["sub"]):
+			AB_AUTO[name] = ""
+
+## Which equipped ability auto-battle uses for this hero ("" = none).
+func auto_ab(name: String) -> String:
+	validate_ab_equip(name)
+	if not AB_AUTO.has(name):
+		return str(AB_EQUIP[name].cls)
+	return str(AB_AUTO[name])
+
+## Mark (or unmark) one of the two equipped abilities for auto-battle.
+func set_auto_ab(name: String, id: String) -> void:
+	validate_ab_equip(name)
+	if id != str(AB_EQUIP[name].cls) and id != str(AB_EQUIP[name].sub):
+		return
+	AB_AUTO[name] = "" if auto_ab(name) == id else id
+	save_cfg()
+	sfx.tone(988 if AB_AUTO[name] != "" else 440, 0.05, "triangle", 0.03)
 
 func equipped_class_ab(name: String) -> String:
 	validate_ab_equip(name)
@@ -418,14 +441,19 @@ func equip_ability(name: String, id: String) -> bool:
 		return false
 	validate_ab_equip(name)
 	var ab: Dictionary = ABILITY_DEFS[id]
+	var was_auto: String = auto_ab(name)
+	var slot_key: String = "cls" if str(ab.src) == "class" else "sub"
 	if str(ab.src) == "class":
 		if str(ab.owner) != name:
 			return false
-		AB_EQUIP[name]["cls"] = id
 	else:
 		if str(ab.owner) != str(CHAR[name].sub):
 			return false
-		AB_EQUIP[name]["sub"] = id
+	var old_id: String = str(AB_EQUIP[name][slot_key])
+	AB_EQUIP[name][slot_key] = id
+	# Swapping out the auto ability clears the auto pick (auto then basic-attacks until one is marked).
+	if AB_AUTO.has(name) and was_auto != "" and was_auto == old_id and old_id != id:
+		AB_AUTO[name] = ""
 	save_cfg()
 	return true
 
@@ -987,7 +1015,8 @@ func new_battle(n: int = 0) -> void:
 			u.cls = st.cls; u.sub = st.sub; u.scale = st.scale
 			if team == "blue" and CHAR.has(u.name):
 				u.ab_class = equipped_class_ab(u.name); u.ab_sub = equipped_sub_ab(u.name)
-			u.gauge = rand(0, 30); u.facing = 1 if team == "blue" else -1; u.at = rand(0, 1000)
+			u.gauge = clampf(float(HERO_MP.get(u.name, 0.0)), 0.0, AB_MP) if team == "blue" else rand(0, 30)
+			u.facing = 1 if team == "blue" else -1; u.at = rand(0, 1000)
 			units.append(u)
 	G = Battle.new()
 	G.units = units
@@ -1476,6 +1505,31 @@ func toggle_queue(u) -> void:
 	u.pop = 160.0
 	sfx.tone(440 if i >= 0 else 660 + G.queue.size() * 40, 0.05, "square", 0.03)
 
+## AUTO: queue every living hero; a full MP bar fires that hero's marked auto ability, otherwise a normal attack.
+func auto_queue_turn() -> void:
+	G.queue = []
+	for u in alive("blue"):
+		G.queue.append(u)
+		u.ab_queued = ""
+		if u.gauge >= AB_MP:
+			var aid: String = auto_ab(u.name) if CHAR.has(u.name) else ""
+			if aid != "" and ABILITY_DEFS.has(aid) and (aid == u.ab_class or aid == u.ab_sub):
+				u.ab_queued = aid
+	execute_orders()
+
+func toggle_auto() -> void:
+	AUTO = not AUTO
+	save_cfg()
+	sfx.tone(784 if AUTO else 523, 0.06, "square", 0.03)
+
+## Keep each hero's MP bar for the next fight (win, lose, or Run).
+func stash_party_mp() -> void:
+	if G == null:
+		return
+	for u in G.units:
+		if u.team == "blue" and CHAR.has(u.name):
+			HERO_MP[u.name] = clampf(float(u.gauge), 0.0, AB_MP)
+
 func queue_all() -> void:
 	if G == null or G.mode != "select" or phase != "battle": return
 	for u in alive("blue"):
@@ -1494,14 +1548,8 @@ func step(dt: float) -> void:
 		if hitstop > 0:
 			hitstop -= dt; dt *= 0.15
 		G.t += dt
-		if phase == "battle" and AUTO and G.mode == "select":
-			for u in shuffled(alive("blue")):
-				G.queue.append(u)
-				if u.gauge >= AB_MP:
-					var pick_id: String = u.ab_class if randf() < 0.5 else u.ab_sub
-					if pick_id == "": pick_id = u.ab_class
-					u.ab_queued = pick_id
-			execute_orders()
+		if phase == "battle" and AUTO and G.mode == "select" and not paused:
+			auto_queue_turn()
 		var order := shuffled(G.units)
 		for u in order: update_unit(u, dt)
 		update_projectiles(dt)
@@ -2280,6 +2328,258 @@ func link_text(prefix: String, link: String, suffix: String, url: String, cx: fl
 		x += part[2]
 	add_btn(id, Rect2(cx - (w1 + w2 + w3) / 2 + w1 - 4, y - size, w2 + 8, size * 2), func(): OS.shell_open(url))
 
+# ---------------------------------------------------------------- soft menu chrome
+# One rounded, bubbly look for every menu: a cream sheet, white cards, teal pills, gold = selected / equipped.
+var UI_INK := Color("#1d3b41")
+var UI_MUTED := Color("#5e7b7f")
+var UI_SHEET := Color("#f5f0e3")
+var UI_CARD := Color("#ffffff")
+var UI_LINE := Color("#ddd5c2")
+var UI_TEAL := Color("#2a9d97")
+var UI_TEAL_D := Color("#1d7470")
+var UI_TEAL_L := Color("#d3eeeb")
+var UI_GOLD := Color("#f0b03a")
+var UI_GOLD_D := Color("#c4861b")
+var UI_GOLD_L := Color("#fff0c4")
+var UI_CORAL := Color("#e2685b")
+var UI_CORAL_D := Color("#b54b40")
+var UI_GOOD := Color("#23874d")
+var UI_GOOD_L := Color("#d3f1dd")
+var UI_BAD := Color("#c8443a")
+var UI_BAD_L := Color("#fbdcd8")
+var UI_LOCK := Color("#a39d90")
+
+## Rounded rectangle (StyleBoxFlat) honoring the current transform and alpha.
+func rbox(r: Rect2, rad: float, fill: Color, border: Color = Color(0, 0, 0, 0), bw: float = 0.0, shadow: float = 0.0) -> void:
+	if r.size.x <= 0.5 or r.size.y <= 0.5:
+		return
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = ca(fill)
+	sb.set_corner_radius_all(int(roundf(clampf(rad, 0.0, minf(r.size.x, r.size.y) / 2.0))))
+	sb.corner_detail = 12
+	sb.anti_aliasing = true
+	if bw > 0.0:
+		sb.border_color = ca(border)
+		sb.set_border_width_all(int(roundf(bw)))
+	if shadow > 0.0:
+		sb.shadow_color = ca(Color(0.03, 0.1, 0.11, 0.22))
+		sb.shadow_size = int(roundf(shadow))
+		sb.shadow_offset = Vector2(0, roundf(shadow * 0.4))
+	draw_style_box(sb, r)
+
+func pill_colors(kind: String) -> Array:
+	if kind == "soft": return [UI_CARD, UI_LINE, UI_INK]
+	if kind == "danger": return [UI_CORAL, UI_CORAL_D, Color.WHITE]
+	if kind == "gold": return [UI_GOLD, UI_GOLD_D, Color("#3d2706")]
+	if kind == "tealsoft": return [UI_TEAL_L, Color("#a9d6d1"), UI_TEAL_D]
+	return [UI_TEAL, UI_TEAL_D, Color.WHITE]
+
+## Soft pill button. kind: primary (teal) | soft (white) | danger (coral) | gold | tealsoft.
+func pill(id: String, r: Rect2, label: String, kind: String, fsz: float, cb: Callable, off: bool = false, locked: bool = false, pulse: bool = false, sub: String = "", icon: String = "") -> void:
+	var down: bool = pressed_id == id and not locked
+	var pc: Array = pill_colors(kind)
+	var fill: Color = pc[0]
+	var lip: Color = pc[1]
+	var fg: Color = pc[2]
+	if off:
+		fill = fill.lerp(UI_SHEET, 0.55)
+		lip = lip.lerp(UI_SHEET, 0.55)
+		fg = fg.lerp(UI_MUTED, 0.5)
+	save()
+	if locked: _alpha *= 0.4
+	var rad: float = minf(r.size.y / 2.0, 26.0)
+	var dy: float = 3.0 if down else 0.0
+	if pulse:
+		var pk: float = 0.5 - 0.5 * cos(now / 1100.0 * TAU)
+		rbox(r.grow(2.0 + 3.0 * pk), rad + 4.0, Color(UI_GOLD.r, UI_GOLD.g, UI_GOLD.b, 0.4 * pk))
+	rbox(Rect2(r.position.x, r.position.y + 4.0, r.size.x, r.size.y - 4.0), rad, lip)
+	var face := Rect2(r.position.x, r.position.y + dy, r.size.x, r.size.y - 4.0)
+	rbox(face, rad, fill)
+	if kind != "soft" and not off:
+		rbox(Rect2(face.position.x + rad * 0.7, face.position.y + 3.0, face.size.x - rad * 1.4, face.size.y * 0.24), face.size.y * 0.12, Color(1, 1, 1, 0.11))
+	var cx: float = face.get_center().x
+	var cy: float = face.get_center().y
+	var iw: float = fsz * 0.8 if icon == "back" else 0.0
+	var fs2: float = fit_size(label, fsz, face.size.x - rad - iw, 9.0)
+	var lw: float = text_w(label, fs2)
+	var lx: float = cx + iw / 2.0
+	if icon == "back":
+		var ax: float = lx - lw / 2.0 - fsz * 0.55
+		var ah: float = fsz * 0.3
+		draw_polyline(PackedVector2Array([Vector2(ax + ah * 0.7, cy - ah), Vector2(ax - ah * 0.3, cy), Vector2(ax + ah * 0.7, cy + ah)]), ca(fg), 3.0, true)
+	if icon == "up" or icon == "down" or icon == "left" or icon == "right":
+		var k: float = minf(face.size.x, face.size.y) * 0.2
+		var pts := PackedVector2Array()
+		if icon == "up": pts = PackedVector2Array([Vector2(cx - k, cy + k * 0.5), Vector2(cx, cy - k * 0.5), Vector2(cx + k, cy + k * 0.5)])
+		elif icon == "down": pts = PackedVector2Array([Vector2(cx - k, cy - k * 0.5), Vector2(cx, cy + k * 0.5), Vector2(cx + k, cy - k * 0.5)])
+		elif icon == "left": pts = PackedVector2Array([Vector2(cx + k * 0.5, cy - k), Vector2(cx - k * 0.5, cy), Vector2(cx + k * 0.5, cy + k)])
+		else: pts = PackedVector2Array([Vector2(cx - k * 0.5, cy - k), Vector2(cx + k * 0.5, cy), Vector2(cx - k * 0.5, cy + k)])
+		draw_polyline(pts, ca(fg), 3.5, true)
+	elif sub != "":
+		text(label, lx, cy - fs2 * 0.42, fs2, fg)
+		var sfs: float = fit_size(sub, maxf(10.0, fsz * 0.62), face.size.x - rad, 8.0)
+		text(sub, lx, cy + fs2 * 0.62, sfs, Color(fg.r, fg.g, fg.b, 0.72))
+	else:
+		text(label, lx, cy, fs2, fg)
+	restore()
+	if not locked: add_btn(id, r, cb)
+
+## Segmented pill tabs; cb receives the tab index.
+func seg_tabs(id: String, r: Rect2, labels: Array, cur: int, fsz: float, cb: Callable) -> void:
+	rbox(r, r.size.y / 2.0, Color(UI_INK.r, UI_INK.g, UI_INK.b, 0.09))
+	var n: int = labels.size()
+	var w: float = (r.size.x - 8.0) / float(maxi(1, n))
+	for i in n:
+		var tr2 := Rect2(r.position.x + 4.0 + w * i, r.position.y + 4.0, w, r.size.y - 8.0)
+		var on: bool = i == cur
+		if on:
+			rbox(tr2, tr2.size.y / 2.0, UI_TEAL, Color(0, 0, 0, 0), 0.0, 4.0)
+		var lab: String = str(labels[i])
+		text(lab, tr2.get_center().x, tr2.get_center().y, fit_size(lab, fsz, tr2.size.x - 14.0, 9.0), Color.WHITE if on else UI_MUTED)
+		var k: int = i
+		add_btn(id + str(i), tr2, func(): cb.call(k))
+
+## Small rounded badge. Returns its width.
+func chip(s: String, x: float, cy: float, fsz: float, bg: Color, fg: Color, align: String = "left") -> float:
+	var w: float = text_w(s, fsz) + fsz * 1.2
+	var h: float = fsz + 9.0
+	var x0: float = x
+	if align == "center": x0 = x - w / 2.0
+	elif align == "right": x0 = x - w
+	rbox(Rect2(x0, cy - h / 2.0, w, h), h / 2.0, bg)
+	text(s, x0 + w / 2.0, cy, fsz, fg)
+	return w
+
+func section_label(s: String, x: float, y: float, short: bool) -> void:
+	text(s, x + 4.0, y, 11.0 if short else 12.0, UI_MUTED, "left")
+
+## Every menu screen: dim the scene, one rounded sheet, a Back pill, a title with one helper line,
+## and optional tabs (right of the title, or under it on narrow screens). Returns the content rect.
+func menu_sheet(back_id: String, title: String, helper: String, back_cb: Callable, tabs: Array = [], tab_cur: int = 0, tab_cb: Callable = Callable(), tab_id: String = "") -> Rect2:
+	var short: bool = VHc <= 430
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.03, 0.1, 0.11, 0.6))
+	var m: float = 8.0 if short else 14.0
+	var panel := Rect2(m, m, VWc - m * 2.0, VHc - m * 2.0)
+	rbox(panel, 22.0 if short else 28.0, UI_SHEET, Color(1, 1, 1, 0.55), 2.0, 12.0)
+	var ip: float = 12.0 if short else 18.0
+	var inner := panel.grow(-ip)
+	var bh: float = 38.0 if short else 44.0
+	var bw: float = 96.0 if short else 110.0
+	pill(back_id, Rect2(inner.position.x, inner.position.y, bw, bh), "Back", "soft", 15.0 if short else 17.0, back_cb, false, false, false, "", "back")
+	var tx: float = inner.position.x + bw + 16.0
+	var narrow: bool = inner.size.x < 640.0
+	var tabs_w: float = 0.0
+	if tabs.size() > 0:
+		tabs_w = minf(320.0, maxf(220.0, float(tabs.size()) * 130.0))
+	var tabs_in_header: bool = tabs.size() > 0 and not narrow
+	var right: float = inner.end.x - (tabs_w + 14.0 if tabs_in_header else 0.0)
+	var tfs: float = fit_size(title, 22.0 if short else 27.0, right - tx, 14.0)
+	var wrap_lines: Array = []
+	if helper != "" and text_w(helper, 11.0) > right - tx:
+		wrap_lines = wrap_words(helper, 12.0, inner.size.x - 8.0)
+		helper = ""
+	if helper != "":
+		text(title, tx, inner.position.y + bh * 0.3, tfs, UI_INK, "left")
+		var hfs: float = fit_size(helper, 11.0 if short else 13.0, right - tx, 9.0)
+		text(helper, tx, inner.position.y + bh * 0.3 + tfs * 0.5 + hfs * 0.85, hfs, UI_MUTED, "left")
+	else:
+		text(title, tx, inner.position.y + bh * 0.5, tfs, UI_INK, "left")
+	var top: float = inner.position.y + bh + (8.0 if short else 14.0)
+	for wl in wrap_lines:
+		text(str(wl), inner.position.x + 4.0, top + 6.0, 12.0, UI_MUTED, "left")
+		top += 16.0
+	if wrap_lines.size() > 0:
+		top += 4.0
+	if tabs.size() > 0:
+		var th: float = 36.0 if short else 42.0
+		if tabs_in_header:
+			seg_tabs(tab_id, Rect2(inner.end.x - tabs_w, inner.position.y + (bh - th) / 2.0, tabs_w, th), tabs, tab_cur, 14.0 if short else 16.0, tab_cb)
+		else:
+			seg_tabs(tab_id, Rect2(inner.position.x, top, inner.size.x, th), tabs, tab_cur, 14.0 if short else 16.0, tab_cb)
+			top += th + 8.0
+	return Rect2(inner.position.x, top, inner.size.x, inner.end.y - top)
+
+## Hero picker shared by Characters and Inventory: rounded cards on the left, or a pill grid on narrow screens.
+## Returns the rect left for the detail pane.
+func hero_picker(prefix: String, area: Rect2, short: bool, sub_fn: Callable) -> Rect2:
+	if area.size.x < 560.0:
+		var cols: int = 3
+		var gap: float = 6.0
+		var chh: float = 36.0
+		var cw: float = (area.size.x - gap * float(cols - 1)) / float(cols)
+		for i in HERO_NAMES.size():
+			var r := Rect2(area.position.x + float(i % cols) * (cw + gap), area.position.y + float(i / cols) * (chh + gap), cw, chh)
+			var sel: bool = i == char_sel
+			rbox(r, chh / 2.0, UI_GOLD_L if sel else UI_CARD, UI_GOLD if sel else UI_LINE, 2.5 if sel else 1.5)
+			text(str(HERO_NAMES[i]), r.get_center().x, r.get_center().y, 15.0, UI_INK)
+			var idx: int = i
+			add_btn(prefix + str(i), r, func(): select_hero(idx))
+		var used: float = 2.0 * (chh + gap) + 6.0
+		return Rect2(area.position.x, area.position.y + used, area.size.x, area.size.y - used)
+	var lw: float = clampf3(168.0, area.size.x * 0.25, 220.0)
+	var gap2: float = 5.0 if short else 7.0
+	var rh: float = (area.size.y - gap2 * 5.0) / 6.0
+	for i in HERO_NAMES.size():
+		var hn: String = HERO_NAMES[i]
+		var hs := compute_hero_stats(hn)
+		var r := Rect2(area.position.x, area.position.y + float(i) * (rh + gap2), lw, rh)
+		var sel: bool = i == char_sel
+		rbox(r, minf(18.0, rh / 2.0), UI_GOLD_L if sel else UI_CARD, UI_GOLD if sel else UI_LINE, 2.5 if sel else 1.5, 3.0 if sel else 0.0)
+		draw_hero_sprite(hs.kind, r.position.x + 28.0, r.end.y - 3.0, 0.34 if short else 0.42)
+		var tx: float = r.position.x + 56.0
+		var line: String = str(sub_fn.call(hn, hs))
+		text(hn, tx, r.get_center().y - (7.0 if short else 9.0), 15.0 if short else 17.0, UI_INK, "left")
+		text(line, tx, r.get_center().y + (9.0 if short else 11.0), fit_size(line, 11.0 if short else 12.0, r.end.x - tx - 8.0, 9.0), UI_MUTED, "left")
+		var idx2: int = i
+		add_btn(prefix + str(i), r, func(): select_hero(idx2))
+	return Rect2(area.position.x + lw + 16.0, area.position.y, area.size.x - lw - 16.0, area.size.y)
+
+## Detail header: sprite, big name, and soft chips (level, class …).
+func hero_head(name: String, st: Dictionary, x: float, y: float, w: float, short: bool, chips: Array) -> float:
+	var hh: float = 48.0 if short else 66.0
+	draw_hero_sprite(st.kind, x + 30.0, y + hh - 2.0, 0.56 if short else 0.78)
+	text(name, x + 74.0, y + hh * 0.32, 22.0 if short else 28.0, UI_INK, "left")
+	var cx: float = x + 74.0
+	var cfs: float = 11.0 if short else 12.0
+	for c in chips:
+		var cs: String = str(c[0])
+		if cx + text_w(cs, cfs) + cfs * 1.2 > x + w:
+			break
+		cx += chip(cs, cx, y + hh * 0.76, cfs, c[1], c[2]) + 6.0
+	return hh
+
+func stat_rows() -> Array:
+	return [
+		["hp", "HP", 1200.0, Color("#4fc46b"), ""],
+		["atk", "Attack", 180.0, Color("#e8664a"), ""],
+		["def", "Defense", 180.0, Color("#3d8adf"), ""],
+		["armor", "Armor", 60.0, Color("#8a8f9a"), ""],
+		["crit", "Crit", 70.0, Color("#e6b422"), "%"],
+		["mana", "MP Regen", 50.0, Color("#9b6bdb"), ""],
+		["speed", "Speed", 70.0, Color("#3ec0c0"), ""],
+	]
+
+## Two-column rounded stat bars inside a soft card. Returns the height used.
+func draw_stat_block(name: String, st: Dictionary, r: Rect2, short: bool) -> void:
+	rbox(r, 18.0, Color(1, 1, 1, 0.65), UI_LINE, 1.0)
+	var rows: Array = stat_rows()
+	var two: bool = r.size.x > 380.0
+	var pad: float = 12.0
+	var cw: float = (r.size.x - pad * 2.0 - 16.0) / 2.0 if two else r.size.x - pad * 2.0
+	var nrow: int = 4 if two else 7
+	var rh: float = minf(24.0, (r.size.y - 12.0) / float(nrow))
+	for ri in rows.size():
+		var row: Array = rows[ri]
+		var key: String = row[0]
+		var cur: int = int(st[key])
+		var shown: String = str(cur) + str(row[4])
+		if key == "mana":
+			shown = "+" + str(cur)
+		var vx: float = r.position.x + pad + ((cw + 16.0) * float(ri % 2) if two else 0.0)
+		var vy: float = r.position.y + 6.0 + rh * float(int(ri / 2) if two else ri)
+		var bar_v := float(char_bar[key]) if char_bar.has(key) else float(cur)
+		draw_stat_bar(vx, vy, cw, rh, row[1], bar_v, row[2], shown, stat_delta(key, cur), row[3])
+
 func save_cfg() -> void:
 	ensure_hero_data()
 	var cf := ConfigFile.new()
@@ -2295,6 +2595,10 @@ func save_cfg() -> void:
 		cf.set_value("equip", name, "|".join(ev))
 		validate_ab_equip(name)
 		cf.set_value("abilities", name, "%s|%s" % [str(AB_EQUIP[name].cls), str(AB_EQUIP[name].sub)])
+		if AB_AUTO.has(name):
+			cf.set_value("auto_ab", name, "-" if str(AB_AUTO[name]) == "" else str(AB_AUTO[name]))
+		cf.set_value("mp", name, int(roundf(float(HERO_MP.get(name, 0.0)))))
+	cf.set_value("rs", "auto", AUTO)
 	cf.set_value("party", "squad", ",".join(SQUAD))
 	cf.set_value("inv", "bag", ",".join(INV))
 	if WORLD != null:
@@ -2312,6 +2616,7 @@ func load_cfg() -> void:
 		INV = STARTER_BAG.duplicate()
 		return
 	muted = bool(cf.get_value("rs", "muted", muted))
+	AUTO = bool(cf.get_value("rs", "auto", false))
 	for name in HERO_NAMES:
 		var raw = cf.get_value("loadout", name, "")
 		if typeof(raw) == TYPE_STRING and raw != "":
@@ -2343,6 +2648,10 @@ func load_cfg() -> void:
 			var ap: PackedStringArray = abr.split("|")
 			AB_EQUIP[name]["cls"] = ap[0] if ap.size() >= 1 else ""
 			AB_EQUIP[name]["sub"] = ap[1] if ap.size() >= 2 else ""
+		var aar = cf.get_value("auto_ab", name, "")
+		if typeof(aar) == TYPE_STRING and aar != "":
+			AB_AUTO[name] = "" if aar == "-" else str(aar)
+		HERO_MP[name] = clampf(float(cf.get_value("mp", name, 0)), 0.0, AB_MP)
 		validate_ab_equip(name)
 	if cf.has_section_key("party", "squad"):
 		var sq = cf.get_value("party", "squad", "")
@@ -2515,6 +2824,8 @@ func run_battle() -> void:
 	if phase != "battle" and phase != "ending":
 		return
 	sfx.tone(330, 0.06, "square", 0.03)
+	stash_party_mp()
+	save_cfg()
 	if not encounter.is_empty():
 		end_encounter_return()
 	else:
@@ -2603,63 +2914,24 @@ func stat_delta(key: String, cur: int) -> int:
 	return cur - int(char_prev[key])
 
 func draw_stat_bar(x: float, y: float, w: float, h: float, label: String, value: float, vmax: float, shown: String, delta: int, col: Color) -> void:
-	text(label, x, y + 8, 11, Color("#5b3b20"), "left")
-	var bx := x + 82
-	var bw: float = maxf(64.0, w - 82 - 72)
-	draw_rect(Rect2(bx, y + 3, bw, h), Color("#2a1a10"))
+	var cy: float = y + h * 0.5
+	var lab_w: float = 74.0
+	text(label, x, cy, 12.0, UI_MUTED, "left")
+	var bx: float = x + lab_w
+	var bw: float = maxf(50.0, w - lab_w - 64.0)
+	var th: float = minf(10.0, h - 6.0)
+	rbox(Rect2(bx, cy - th / 2.0, bw, th), th / 2.0, Color(UI_INK.r, UI_INK.g, UI_INK.b, 0.1))
 	var fill := clampf(value / maxf(1.0, vmax), 0.0, 1.0)
-	draw_rect(Rect2(bx, y + 3, bw * fill, h), col)
-	text(shown, bx + bw + 8, y + 9, 13, Color("#2a1a10"), "left")
+	if fill > 0.0:
+		rbox(Rect2(bx, cy - th / 2.0, maxf(th, bw * fill), th), th / 2.0, col)
+	text(shown, bx + bw + 10.0, cy, 14.0, UI_INK, "left")
 	if delta != 0:
 		var ds := "%+d" % delta
 		if shown.ends_with("%"):
 			ds += "%"
-		var dc := Color("#1a7a32") if delta > 0 else Color("#a4321a")
+		var dc: Color = UI_GOOD if delta > 0 else UI_BAD
 		dc.a = clampf(char_delta_t / 400.0, 0.0, 1.0)
-		text(ds, bx + bw + 8 + text_w(shown, 13) + 6, y + 9, 13, dc, "left")
-
-func draw_locked_row(x: float, y: float, w: float, tag: String, value: String, hint: String, compact: bool) -> float:
-	# Compact (phone landscape): one tight line so class + ability still fit above the bars.
-	if compact:
-		text(tag, x, y + 12, 11, Color("#5b3b20"), "left")
-		var mid := Rect2(x + 82, y + 2, maxf(64.0, w - 82), 20)
-		var plate := Color("#2a1a10")
-		plate.a = 0.14
-		draw_rect(mid, plate)
-		var fsz := clampf3(13, mid.size.x / maxf(7.0, float(value.length()) * 0.62), 16)
-		text(value, mid.position.x + mid.size.x / 2.0, y + 13, fsz, Color("#2a1a10"))
-		return 24
-	text(tag, x, y + 2, 11, Color("#5b3b20"), "left")
-	var ah := 42.0
-	var aw := 46.0
-	var row_y := y + 10
-	var mid := Rect2(x + aw + 6, row_y, w - aw * 2 - 12, ah)
-	var plate := Color("#2a1a10")
-	plate.a = 0.14
-	draw_rect(mid, plate)
-	var fsz := clampf3(14, mid.size.x / maxf(7.0, float(value.length()) * 0.62), 20)
-	text(value, mid.position.x + mid.size.x / 2.0, row_y + ah * 0.58, fsz, Color("#2a1a10"))
-	var h := 10 + ah
-	if hint != "":
-		text(hint, x + w / 2, row_y + ah + 12, 11, Color("#7a5a32"))
-		h += 16
-	return h + 6
-
-func draw_cycle_row(id: String, x: float, y: float, w: float, tag: String, value: String, hint: String, on_prev: Callable, on_next: Callable) -> float:
-	var ah := 42.0
-	var aw := 46.0
-	text(tag, x, y + 2, 11, Color("#5b3b20"), "left")
-	var row_y := y + 10
-	ui_button(id + "_l", Rect2(x, row_y, aw, ah), "<", true, 20, 20, on_prev)
-	ui_button(id + "_r", Rect2(x + w - aw, row_y, aw, ah), ">", true, 20, 20, on_next)
-	var mid := Rect2(x + aw + 6, row_y, w - aw * 2 - 12, ah)
-	var fsz := clampf3(14, mid.size.x / maxf(7.0, float(value.length()) * 0.62), 20)
-	ui_button(id + "_n", mid, value, false, fsz, 26, on_next)
-	var h := 10 + ah
-	if hint != "":
-		text(hint, x + w / 2, row_y + ah + 12, 11, Color("#7a5a32"))
-		h += 16
-	return h + 6
+		text(ds, bx + bw + 10.0 + text_w(shown, 14.0) + 5.0, cy, 13.0, dc, "left")
 
 func draw_hero_sprite(kind: String, x: float, y: float, scl: float) -> void:
 	var K: Dictionary = KINDS[kind]
@@ -2668,251 +2940,153 @@ func draw_hero_sprite(kind: String, x: float, y: float, scl: float) -> void:
 	draw_frame(IMG[K.img], K.f.fw, K.f.fh, fr, idle.r, x, y, K.f.ax, K.f.ay, float(K.f.s) * scl, false)
 
 func draw_chars() -> void:
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(8 / 255.0, 18 / 255.0, 22 / 255.0, 0.72))
-	var short := VHc <= 430
-	var pad := 8.0 if short else 12.0
-	var panel := Rect2(pad, pad, VWc - pad * 2, VHc - pad * 2)
-	css9(IMG.carved, panel.position.x, panel.position.y, panel.size.x, panel.size.y, 24.0 if short else 32.0)
-	var inner := Rect2(panel.position.x + (16 if short else 22), panel.position.y + (12 if short else 16), panel.size.x - (32 if short else 44), panel.size.y - (24 if short else 32))
+	var short: bool = VHc <= 430
+	var area: Rect2 = menu_sheet("chars_back", "Characters", "Pick a hero, then swap their subclass. Class stays locked.", func(): menu_back())
+	var d: Rect2 = hero_picker("hero_", area, short, func(hn, hs): return "Lv." + str(int(hs.level)) + "  " + str(hs.cls) + " · " + str(hs.sub))
 	var name := selected_hero()
 	var st := compute_hero_stats(name)
-	var back_w := 110.0 if short else 130.0
-	var bh := 40.0 if short else 48.0
-	ui_button("chars_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): menu_back())
-	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Characters", 20.0 if short else 26.0, bh, minf(280, inner.size.x * 0.46), 40, bh - 10)
-	text("Saved for Play", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
-	var top: float = inner.position.y + bh + (4.0 if short else 8.0)
-	var body_h: float = inner.position.y + inner.size.y - top
-	var left_w := clampf3(148.0, inner.size.x * 0.28, 220.0)
-	var row_h: float = body_h / 6.0
-	for i in HERO_NAMES.size():
-		var hn: String = HERO_NAMES[i]
-		var hs := compute_hero_stats(hn)
-		var ry: float = top + i * row_h
-		var rr := Rect2(inner.position.x, ry, left_w - 8, row_h - 3)
-		var sel := i == char_sel
-		if sel:
-			draw_rect(rr, Color("#c8a05a"))
-			draw_rect(Rect2(rr.position.x + 2, rr.position.y + 2, rr.size.x - 4, rr.size.y - 4), Color("#3a2412"))
-		var idx := i
-		add_btn("hero_%d" % i, rr, func(): select_hero(idx))
-		var sy: float = rr.position.y + rr.size.y - 2
-		draw_hero_sprite(hs.kind, rr.position.x + 26, sy, 0.40 if short else 0.48)
-		var tx: float = rr.position.x + 50
-		text(hn, tx, ry + (13 if short else 15), 14.0 if short else 16.0, Color("#ffe27a") if sel else Color("#2a1a10"), "left")
-		text("Lv." + str(int(hs.level)) + "  " + hs.cls + " · " + hs.sub, tx, ry + (26 if short else 30), 10.0 if short else 11.0, Color("#c8a06a") if sel else Color("#7a5a32"), "left")
-	var dx: float = inner.position.x + left_w + 4
-	var dw: float = inner.position.x + inner.size.x - dx
-	var y: float = top
-	var spr_h: float = 72.0 if short else 120.0
-	draw_hero_sprite(st.kind, dx + 44, y + spr_h - 4, 0.82 if short else 1.05)
-	text(name, dx + 88, y + 18, 24.0 if short else 30.0, Color("#2a1a10"), "left")
-	var focus_bit := "Focus " + str(st.focus_name)
-	var head2: String = ("Lv." + str(int(st.level)) + "  ·  " + focus_bit) if short else ("Lv." + str(int(st.level)) + "  ·  " + st.cls + "  ·  " + st.sub + "  ·  " + focus_bit)
-	text(head2, dx + 88, y + (40 if short else 48), 13.0 if short else 15.0, Color("#7a5a32"), "left")
-	y += spr_h + (2 if short else 6)
-	var cls_hint := "" if short else String(st.blurb)
-	y += draw_locked_row(dx, y, dw, "CLASS", st.cls, cls_hint, short)
-	var sub_hint := "" if short else (String(st.sub_blurb) + "  ·  Level focus: " + str(st.focus_name))
-	y += draw_cycle_row("sub", dx, y, dw, "SUBCLASS", st.sub, sub_hint, func(): cycle_sub(-1), func(): cycle_sub(1))
-	var c_own: int = unlocked_class_ids(name).size()
-	var s_own: int = unlocked_sub_ids(name).size()
-	var eq_line: String = str(ABILITY_DEFS[equipped_class_ab(name)].name) + " + " + (str(ABILITY_DEFS[equipped_sub_ab(name)].name) if ABILITY_DEFS.has(equipped_sub_ab(name)) else "—")
-	var next_s: String = ""
-	for nid in class_ability_ids(name):
-		if not ab_unlocked(name, nid):
-			next_s = "Next: Lv %d %s" % [int(ABILITY_DEFS[nid].lv), str(ABILITY_DEFS[nid].name)]
-			break
-	if next_s == "": next_s = "All 10 class abilities owned"
-	var ab_hint := "" if short else ("Class %d/10 · Sub %d/5 owned · %s · swap in Inventory" % [c_own, s_own, next_s])
-	y += draw_locked_row(dx, y, dw, "ABILITIES", eq_line, ab_hint, short)
-	var rows := [
-		["hp", "HP", 1200.0, Color("#4fd36b"), ""],
-		["atk", "ATK", 180.0, Color("#e85a3a"), ""],
-		["def", "Defense", 180.0, Color("#3d8adf"), ""],
-		["armor", "Armor", 60.0, Color("#8a8f9a"), ""],
-		["crit", "Crit", 70.0, Color("#e6b422"), "%"],
-		["mana", "Mana Regen", 50.0, Color("#9b6bdb"), ""],
-		["speed", "Speed", 70.0, Color("#3ec8c8"), ""],
-	]
-	var two_col := dw > 360
-	var col_w: float = (dw - 12) / 2.0 if two_col else dw
-	var sh: float = 16.0 if short else 18.0
-	var gap: float = 2.0 if short else 3.0
-	for ri in rows.size():
-		var row: Array = rows[ri]
-		var key: String = row[0]
-		var cur: int = int(st[key])
-		var shown: String = str(cur) + str(row[4])
-		if key == "mana":
-			shown = "+" + str(cur)
-		var vx: float = dx
-		var vy: float = y
-		if two_col:
-			vx = dx + (col_w + 12) * (ri % 2)
-			vy = y + int(ri / 2) * (sh + gap)
-		else:
-			vy = y + ri * (sh + gap)
-		var bar_v := float(char_bar[key]) if char_bar.has(key) else float(cur)
-		draw_stat_bar(vx, vy, col_w, sh, row[1], bar_v, row[2], shown, stat_delta(key, cur), row[3])
-	var footer_y: float = inner.position.y + inner.size.y - 6
+	var dx: float = d.position.x
+	var dw: float = d.size.x
+	var y: float = d.position.y
+	y += hero_head(name, st, dx, y, dw, short, [["Lv." + str(int(st.level)), UI_TEAL_L, UI_TEAL_D], ["Focus " + str(st.focus_name), UI_GOLD_L, Color("#7a5208")]]) + (6.0 if short else 10.0)
+	# Class (locked) + Subclass (swap) cards
+	var card_h: float = 50.0 if short else 74.0
+	var gap: float = 10.0
+	var stack: bool = dw < 420.0
+	var half: float = dw if stack else (dw - gap) / 2.0
+	var cr := Rect2(dx, y, half, card_h)
+	rbox(cr, 18.0, Color(1, 1, 1, 0.65), UI_LINE, 1.5)
+	text("CLASS", cr.position.x + 16.0, cr.position.y + (12.0 if short else 15.0), 11.0, UI_MUTED, "left")
+	chip("Locked", cr.end.x - 10.0, cr.position.y + (13.0 if short else 16.0), 10.0, Color(UI_LOCK.r, UI_LOCK.g, UI_LOCK.b, 0.22), UI_MUTED, "right")
+	text(str(st.cls), cr.position.x + 16.0, cr.position.y + (33.0 if short else 38.0), 18.0 if short else 22.0, UI_INK, "left")
 	if not short:
-		text("Defense cuts a percent of a hit. Armor subtracts a flat amount. Mana returns each turn.", dx + dw / 2, footer_y, 10, Color("#7a5a32"))
-		text("Tap arrows or the subclass name to swap and watch the stats move. Class stays locked; equip abilities in Inventory.", dx + dw / 2, footer_y - 14, 10, Color("#7a5a32"))
-
-
+		var cb: String = str(st.blurb)
+		text(cb, cr.position.x + 16.0, cr.position.y + 60.0, fit_size(cb, 11.0, cr.size.x - 28.0, 8.0), UI_MUTED, "left")
+	var sr := Rect2(dx + (0.0 if stack else half + gap), y + (card_h + gap if stack else 0.0), half, card_h)
+	rbox(sr, 18.0, UI_GOLD_L, UI_GOLD, 2.0)
+	var ab: float = 34.0 if short else 40.0
+	var aby: float = sr.position.y + (card_h - ab) / 2.0
+	pill("sub_l", Rect2(sr.position.x + 8.0, aby, ab, ab), "", "primary", 18.0, func(): cycle_sub(-1), false, false, false, "", "left")
+	pill("sub_r", Rect2(sr.end.x - 8.0 - ab, aby, ab, ab), "", "primary", 18.0, func(): cycle_sub(1), false, false, false, "", "right")
+	var mid_x: float = sr.get_center().x
+	var mid_w: float = sr.size.x - ab * 2.0 - 32.0
+	text("SUBCLASS · tap to swap", mid_x, sr.position.y + (12.0 if short else 15.0), 11.0, Color("#8a5f12"))
+	text(str(st.sub), mid_x, sr.position.y + (33.0 if short else 38.0), fit_size(str(st.sub), 18.0 if short else 22.0, mid_w, 12.0), UI_INK)
+	if not short:
+		var sb2: String = str(st.sub_blurb)
+		text(sb2, mid_x, sr.position.y + 60.0, fit_size(sb2, 11.0, mid_w, 8.0), Color("#7a5a22"))
+	add_btn("sub_n", Rect2(sr.position.x + ab + 12.0, sr.position.y, sr.size.x - ab * 2.0 - 24.0, sr.size.y), func(): cycle_sub(1))
+	y += (card_h * 2.0 + gap if stack else card_h) + gap
+	# Abilities in battle
+	var ar := Rect2(dx, y, dw, 40.0 if short else 50.0)
+	rbox(ar, ar.size.y / 2.0, Color(1, 1, 1, 0.65), UI_LINE, 1.5)
+	var cn: String = str(ABILITY_DEFS[equipped_class_ab(name)].name) if ABILITY_DEFS.has(equipped_class_ab(name)) else "—"
+	var sn: String = str(ABILITY_DEFS[equipped_sub_ab(name)].name) if ABILITY_DEFS.has(equipped_sub_ab(name)) else "—"
+	text("IN BATTLE", ar.position.x + 18.0, ar.get_center().y, 11.0, UI_MUTED, "left")
+	var cwid: float = chip("Change in Inventory", ar.end.x - 10.0, ar.get_center().y, 11.0, UI_TEAL_L, UI_TEAL_D, "right")
+	var ab_line: String = cn + "  +  " + sn
+	text(ab_line, ar.position.x + 96.0, ar.get_center().y, fit_size(ab_line, 15.0 if short else 17.0, ar.size.x - 120.0 - cwid, 10.0), UI_INK, "left")
+	y += ar.size.y + gap
+	# Stats
+	var foot: float = 0.0 if short else 18.0
+	var sh_h: float = minf(d.end.y - y - foot, (4.0 if dw > 380.0 else 7.0) * (20.0 if short else 24.0) + 12.0)
+	draw_stat_block(name, st, Rect2(dx, y, dw, sh_h), short)
+	if not short:
+		var fl: String = "Defense cuts a % of each hit  ·  Armor blocks a flat amount  ·  MP Regen refills MP each turn"
+		text(fl, dx + dw / 2.0, d.end.y - 6.0, fit_size(fl, 11.0, dw, 7.0), UI_MUTED)
 
 func draw_inv() -> void:
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(8 / 255.0, 18 / 255.0, 22 / 255.0, 0.72))
-	var short := VHc <= 430
-	var pad := 8.0 if short else 12.0
-	var panel := Rect2(pad, pad, VWc - pad * 2, VHc - pad * 2)
-	css9(IMG.carved, panel.position.x, panel.position.y, panel.size.x, panel.size.y, 24.0 if short else 32.0)
-	var inner := Rect2(panel.position.x + (16 if short else 22), panel.position.y + (12 if short else 16), panel.size.x - (32 if short else 44), panel.size.y - (24 if short else 32))
+	var short: bool = VHc <= 430
+	var helper: String = "Tap gear to put it on or take it off." if inv_tab != "abilities" else "Pick 1 class + 1 subclass ability. Mark one for AUTO."
+	var area: Rect2 = menu_sheet("inv_back", "Inventory", helper, func(): menu_back(), ["Gear", "Abilities"], 1 if inv_tab == "abilities" else 0, func(i): _set_inv_tab("abilities" if i == 1 else "gear"), "invtab_")
+	var d: Rect2 = hero_picker("invhero_", area, short, func(hn, hs): return "Lv." + str(int(hs.level)) + "  " + str(hs.cls))
 	var name := selected_hero()
 	var st := compute_hero_stats(name)
-	var back_w := 110.0 if short else 130.0
-	var bh := 40.0 if short else 48.0
-	ui_button("inv_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): menu_back())
-	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Inventory", 20.0 if short else 26.0, bh, minf(280, inner.size.x * 0.46), 40, bh - 10)
-	text("Saved for Play", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
-	var top: float = inner.position.y + bh + (4.0 if short else 8.0)
-	var body_h: float = inner.position.y + inner.size.y - top
-	var left_w := clampf3(148.0, inner.size.x * 0.28, 220.0)
-	var row_h: float = body_h / 6.0
-	for i in HERO_NAMES.size():
-		var hn: String = HERO_NAMES[i]
-		var hs := compute_hero_stats(hn)
-		var ry: float = top + i * row_h
-		var rr := Rect2(inner.position.x, ry, left_w - 8, row_h - 3)
-		var sel := i == char_sel
-		if sel:
-			draw_rect(rr, Color("#c8a05a"))
-			draw_rect(Rect2(rr.position.x + 2, rr.position.y + 2, rr.size.x - 4, rr.size.y - 4), Color("#3a2412"))
-		var idx := i
-		add_btn("invhero_%d" % i, rr, func(): select_hero(idx))
-		var sy: float = rr.position.y + rr.size.y - 2
-		draw_hero_sprite(hs.kind, rr.position.x + 26, sy, 0.40 if short else 0.48)
-		var tx: float = rr.position.x + 50
-		text(hn, tx, ry + (13 if short else 15), 14.0 if short else 16.0, Color("#ffe27a") if sel else Color("#2a1a10"), "left")
-		text("Lv." + str(int(hs.level)) + "  " + hs.cls, tx, ry + (26 if short else 30), 10.0 if short else 11.0, Color("#c8a06a") if sel else Color("#7a5a32"), "left")
-	var dx: float = inner.position.x + left_w + 4
-	var dw: float = inner.position.x + inner.size.x - dx
-	var y: float = top
-	var spr_h: float = 56.0 if short else 88.0
-	draw_hero_sprite(st.kind, dx + 40, y + spr_h - 4, 0.7 if short else 0.9)
-	text(name, dx + 80, y + 16, 22.0 if short else 28.0, Color("#2a1a10"), "left")
-	var xp_txt := "MAX" if int(st.level) >= LEVEL_CAP else ("%d / %d XP" % [int(st.xp), int(st.xp_next)])
-	text("Lv." + str(int(st.level)) + "  ·  " + st.cls + "  ·  Focus " + str(st.focus_name) + "  ·  " + xp_txt, dx + 80, y + (36 if short else 44), 12.0 if short else 14.0, Color("#7a5a32"), "left")
-	y += spr_h + (2 if short else 4)
-	var tab_w := 104.0 if short else 120.0
-	var tab_h := 30.0 if short else 34.0
-	var tab_y: float = top
-	ui_button("invtab_gear", Rect2(dx + dw - tab_w * 2 - 6, tab_y, tab_w, tab_h), "GEAR", inv_tab != "gear", 13, 18, func(): _set_inv_tab("gear"), inv_tab != "gear")
-	ui_button("invtab_ab", Rect2(dx + dw - tab_w, tab_y, tab_w, tab_h), "ABILITIES", inv_tab != "abilities", 13, 18, func(): _set_inv_tab("abilities"), inv_tab != "abilities")
+	var dx: float = d.position.x
+	var dw: float = d.size.x
+	var y: float = d.position.y
+	var xp_txt: String = "MAX level" if int(st.level) >= LEVEL_CAP else ("%d / %d XP" % [int(st.xp), int(st.xp_next)])
+	y += hero_head(name, st, dx, y, dw, short, [["Lv." + str(int(st.level)), UI_TEAL_L, UI_TEAL_D], [str(st.cls), Color(UI_INK.r, UI_INK.g, UI_INK.b, 0.08), UI_INK], [xp_txt, Color(UI_INK.r, UI_INK.g, UI_INK.b, 0.08), UI_MUTED]]) + (6.0 if short else 10.0)
 	if inv_tab == "abilities":
-		draw_inv_abilities(name, dx, y, dw, inner.position.y + inner.size.y - (2 if short else 14), short)
-		if not short:
-			text("Tap an owned ability to equip it. One class + one subclass ability go into battle; use them when the MP bar is full.", dx + dw / 2, inner.position.y + inner.size.y - 2, 10, Color("#7a5a32"))
+		draw_inv_abilities(name, dx, y, dw, d.end.y, short)
 		return
-	# Equipment slots
+	# Equipped slots
 	var eq: Dictionary = EQUIP[name] if EQUIP.has(name) else {}
-	var slot_h := 28.0 if short else 34.0
-	for slot in SLOT_IDS:
+	section_label("EQUIPPED  ·  tap to take off", dx, y + 6.0, short)
+	y += 16.0 if short else 20.0
+	var four: bool = dw >= 470.0
+	var gap: float = 8.0
+	var sw: float = (dw - gap * 3.0) / 4.0 if four else (dw - gap) / 2.0
+	var sh: float = 44.0 if short else 60.0
+	for si in SLOT_IDS.size():
+		var slot: String = SLOT_IDS[si]
 		var iid: String = str(eq.get(slot, ""))
-		var label: String = SLOT_LABELS[slot]
 		var filled: bool = iid != "" and ITEM_DEFS.has(iid)
-		var shown: String = ITEM_DEFS[iid].name if filled else "—"
-		var rr := Rect2(dx, y, dw, slot_h - 3)
+		var col_i: int = si if four else si % 2
+		var row_i: int = 0 if four else int(si / 2)
+		var rr := Rect2(dx + float(col_i) * (sw + gap), y + float(row_i) * (sh + gap), sw, sh)
 		var active: bool = inv_slot_sel == slot
+		var down: bool = pressed_id == "slot_" + slot
 		if active:
-			draw_rect(rr, Color("#c8a05a"))
-			draw_rect(Rect2(rr.position.x + 2, rr.position.y + 2, rr.size.x - 4, rr.size.y - 4), Color("#3a2412"))
+			rbox(rr, 18.0, UI_GOLD_L, UI_GOLD, 2.5)
+		elif filled:
+			rbox(rr, 18.0, UI_CARD, UI_TEAL if down else Color("#9fd3ce"), 2.0)
 		else:
-			var plate := Color("#2a1a10")
-			plate.a = 0.12
-			draw_rect(rr, plate)
-		text(label, rr.position.x + 8, rr.position.y + rr.size.y * 0.52, 11, Color("#ffe27a") if active else Color("#5b3b20"), "left")
-		var nx: float = rr.position.x + 78
-		text(shown, nx, rr.position.y + rr.size.y * 0.52, 13.0 if short else 14.0, Color("#ffe27a") if active else Color("#2a1a10"), "left")
-		if filled and not short:
-			text(item_bonus_text(iid), rr.position.x + rr.size.x - 8, rr.position.y + rr.size.y * 0.52, 11, Color("#c8a06a") if active else Color("#7a5a32"), "right")
+			rbox(rr, 18.0, Color(1, 1, 1, 0.35), UI_LINE, 1.5)
+		text(str(SLOT_LABELS[slot]).to_upper(), rr.position.x + 14.0, rr.position.y + (11.0 if short else 14.0), 10.0 if short else 11.0, UI_MUTED, "left")
+		var shown: String = str(ITEM_DEFS[iid].name) if filled else "Empty"
+		text(shown, rr.position.x + 14.0, rr.position.y + (28.0 if short else 33.0), fit_size(shown, 14.0 if short else 16.0, rr.size.x - 24.0, 10.0), UI_INK if filled else UI_LOCK, "left")
+		if not short:
+			var bl: String = item_bonus_text(iid) if filled else "Pick from the bag"
+			text(bl, rr.position.x + 14.0, rr.position.y + 49.0, fit_size(bl, 11.0, rr.size.x - 24.0, 8.0), UI_TEAL_D if filled else UI_LOCK, "left")
 		var slot_id: String = slot
 		add_btn("slot_" + slot, rr, func(): _inv_tap_slot(slot_id))
-		y += slot_h
+	y += (sh if four else sh * 2.0 + gap) + (8.0 if short else 12.0)
+	# Stats block at the bottom
+	var stat_h: float = 4.0 * (16.0 if short else 21.0) + 12.0 if dw > 380.0 else 7.0 * 18.0 + 12.0
+	var stat_y: float = d.end.y - stat_h
 	# Bag
-	text("BAG", dx, y + 10, 11, Color("#5b3b20"), "left")
-	y += 18
-	var bag_bottom: float = inner.position.y + inner.size.y - (6 if short else 86)
-	var bag_h: float = maxf(32.0, bag_bottom - y)
-	var ih := 24.0 if short else 26.0
-	var two := dw > 340
-	var col_w: float = (dw - 8) / 2.0 if two else dw
+	var bag_lab: String = "BAG  ·  tap to equip"
+	if inv_slot_sel != "":
+		bag_lab = "BAG  ·  " + str(SLOT_LABELS[inv_slot_sel]) + " items are highlighted"
+	section_label(bag_lab, dx, y + 6.0, short)
+	y += 16.0 if short else 20.0
+	var bag_bottom: float = stat_y - 8.0
+	var cols: int = 3 if dw >= 520.0 else 2
+	var bw: float = (dw - gap * float(cols - 1)) / float(cols)
+	var ih: float = 30.0 if short else 42.0
 	if INV.is_empty():
-		text("Bag is empty — unequip something to return it here.", dx + dw / 2, y + 12, 11, Color("#7a5a32"))
+		text("Your bag is empty. Take gear off to put it back here.", dx + dw / 2.0, y + 16.0, 12.0, UI_MUTED)
 	else:
+		var shown_n := 0
 		for bi in INV.size():
 			var iid2: String = INV[bi]
 			if not ITEM_DEFS.has(iid2):
 				continue
 			var it: Dictionary = ITEM_DEFS[iid2]
-			var cx: float = dx
-			var cy: float = y
-			if two:
-				cx = dx + (col_w + 8) * (bi % 2)
-				cy = y + int(bi / 2) * (ih + 2)
-			else:
-				cy = y + bi * (ih + 2)
-			if cy + ih > bag_bottom + 4:
+			var cx: float = dx + float(shown_n % cols) * (bw + gap)
+			var cy: float = y + float(int(shown_n / cols)) * (ih + 6.0)
+			if cy + ih > bag_bottom + 2.0:
 				break
-			var br := Rect2(cx, cy, col_w, ih)
-			var match_slot: bool = inv_slot_sel == "" or it.slot == inv_slot_sel
-			var plate2 := Color("#2a1a10")
-			plate2.a = 0.16 if match_slot else 0.07
-			draw_rect(br, plate2)
-			var nmcol := Color("#2a1a10") if match_slot else Color("#7a5a32")
-			text(String(it.name), br.position.x + 6, br.position.y + ih * 0.52, 12, nmcol, "left")
-			if not short:
-				text(item_bonus_text(iid2), br.position.x + br.size.x - 6, br.position.y + ih * 0.52, 10, Color("#7a5a32"), "right")
-			var bag_index := bi
+			shown_n += 1
+			var br := Rect2(cx, cy, bw, ih)
+			var match_slot: bool = inv_slot_sel == "" or str(it.slot) == inv_slot_sel
+			var hl: bool = inv_slot_sel != "" and match_slot
+			save()
+			if not match_slot: _alpha *= 0.45
+			rbox(br, ih / 2.0, UI_CARD, UI_GOLD if hl else UI_LINE, 2.0 if hl else 1.5)
+			var bonus: String = item_bonus_text(iid2)
+			if short:
+				text(str(it.name), br.position.x + 14.0, br.get_center().y, fit_size(str(it.name), 13.0, br.size.x * 0.5, 9.0), UI_INK, "left")
+				text(bonus, br.end.x - 12.0, br.get_center().y, fit_size(bonus, 10.0, br.size.x * 0.45, 7.0), UI_TEAL_D, "right")
+			else:
+				text(str(it.name), br.position.x + 16.0, br.position.y + 14.0, fit_size(str(it.name), 14.0, br.size.x - 28.0, 9.0), UI_INK, "left")
+				var l2: String = str(SLOT_LABELS[str(it.slot)]) + "  ·  " + bonus
+				text(l2, br.position.x + 16.0, br.position.y + 30.0, fit_size(l2, 11.0, br.size.x - 28.0, 8.0), UI_TEAL_D, "left")
+			restore()
+			var bag_index: int = bi
 			add_btn("bag_%d" % bi, br, func(): _inv_tap_bag(bag_index))
-	# Stats
-	var rows := [
-		["hp", "HP", 1200.0, Color("#4fd36b"), ""],
-		["atk", "ATK", 180.0, Color("#e85a3a"), ""],
-		["def", "Defense", 180.0, Color("#3d8adf"), ""],
-		["armor", "Armor", 60.0, Color("#8a8f9a"), ""],
-		["crit", "Crit", 70.0, Color("#e6b422"), "%"],
-		["mana", "Mana Regen", 50.0, Color("#9b6bdb"), ""],
-		["speed", "Speed", 70.0, Color("#3ec8c8"), ""],
-	]
-	var stats_y: float = inner.position.y + inner.size.y - (6 if short else 8)
-	var sh: float = 15.0 if short else 17.0
-	var gap: float = 1.0 if short else 2.0
-	var two_col := dw > 360
-	var sw: float = (dw - 12) / 2.0 if two_col else dw
-	var block_h: float = (4 if two_col else 7) * (sh + gap)
-	stats_y -= block_h
-	# keep stats below the bag if there's room; otherwise overlay the bottom of the bag area
-	for ri in rows.size():
-		var row: Array = rows[ri]
-		var key: String = row[0]
-		var cur: int = int(st[key])
-		var shown: String = str(cur) + str(row[4])
-		if key == "mana":
-			shown = "+" + str(cur)
-		var vx: float = dx
-		var vy: float = stats_y
-		if two_col:
-			vx = dx + (sw + 12) * (ri % 2)
-			vy = stats_y + int(ri / 2) * (sh + gap)
-		else:
-			vy = stats_y + ri * (sh + gap)
-		var bar_v := float(char_bar[key]) if char_bar.has(key) else float(cur)
-		draw_stat_bar(vx, vy, sw, sh, row[1], bar_v, row[2], shown, stat_delta(key, cur), row[3])
-	if not short:
-		text("Tap a slot to unequip, or a bag item to put it on. Stats update right away.", dx + dw / 2, inner.position.y + inner.size.y - 2, 10, Color("#7a5a32"))
-
+	draw_stat_block(name, st, Rect2(dx, stat_y, dw, stat_h), short)
 
 func _set_inv_tab(t: String) -> void:
 	inv_tab = t
@@ -2951,76 +3125,74 @@ func _inv_tap_bag(index: int) -> void:
 
 
 func draw_party() -> void:
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(8 / 255.0, 18 / 255.0, 22 / 255.0, 0.72))
-	var short := VHc <= 430
-	var pad := 8.0 if short else 12.0
-	var panel := Rect2(pad, pad, VWc - pad * 2, VHc - pad * 2)
-	css9(IMG.carved, panel.position.x, panel.position.y, panel.size.x, panel.size.y, 24.0 if short else 32.0)
-	var inner := Rect2(panel.position.x + (16 if short else 22), panel.position.y + (12 if short else 16), panel.size.x - (32 if short else 44), panel.size.y - (24 if short else 32))
-	var back_w := 110.0 if short else 130.0
-	var bh := 40.0 if short else 48.0
-	ui_button("party_back", Rect2(inner.position.x, inner.position.y, back_w, bh), "BACK", true, 16, 28, func(): menu_back())
-	ribbon(IMG.ribbonYellow, inner.get_center().x, inner.position.y, "Party", 20.0 if short else 26.0, bh, minf(240, inner.size.x * 0.4), 40, bh - 10)
-	text("5 fight  ·  1 bench", inner.position.x + inner.size.x, inner.position.y + bh * 0.55, 11, Color("#5b3b20"), "right")
-	var top: float = inner.position.y + bh + (6.0 if short else 10.0)
+	var short: bool = VHc <= 430
+	var area: Rect2 = menu_sheet("party_back", "Party", "Tap a fighter, then a bench hero to swap. Arrows set the order.", func(): menu_back())
 	var pnames := party_names()
 	var bnames := bench_names()
-	var col_gap := 12.0
-	var left_w: float = (inner.size.x - col_gap) * 0.62
-	var right_x: float = inner.position.x + left_w + col_gap
-	var right_w: float = inner.position.x + inner.size.x - right_x
-	text("FIGHTING FIVE  ·  1 is lead", inner.position.x, top + 8, 12, Color("#5b3b20"), "left")
-	text("BENCH", right_x, top + 8, 12, Color("#5b3b20"), "left")
-	var list_top: float = top + 18
-	var list_bot: float = inner.position.y + inner.size.y - (20 if short else 36)
-	var prow: float = (list_bot - list_top) / 5.0
+	var narrow: bool = area.size.x < 560.0
+	var col_gap: float = 16.0
+	var left_w: float = area.size.x if narrow else (area.size.x - col_gap) * 0.64
+	var right_x: float = area.position.x if narrow else area.position.x + left_w + col_gap
+	var right_w: float = area.size.x if narrow else area.end.x - right_x
+	var lab_h: float = 16.0 if short else 20.0
+	section_label("FIGHTING FIVE  ·  #1 leads in the overworld", area.position.x, area.position.y + 6.0, short)
+	var list_top: float = area.position.y + lab_h
+	var list_bot: float = area.end.y
+	var bench_top: float = list_top
+	if narrow:
+		list_bot = area.position.y + (area.size.y - lab_h) * 0.72
+		bench_top = list_bot + lab_h + 6.0
+		section_label("BENCH", right_x, list_bot + 12.0, short)
+	else:
+		section_label("BENCH  ·  sits out, gets half XP on a win", right_x, area.position.y + 6.0, short)
+	var rg: float = 5.0 if short else 8.0
+	var prow: float = (list_bot - list_top - rg * 4.0) / 5.0
 	for i in pnames.size():
 		var hn: String = pnames[i]
 		var hs := compute_hero_stats(hn)
-		var ry: float = list_top + i * prow
-		var rr := Rect2(inner.position.x, ry, left_w - 80, prow - 4)
-		var sel := party_sel == i
-		if sel:
-			draw_rect(rr, Color("#c8a05a"))
-			draw_rect(Rect2(rr.position.x + 2, rr.position.y + 2, rr.size.x - 4, rr.size.y - 4), Color("#3a2412"))
-		var idx := i
+		var rr := Rect2(area.position.x, list_top + float(i) * (prow + rg), left_w, prow)
+		var sel: bool = party_sel == i
+		rbox(rr, minf(20.0, prow / 2.0), UI_GOLD_L if sel else UI_CARD, UI_GOLD if sel else UI_LINE, 2.5 if sel else 1.5, 3.0 if sel else 0.0)
+		var idx: int = i
 		add_btn("pact_%d" % i, rr, func(): _party_tap_active(idx))
-		draw_hero_sprite(hs.kind, rr.position.x + 26, rr.position.y + rr.size.y - 2, 0.42 if short else 0.5)
-		var col := Color("#ffe27a") if sel else Color("#2a1a10")
-		var subc := Color("#c8a06a") if sel else Color("#7a5a32")
-		var tag := "LEAD" if i == 0 else str(i + 1)
-		text(tag, rr.position.x + 52, ry + (12 if short else 14), 11, subc, "left")
-		text(hn, rr.position.x + 52, ry + (26 if short else 30), 15.0 if short else 17.0, col, "left")
-		text("Lv." + str(int(hs.level)) + "  " + hs.cls + " · " + hs.sub, rr.position.x + 52, ry + (42 if short else 48), 10.0 if short else 11.0, subc, "left")
-		var aw := 34.0 if short else 36.0
-		var ah := 28.0 if short else 32.0
-		var ax: float = inner.position.x + left_w - 76
-		var ay: float = ry + (prow - ah * 2 - 4) / 2
-		ui_button("pup_%d" % i, Rect2(ax, ay, aw, ah), "^", false, 16, 16, func(): move_party_slot(idx, -1), false, i == 0)
-		ui_button("pdn_%d" % i, Rect2(ax + aw + 4, ay, aw, ah), "v", false, 16, 16, func(): move_party_slot(idx, 1), false, i >= PARTY_SIZE - 1)
-	var brow: float = maxf(48.0, (list_bot - list_top) / maxf(1.0, float(maxi(1, bnames.size()))))
+		var bcy: float = rr.get_center().y
+		if i == 0:
+			chip("LEAD", rr.position.x + 10.0, bcy, 10.0 if short else 11.0, UI_GOLD, Color("#3d2706"))
+		else:
+			draw_circle(Vector2(rr.position.x + 26.0, bcy), 12.0, ca(UI_TEAL_L))
+			text(str(i + 1), rr.position.x + 26.0, bcy, 13.0, UI_TEAL_D)
+		draw_hero_sprite(hs.kind, rr.position.x + 80.0, rr.end.y - 3.0, 0.34 if short else 0.44)
+		var tx: float = rr.position.x + 108.0
+		text(hn, tx, bcy - (7.0 if short else 9.0), 15.0 if short else 18.0, UI_INK, "left")
+		var line: String = "Lv." + str(int(hs.level)) + "  " + str(hs.cls) + " · " + str(hs.sub)
+		var aw: float = minf(prow - 8.0, 38.0)
+		text(line, tx, bcy + (9.0 if short else 11.0), fit_size(line, 11.0 if short else 12.0, rr.end.x - tx - aw * 2.0 - 24.0, 8.0), UI_MUTED, "left")
+		var ay: float = bcy - aw / 2.0
+		pill("pup_%d" % i, Rect2(rr.end.x - aw * 2.0 - 14.0, ay, aw, aw), "", "tealsoft", 15.0, func(): move_party_slot(idx, -1), false, i == 0, false, "", "up")
+		pill("pdn_%d" % i, Rect2(rr.end.x - aw - 8.0, ay, aw, aw), "", "tealsoft", 15.0, func(): move_party_slot(idx, 1), false, i >= PARTY_SIZE - 1, false, "", "down")
+	var bench_bot: float = area.end.y
 	if bnames.is_empty():
-		text("No one on the bench.", right_x + right_w / 2, list_top + 24, 12, Color("#7a5a32"))
+		var er := Rect2(right_x, bench_top, right_w, minf(prow, 60.0))
+		rbox(er, 18.0, Color(1, 1, 1, 0.35), UI_LINE, 1.5)
+		text("No one on the bench.", er.get_center().x, er.get_center().y, 13.0, UI_MUTED)
 	else:
+		var brow: float = minf(prow, (bench_bot - bench_top - rg * float(bnames.size() - 1)) / float(bnames.size()))
 		for j in bnames.size():
 			var hn2: String = bnames[j]
 			var hs2 := compute_hero_stats(hn2)
-			var ry2: float = list_top + j * brow
-			var rr2 := Rect2(right_x, ry2, right_w, mini(prow, brow) - 4)
-			var sel2 := party_sel == PARTY_SIZE + j
-			if sel2:
-				draw_rect(rr2, Color("#c8a05a"))
-				draw_rect(Rect2(rr2.position.x + 2, rr2.position.y + 2, rr2.size.x - 4, rr2.size.y - 4), Color("#3a2412"))
-			var jdx := j
+			var rr2 := Rect2(right_x, bench_top + float(j) * (brow + rg), right_w, brow)
+			var sel2: bool = party_sel == PARTY_SIZE + j
+			var swap_hint: bool = party_sel >= 0 and party_sel < PARTY_SIZE
+			rbox(rr2, minf(20.0, brow / 2.0), UI_GOLD_L if sel2 else Color(1, 1, 1, 0.7), UI_GOLD if sel2 else (UI_TEAL if swap_hint else UI_LINE), 2.5 if sel2 or swap_hint else 1.5)
+			var jdx: int = j
 			add_btn("pben_%d" % j, rr2, func(): _party_tap_bench(jdx))
-			draw_hero_sprite(hs2.kind, rr2.position.x + 26, rr2.position.y + rr2.size.y - 2, 0.42 if short else 0.5)
-			var col2 := Color("#ffe27a") if sel2 else Color("#2a1a10")
-			var sub2 := Color("#c8a06a") if sel2 else Color("#7a5a32")
-			text(hn2, rr2.position.x + 52, ry2 + (16 if short else 18), 15.0 if short else 17.0, col2, "left")
-			text("Lv." + str(int(hs2.level)) + "  " + hs2.cls, rr2.position.x + 52, ry2 + (34 if short else 38), 11, sub2, "left")
-	if not short:
-		text("Tap a fighter and a benched hero to swap. Arrows change order — slot 1 walks the town.", inner.get_center().x, inner.position.y + inner.size.y - 8, 10, Color("#7a5a32"))
-
+			draw_hero_sprite(hs2.kind, rr2.position.x + 30.0, rr2.end.y - 3.0, 0.34 if short else 0.44)
+			var tx2: float = rr2.position.x + 60.0
+			text(hn2, tx2, rr2.get_center().y - (7.0 if short else 9.0), 15.0 if short else 18.0, UI_INK, "left")
+			var l2: String = "Lv." + str(int(hs2.level)) + "  " + str(hs2.cls)
+			text(l2, tx2, rr2.get_center().y + (9.0 if short else 11.0), 11.0 if short else 12.0, UI_MUTED, "left")
+			if swap_hint and rr2.size.x > 220.0:
+				chip("Tap to swap in", rr2.end.x - 10.0, rr2.get_center().y, 10.0, UI_TEAL_L, UI_TEAL_D, "right")
 
 func _party_tap_active(i: int) -> void:
 	ensure_hero_data()
@@ -3287,55 +3459,63 @@ func draw_overworld() -> void:
 	# UI
 	var bh := 42.0 if short else 48.0
 	var mw := 118.0 if short else 130.0
-	ui_button("ow_menu", Rect2(10, 8, mw, bh), "MENU", true, 16, 28, func(): ow_menu_open = not ow_menu_open)
-	ui_button("ow_map", Rect2(10, 8 + bh + 6, mw, bh), "MAP", false, 16, 28, func(): ow_open_menu_screen("map"))
+	pill("ow_menu", Rect2(10, 8, mw, bh), "Menu", "primary", 17, func(): ow_menu_open = not ow_menu_open)
+	pill("ow_map", Rect2(10, 8 + bh + 8, mw, bh), "Map", "soft", 17, func(): ow_open_menu_screen("map"))
 	var here: String = WORLD.area_name(WORLD.cur_area) if WORLD.cur_area != "" else TOWN_NAME
-	ribbon(IMG.ribbonYellow, VWc / 2, 8, here, 18.0 if short else 22.0, bh, minf(300, VWc * 0.46), 40, bh - 10)
+	var hfs: float = 17.0 if short else 20.0
+	var hw: float = minf(VWc * 0.46, maxf(180.0, text_w(here, hfs) + 48.0))
+	var hh: float = bh - 6.0
+	rbox(Rect2(VWc / 2 - hw / 2, 8, hw, hh), hh / 2.0, Color(UI_SHEET.r, UI_SHEET.g, UI_SHEET.b, 0.94), Color(1, 1, 1, 0.6), 2.0, 6.0)
+	text(here, VWc / 2, 8 + hh / 2.0, fit_size(here, hfs, hw - 28.0, 11.0), UI_INK)
 	if WORLD.cur_area != "":
-		outlined("Recommended " + WORLD.rec_text(WORLD.cur_area), VWc / 2, 8 + bh + 12, 12.0 if short else 14.0, Color("#ffe6a8"))
+		chip("Recommended " + WORLD.rec_text(WORLD.cur_area), VWc / 2, 8 + hh + 16, 11.0 if short else 12.0, Color(0.06, 0.14, 0.15, 0.72), Color("#ffe6a8"), "center")
 	var lead := lead_name()
 	var st := compute_hero_stats(lead)
-	text(lead + "  ·  Lv." + str(int(st.level)) + "  " + st.cls, VWc - 12, 8 + bh * 0.5, 12.0 if short else 14.0, Color.WHITE, "right", 3, Color(0, 0, 0, 0.75))
+	chip(lead + "  ·  Lv." + str(int(st.level)) + "  " + st.cls, VWc - 10, 8 + hh / 2.0, 12.0 if short else 13.0, Color(0.06, 0.14, 0.15, 0.72), Color.WHITE, "right")
 	var wild_now: bool = WORLD.in_wild(ow_x, ow_y)
-	var hint := "Tap the ground to walk" if short else "Tap a spot to walk there  ·  the lead of your fighting five explores"
+	var hint := "Tap the ground to walk" if short else "Tap a spot to walk there  ·  your lead hero explores"
 	if wild_now:
 		hint = "Wild grass  ·  monsters may jump out"
-	outlined(hint, VWc / 2, VHc - (14 if short else 18), 12.0 if short else 14.0, Color("#c8ffb0") if wild_now else Color.WHITE)
+	chip(hint, VWc / 2, VHc - (16 if short else 22), 12.0 if short else 13.0, Color(0.06, 0.14, 0.15, 0.72), Color("#c8ffb0") if wild_now else Color.WHITE, "center")
 	WORLD.draw_hud(self, VWc, VHc)
 	if ow_menu_open:
 		_draw_ow_menu(short)
 
 
 func _draw_ow_menu(short: bool) -> void:
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(0, 0, 0, 0.45))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.02, 0.08, 0.09, 0.5))
 	var items := [
-		["owm_map", "MAP", "map"], ["owm_party", "PARTY", "party"],
-		["owm_inv", "INVENTORY", "inv"], ["owm_stats", "STATS", "stats"],
-		["owm_chars", "CHARACTERS", "chars"], ["owm_title", "TITLE", "title"],
+		["owm_map", "Map", "Where to go next", "map"], ["owm_party", "Party", "Pick your five", "party"],
+		["owm_inv", "Inventory", "Gear and abilities", "inv"], ["owm_stats", "Stats", "Compare heroes", "stats"],
+		["owm_chars", "Characters", "Swap subclasses", "chars"], ["owm_title", "Title", "Main screen", "title"],
 	]
-	var cols := 2 if VWc < 900 else 3
-	var bw := minf(220.0, (VWc - 60.0) / float(cols) - 10.0)
-	var bh := 46.0 if short else 56.0
-	var rows := int(ceil(float(items.size()) / float(cols)))
-	var pw := float(cols) * bw + float(cols - 1) * 10.0 + 60.0
-	var ph := float(rows) * bh + float(rows - 1) * 10.0 + (96.0 if short else 120.0)
-	var px := VWc / 2 - pw / 2
-	var py := VHc / 2 - ph / 2
+	var cols: int = 2 if VWc < 700 else 3
+	var gap: float = 10.0 if short else 14.0
+	var bw: float = minf(220.0, (VWc - 70.0 - gap * float(cols - 1)) / float(cols))
+	var bh: float = 54.0 if short else 66.0
+	var rows: int = int(ceil(float(items.size()) / float(cols)))
+	var pad: float = 18.0 if short else 24.0
+	var head: float = 40.0 if short else 52.0
+	var pw: float = float(cols) * bw + float(cols - 1) * gap + pad * 2.0
+	var ph: float = head + float(rows) * bh + float(rows - 1) * gap + pad * 2.0
+	var px: float = VWc / 2.0 - pw / 2.0
+	var py: float = VHc / 2.0 - ph / 2.0
 	add_btn("owm_bg", Rect2(0, 0, VWc, VHc), func(): ow_menu_open = false)
-	css9(IMG.carved, px, py, pw, ph, 24.0 if short else 30.0)
-	ribbon(IMG.ribbonBlue, VWc / 2, py + 12, "MENU", 18.0 if short else 22.0, 40.0 if short else 48.0, minf(220, VWc * 0.4), 40, 32.0 if short else 38.0)
+	rbox(Rect2(px, py, pw, ph), 30.0, UI_SHEET, Color(1, 1, 1, 0.6), 2.0, 14.0)
 	add_btn("owm_panel", Rect2(px, py, pw, ph), func(): pass)
-	var y0 := py + (60.0 if short else 74.0)
+	text("Menu", px + pad + 2.0, py + pad + head * 0.32, 22.0 if short else 27.0, UI_INK, "left")
+	var cs: float = 34.0 if short else 38.0
+	pill("owm_close", Rect2(px + pw - pad - cs, py + pad + head * 0.32 - cs / 2.0, cs, cs), "×", "soft", 20.0, func(): ow_menu_open = false)
+	var y0: float = py + pad + head
 	for i in items.size():
 		var it: Array = items[i]
-		var cx := px + 30.0 + float(i % cols) * (bw + 10.0)
-		var cy := y0 + float(i / cols) * (bh + 10.0)
-		var which: String = it[2]
+		var cx: float = px + pad + float(i % cols) * (bw + gap)
+		var cy: float = y0 + float(i / cols) * (bh + gap)
+		var which: String = it[3]
 		if which == "title":
-			ui_button(it[0], Rect2(cx, cy, bw, bh), it[1], true, 16.0 if short else 18.0, 28, func(): to_title())
+			pill(it[0], Rect2(cx, cy, bw, bh), it[1], "danger", 17.0 if short else 19.0, func(): to_title(), false, false, false, it[2])
 		else:
-			ui_button(it[0], Rect2(cx, cy, bw, bh), it[1], false, 16.0 if short else 18.0, 28, func(): ow_open_menu_screen(which))
-
+			pill(it[0], Rect2(cx, cy, bw, bh), it[1], "primary" if which == "map" else "soft", 17.0 if short else 19.0, func(): ow_open_menu_screen(which), false, false, false, it[2])
 
 func _draw_ow_lead() -> void:
 	var name := lead_name()
@@ -3357,49 +3537,22 @@ func draw_title() -> void:
 	var short := VHc <= 430
 	var vw := VWc
 	var L := clampf3(32, VHc * 0.09, 64) if short else clampf3(46, vw * 0.135, 108)
-	var rib_h := 32.0 if short else 44.0
-	var tag_fs := clampf3(14, vw * 0.04, 22)
-	var side_fs := clampf3(13, vw * 0.036, 19)
-	var mtop := 4.0 if short else clampf3(10, VHc * 0.03, 22)
-	var mbot := 4.0 if short else clampf3(10, VHc * 0.03, 20)
-	var bh := 48.0 if short else 64.0
-	var mbh := 44.0 if short else 56.0
-	var bfs := 15.0 if short else clampf3(16, vw * 0.042, 22)
-	var mfs := 13.0 if short else clampf3(14, vw * 0.036, 18)
-	var row_w := minf(720, vw * 0.94)
-	var specs := [["raid3", "6v3 RAID", false, minf(150, vw * 0.4), 3], ["raid2", "6v2 ELITE", false, minf(150, vw * 0.4), 2], ["raid1", "6v1 BOSS", true, minf(180, vw * 0.6), 1]]
-	var rows := []
-	var cur := []
-	var cw := 0.0
-	for sp in specs:
-		var bw := maxf(sp[3], text_w(sp[1], bfs) + 70 + 4)
-		if cur.size() > 0 and cw + 10 + bw > row_w:
-			rows.append([cur, cw]); cur = []; cw = 0.0
-		cw += (10.0 if cur.size() > 0 else 0.0) + bw
-		cur.append([sp, bw])
-	rows.append([cur, cw])
-	var menus := [
-		["chars", "CHARACTERS", func(): open_chars()],
-		["inv", "INVENTORY", func(): open_inv()],
-		["party", "PARTY", func(): open_party()],
-		["ow", "OVERWORLD", func(): open_overworld()],
-	]
-	# One row of four when they fit; two rows of two on a short/narrow screen.
-	var menu_gap := 8.0
-	var menu_minw := 108.0 if short else 130.0
-	var four_w := 4.0 * menu_minw + 3.0 * menu_gap
-	var menu_one_row := (not short and vw * 0.94 >= four_w) or (short and vw >= 700)
-	var menu_rows := 1 if menu_one_row else 2
-	var hint_fs := clampf3(12, vw * 0.034, 16)
-	var hint_lines := []
-	if not short:
-		for para in ["Characters swap subclass. Inventory equips gear. Party sets the fighting five and the lead. Overworld walks Rivenbrook. Hits that land together COMBO."]:
-			hint_lines += wrap_words(para, hint_fs, vw - 24)
-	var show_tag := not short
-	var menu_h := menu_rows * mbh + (menu_rows - 1) * 8
-	var total := L + 8 + (rib_h + mtop if show_tag else 0.0) + rib_h + mbot + menu_h + 8 + rows.size() * bh + (rows.size() - 1) * 8 + 2
-	if hint_lines.size() > 0: total += 10 + hint_lines.size() * hint_fs * 1.2
-	var y := maxf(8, (VHc - total) / 2 - (8.0 if USE_NECRO else 0.0))
+	var pad: float = 14.0 if short else 20.0
+	var sw: float = minf(680.0, vw - 24.0)
+	var mbh: float = 46.0 if short else 58.0
+	var rbh: float = 50.0 if short else 62.0
+	var gap: float = 10.0
+	var lab_h: float = 18.0 if short else 24.0
+	var menu_one_row: bool = sw >= 4.0 * 120.0 + 3.0 * gap + pad * 2.0
+	var menu_rows: int = 1 if menu_one_row else 2
+	var raid_one_row: bool = sw >= 3.0 * 130.0 + 2.0 * gap + pad * 2.0
+	var raid_rows: int = 1 if raid_one_row else 2
+	var sheet_h: float = pad * 2.0 + lab_h * 2.0 + float(menu_rows) * (mbh + gap) + float(raid_rows) * (rbh + gap) + 2.0
+	var tag_h: float = 0.0 if short else 40.0
+	var hint_fs: float = clampf3(12, vw * 0.03, 15)
+	var hint_h: float = 0.0 if short else hint_fs * 2.2
+	var total: float = L + 10.0 + tag_h + sheet_h + hint_h
+	var y: float = maxf(8.0, (VHc - total) / 2.0 - (14.0 if USE_NECRO else 6.0))
 	var cx := VWc / 2
 	# logo with layered text-shadow and bob
 	var bob := -3.0 + 3.0 * cos(now / 2400.0 * TAU)
@@ -3409,52 +3562,55 @@ func draw_title() -> void:
 	text(logo, cx, ly + L * 0.09, L, Color("#4a2a14"), "center", L * 0.06, Color("#4a2a14"))
 	text(logo, cx, ly + L * 0.05, L, Color("#b5641f"), "center", L * 0.06, Color("#2b1a10"))
 	text(logo, cx, ly, L, Color("#ffe27a"), "center", L * 0.06, Color("#2b1a10"))
-	y += L + 8
-	if show_tag:
-		ribbon(IMG.ribbonYellow, cx, y, "Turn-based rift brawl", tag_fs, rib_h, minf(340, vw * 0.8), 40, rib_h - 8)
-		y += rib_h + mtop
-	var vs_fs := clampf3(18, vw * 0.05, 34)
-	var lw := text_w("Airron's Squad", side_fs) + 70
-	var rw := text_w("Pick a raid", side_fs) + 70
-	var vsw := text_w("VS", vs_fs)
-	var x0 := cx - (lw + rw + vsw + 20) / 2
-	ribbon(IMG.ribbonBlue, x0 + lw / 2, y, "Airron's Squad", side_fs, rib_h, 0, 40, rib_h - 8)
-	text("VS", x0 + lw + 10 + vsw / 2, y + rib_h / 2 + 3, vs_fs, Color.BLACK, "center", 4, Color.BLACK)
-	text("VS", x0 + lw + 10 + vsw / 2, y + rib_h / 2, vs_fs, Color.WHITE, "center", 4, Color.BLACK)
-	ribbon(IMG.ribbonRed, x0 + lw + 20 + vsw + rw / 2, y, "Pick a raid", side_fs, rib_h, 0, 40, rib_h - 8)
-	y += rib_h + mbot + 2
-	# Menu buttons: Characters, Inventory, Party, Overworld
-	var menu_w: float = minf(row_w, vw * 0.94)
-	if menu_one_row:
-		var bw4: float = (menu_w - 3 * menu_gap) / 4.0
-		var mx: float = cx - menu_w / 2
-		for mi in menus.size():
-			var m: Array = menus[mi]
-			ui_button(m[0], Rect2(mx, y, bw4, mbh), m[1], false, mfs, 22, m[2])
-			mx += bw4 + menu_gap
-		y += mbh + 8
+	y += L + 10.0
+	if not short:
+		chip("Turn-based rift brawl", cx, y + 14.0, 15.0, Color(1, 1, 1, 0.88), UI_INK, "center")
+		y += tag_h
+	# One soft sheet holding the menus and the quick raids
+	var sr := Rect2(cx - sw / 2.0, y, sw, sheet_h)
+	rbox(sr, 28.0, Color(UI_SHEET.r, UI_SHEET.g, UI_SHEET.b, 0.95), Color(1, 1, 1, 0.6), 2.0, 12.0)
+	var iy: float = sr.position.y + pad
+	var ix: float = sr.position.x + pad
+	var iw: float = sw - pad * 2.0
+	section_label("AIRRON'S SQUAD", ix, iy + lab_h * 0.4, short)
+	iy += lab_h
+	var menus := [
+		["chars", "Characters", "soft", func(): open_chars()],
+		["inv", "Inventory", "soft", func(): open_inv()],
+		["party", "Party", "soft", func(): open_party()],
+		["ow", "Overworld", "primary", func(): open_overworld()],
+	]
+	var mfs: float = 15.0 if short else 18.0
+	var per: int = 4 if menu_one_row else 2
+	var mw: float = (iw - gap * float(per - 1)) / float(per)
+	for mi in menus.size():
+		var m: Array = menus[mi]
+		var mx: float = ix + float(mi % per) * (mw + gap)
+		var my: float = iy + float(int(mi / per)) * (mbh + gap)
+		pill(m[0], Rect2(mx, my, mw, mbh), m[1], m[2], mfs, m[3])
+	iy += float(menu_rows) * (mbh + gap)
+	section_label("QUICK RAID  ·  pick a fight", ix, iy + lab_h * 0.4, short)
+	iy += lab_h
+	var specs := [["raid3", "6v3 Raid", "tealsoft", 3], ["raid2", "6v2 Elite", "primary", 2], ["raid1", "6v1 Boss", "danger", 1]]
+	var bfs: float = 16.0 if short else 20.0
+	if raid_one_row:
+		var rw: float = (iw - gap * 2.0) / 3.0
+		for i in specs.size():
+			var sp: Array = specs[i]
+			var n: int = sp[3]
+			pill(sp[0], Rect2(ix + float(i) * (rw + gap), iy, rw, rbh), sp[1], sp[2], bfs, func(): start_fight(n), false, false, sp[0] == "raid1")
 	else:
-		var bw2: float = (minf(menu_w, 520) - menu_gap) / 2.0
-		for r in 2:
-			var mx2: float = cx - (bw2 * 2 + menu_gap) / 2
-			for c in 2:
-				var m2: Array = menus[r * 2 + c]
-				ui_button(m2[0], Rect2(mx2, y, bw2, mbh), m2[1], false, mfs, 22, m2[2])
-				mx2 += bw2 + menu_gap
-			y += mbh + 8
-	for row in rows:
-		var bx: float = cx - row[1] / 2
-		for it in row[0]:
-			var sp: Array = it[0]
-			var n: int = sp[4]
-			ui_button(sp[0], Rect2(bx, y, it[1], bh), sp[1], sp[2], bfs, 40, func(): start_fight(n), false, false, sp[0] == "raid1")
-			bx += it[1] + 10
-		y += bh + 10
-	y += 2
-	for ln in hint_lines:
-		text(ln, cx + 1, y + hint_fs * 0.6 + 2, hint_fs, Color.BLACK)
-		text(ln, cx, y + hint_fs * 0.6, hint_fs, Color("#e9fff9"))
-		y += hint_fs * 1.2
+		var rw2: float = (iw - gap) / 2.0
+		for i in specs.size():
+			var sp2: Array = specs[i]
+			var n2: int = sp2[3]
+			var r2: Rect2 = Rect2(ix + float(i % 2) * (rw2 + gap), iy + float(int(i / 2)) * (rbh + gap), rw2, rbh)
+			if i == 2: r2 = Rect2(ix, iy + rbh + gap, iw, rbh)
+			pill(sp2[0], r2, sp2[1], sp2[2], bfs, func(): start_fight(n2), false, false, sp2[0] == "raid1")
+	y = sr.end.y + 10.0
+	if not short:
+		var hint: String = "Overworld explores Act I  ·  Raids are quick fights  ·  Hits that land together COMBO"
+		text(hint, cx, y + hint_fs * 0.6, fit_size(hint, hint_fs, vw - 24.0, 10.0), Color("#e9fff9"), "center", 3, Color(0, 0, 0, 0.7))
 	var cfs := 12.0 if short else 14.0
 	var cy := VHc - (4.0 if short else 10.0) - cfs
 	if USE_NECRO:
@@ -3503,7 +3659,7 @@ func draw_results() -> void:
 				lines.append([cur, cw]); cur = []; cw = 0.0
 			cur.append([wd[0], wd[1], ww]); cw += ww
 		lines.append([cur, cw])
-	var btn_h := 64.0
+	var btn_h := 56.0
 	var rw := minf(220, vw * 0.6)
 	var tw := minf(170, vw * 0.38)
 	var btn_rows := 1 if rw + tw + 10 <= inner + 24 else 2
@@ -3516,10 +3672,12 @@ func draw_results() -> void:
 	var top := (VHc - ph) / 2
 	save(); _alpha *= minf(1.0, k * 1.6)
 	tr_(cx, VHc / 2); scale_by(s, s); tr_(-cx, -VHc / 2)
-	css9(IMG.carved, cx - pw / 2, top, pw, ph, b)
+	rbox(Rect2(cx - pw / 2, top, pw, ph), 30.0, UI_SHEET, Color(1, 1, 1, 0.6), 2.0, 14.0)
 	var y := top + b + 8
-	var rt: Texture2D = IMG.ribbonBlue if res.result == "win" else (IMG.ribbonRed if res.result == "lose" else IMG.ribbonYellow)
-	ribbon(rt, cx, y, res.title, title_fs, title_h, minf(300, vw * 0.7), 56, title_h - 10)
+	var tcol: Color = UI_TEAL if res.result == "win" else (UI_CORAL if res.result == "lose" else UI_GOLD)
+	var tw2: float = maxf(minf(300, vw * 0.6), text_w(res.title, title_fs) + 60.0)
+	rbox(Rect2(cx - tw2 / 2.0, y, tw2, title_h - 6), (title_h - 6) / 2.0, tcol, Color(0, 0, 0, 0), 0.0, 4.0)
+	text(res.title, cx, y + (title_h - 6) / 2.0, title_fs, Color.WHITE)
 	y += title_h + (2 if short else 6)
 	text(res.sub, cx, y + sub_fs * 0.62, sub_fs, Color("#4a2d16"))
 	y += sub_fs * 1.25 + (4 if short else 8)
@@ -3532,18 +3690,18 @@ func draw_results() -> void:
 	y += 8 if short else 14
 	if btn_rows == 1:
 		var bx := cx - (rw + tw + 10) / 2
-		ui_button("retry", Rect2(bx, y, rw, btn_h), "CONTINUE" if not encounter.is_empty() else "RETRY", false, 22, 40, func(): results_primary())
-		ui_button("menu", Rect2(bx + rw + 10, y, tw, btn_h), "TITLE", true, 22, 40, func(): results_title())
+		pill("retry", Rect2(bx, y, rw, btn_h), "Continue" if not encounter.is_empty() else "Retry", "primary", 22, func(): results_primary())
+		pill("menu", Rect2(bx + rw + 10, y, tw, btn_h), "Title", "soft", 22, func(): results_title())
 		y += btn_h
 	else:
-		ui_button("retry", Rect2(cx - rw / 2, y, rw, btn_h), "CONTINUE" if not encounter.is_empty() else "RETRY", false, 22, 40, func(): results_primary())
+		pill("retry", Rect2(cx - rw / 2, y, rw, btn_h), "Continue" if not encounter.is_empty() else "Retry", "primary", 22, func(): results_primary())
 		y += btn_h + 10
-		ui_button("menu", Rect2(cx - tw / 2, y, tw, btn_h), "TITLE", true, 22, 40, func(): results_title())
+		pill("menu", Rect2(cx - tw / 2, y, tw, btn_h), "Title", "soft", 22, func(): results_title())
 		y += btn_h
 	y += (4 if short else 10) + 8
-	link_text("Art: ", "Tiny Swords by Pixel Frog", " (CC0)", URL_TINY, cx, y, 12, Color("#5b3b20"), Color("#2a5d9f"), false, "cr1")
+	link_text("Art: ", "Tiny Swords by Pixel Frog", " (CC0)", URL_TINY, cx, y, 12, UI_MUTED, UI_TEAL_D, false, "cr1")
 	if cred_lines == 2:
-		link_text("Boss: ", "Necromancer by CreativeKind", "", URL_NECRO, cx, y + 16, 12, Color("#5b3b20"), Color("#2a5d9f"), false, "cr2")
+		link_text("Boss: ", "Necromancer by CreativeKind", "", URL_NECRO, cx, y + 16, 12, UI_MUTED, UI_TEAL_D, false, "cr2")
 	restore()
 
 func sq_button(id: String, r: Rect2, label: String, cb: Callable, icon := false, off := false, paused_icon := false) -> void:
@@ -3579,7 +3737,11 @@ func draw_battle_ui() -> void:
 	var hud_w := minf(300, (VWc - 96) / 2)
 	var hud_h := roundf(minf(44, maxf(34, hud_w / 6.5)))
 	var run_y := 6 + SAFE_T + hud_h + 22
-	ui_button("run", Rect2(VWc / 2 - run_w / 2, run_y, run_w, run_h), "RUN", true, 17.0 if short_land else 19.0, 24, func(): run_battle())
+	var auto_w := 116.0 if short_land else 132.0
+	var pair_w: float = run_w + 10.0 + auto_w
+	var run_x: float = VWc / 2 - pair_w / 2
+	pill("run", Rect2(run_x, run_y, run_w, run_h), "RUN", "danger", 17.0 if short_land else 19.0, func(): run_battle())
+	pill("auto", Rect2(run_x + run_w + 10.0, run_y, auto_w, run_h), "AUTO ON" if AUTO else "AUTO", "gold" if AUTO else "soft", 16.0 if short_land else 18.0, func(): toggle_auto(), false, false, AUTO)
 	var sel := G != null and phase == "battle" and G.mode == "select"
 	var n := G.queue.size() if sel else 0
 	var liv := alive("blue").size() if G != null else 0
@@ -3600,10 +3762,11 @@ func draw_battle_ui() -> void:
 	ui_button("all", Rect2(bx + cw + ew + 16, by, cw, bh), "ALL", false, cfs, ccap, queue_all, not sel or n == liv, locked)
 	var hint := ""
 	var hint_base: float = by
-	if sel and n > 0:
+	if sel and n > 0 and not AUTO:
 		hint_base = draw_ability_panel(short_land, by) - 4
 	if G != null and phase == "battle":
-		if sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your knights in attack order"
+		if AUTO: hint = "Auto-battle on · tap AUTO to take control"
+		elif sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your knights in attack order · or tap AUTO"
 		else: hint = "Your knights are attacking…" if G.side == "blue" else "Goblins are attacking…"
 	if hint != "":
 		var hfs := 12.0 if short_land else 14.0
@@ -3646,32 +3809,26 @@ func fit_size(s: String, base: float, maxw: float, lo: float) -> float:
 		f -= 1.0
 	return f
 
-## Compact ability button for battle and inventory. Shows name + effect line.
 func ab_button(id_btn: String, r: Rect2, tag: String, ab_id: String, on: bool, locked: bool, cb: Callable, note: String = "") -> void:
 	var col: Color = ab_color(ab_id)
 	var down: bool = pressed_id == id_btn and not locked
 	save()
-	if locked: _alpha *= 0.5
-	draw_rect(r, ca(Color(0.06, 0.04, 0.03, 0.86)))
+	if locked: _alpha *= 0.55
+	rbox(r, 16.0, Color(0.06, 0.1, 0.12, 0.9), col if on else Color(col.r, col.g, col.b, 0.55), 3.0 if on else 1.5)
 	if on:
-		draw_rect(r, ca(Color(col.r, col.g, col.b, 0.28)))
-	var bw: float = 3.0 if on else 1.5
-	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, bw), ca(col))
-	draw_rect(Rect2(r.position.x, r.position.y + r.size.y - bw, r.size.x, bw), ca(col))
-	draw_rect(Rect2(r.position.x, r.position.y, bw, r.size.y), ca(col))
-	draw_rect(Rect2(r.position.x + r.size.x - bw, r.position.y, bw, r.size.y), ca(col))
+		rbox(r.grow(-3.0), 13.0, Color(col.r, col.g, col.b, 0.26))
 	if down:
-		draw_rect(r, ca(Color(1, 1, 1, 0.12)))
+		rbox(r, 16.0, Color(1, 1, 1, 0.12))
 	var nm: String = str(ABILITY_DEFS[ab_id].name) if ABILITY_DEFS.has(ab_id) else "—"
-	var pad := 7.0
+	var pad := 12.0
 	var tw: float = r.size.x - pad * 2
-	var tag_s: String = tag + ("  · ON" if on else "")
-	text(tag_s, r.position.x + pad, r.position.y + 9, 9, Color("#fff27a") if on else Color("#c8b8a0"), "left", 2, Color(0, 0, 0, 0.8))
-	var nfs: float = fit_size(nm, 15, tw, 10)
-	text(nm, r.position.x + pad, r.position.y + 24, nfs, Color.WHITE, "left", 3, Color(0, 0, 0, 0.85))
+	var tag_s: String = tag + ("  · READY" if on else "")
+	text(tag_s, r.position.x + pad, r.position.y + 10, 10, Color("#fff27a") if on else Color("#b8d4d6"), "left")
+	var nfs: float = fit_size(nm, 16, tw, 10)
+	text(nm, r.position.x + pad, r.position.y + r.size.y * 0.5 + 1, nfs, Color.WHITE, "left")
 	var line: String = ab_effect_line(ab_id) if note == "" else note
 	var efs: float = fit_size(line, 11, tw, 8)
-	text(line, r.position.x + pad, r.position.y + r.size.y - 10, efs, Color(col.r * 0.5 + 0.5, col.g * 0.5 + 0.5, col.b * 0.5 + 0.5), "left", 2.5, Color(0, 0, 0, 0.85))
+	text(line, r.position.x + pad, r.position.y + r.size.y - 10, efs, Color(col.r * 0.45 + 0.55, col.g * 0.45 + 0.55, col.b * 0.45 + 0.55), "left")
 	restore()
 	if not locked: add_btn(id_btn, r, cb)
 
@@ -3682,8 +3839,6 @@ func ab_panel_focus():
 		return G.ab_focus
 	return G.queue[G.queue.size() - 1]
 
-## Battle: the last tapped (or chip-selected) queued unit shows its two equipped abilities.
-## Returns the panel top so hint text can sit above it.
 func draw_ability_panel(short_land: bool, by: float) -> float:
 	var u = ab_panel_focus()
 	if u == null:
@@ -3691,111 +3846,155 @@ func draw_ability_panel(short_land: bool, by: float) -> float:
 	var pw: float = minf(VWc - 16, 470.0)
 	var px: float = (VWc - 8 - pw) if (short_land and VWc > 640) else (VWc - pw) / 2
 	var bh2 := 48.0 if short_land else 54.0
-	var chip_h := 24.0
+	var chip_h := 26.0
 	var top: float = by - 22 - bh2 - chip_h - 6
-	# unit chips
 	var cx: float = px
 	for q in G.queue:
 		if q.dead: continue
 		var lab: String = q.name + (" *" if q.ab_queued != "" else "")
-		var cw: float = text_w(lab, 11) + 16
+		var cw: float = text_w(lab, 12) + 20
 		if cx + cw > px + pw: break
-		var rr := Rect2(cx, top, cw, chip_h - 3)
+		var rr := Rect2(cx, top, cw, chip_h - 4)
 		var full: bool = q.gauge >= AB_MP
-		draw_rect(rr, Color(0.06, 0.04, 0.03, 0.85))
-		if q == u:
-			draw_rect(Rect2(rr.position.x, rr.position.y + rr.size.y - 3, rr.size.x, 3), Color("#38f2ff"))
-		text(lab, rr.get_center().x, rr.get_center().y, 11, Color("#fff27a") if full else Color("#bcd"), "center", 2, Color(0, 0, 0, 0.8))
+		rbox(rr, rr.size.y / 2.0, Color(0.06, 0.12, 0.13, 0.86), Color("#38f2ff") if q == u else Color(1, 1, 1, 0.15), 2.0 if q == u else 1.0)
+		text(lab, rr.get_center().x, rr.get_center().y, 12, Color("#fff27a") if full else Color("#d6eef0"))
 		var qq = q
 		add_btn("abchip_" + str(q.id), rr, func(): _set_ab_focus(qq))
 		cx += cw + 4
 	var full2: bool = u.gauge >= AB_MP
-	var status: String = (u.name + ": MP full — pick one ability or hold it") if full2 else (u.name + ": MP %d/100 — fills over turns" % int(u.gauge))
-	var sfs: float = fit_size(status, 11, pw - (cx - px) - 6, 8)
+	var status: String = (u.name + ": MP full — pick one or save it") if full2 else (u.name + ": MP %d/100 — fills over turns" % int(u.gauge))
+	var sfs: float = fit_size(status, 12, pw - (cx - px) - 6, 8)
 	if cx - px + text_w(status, sfs) + 6 > pw:
 		status = ("MP FULL" if full2 else "MP %d/100" % int(u.gauge))
-		sfs = 11
-	text(status, px + pw, top + chip_h / 2 - 1, sfs, Color("#fff27a") if full2 else Color.WHITE, "right", 3, Color(0, 0, 0, 0.85))
+		sfs = 12
+	text(status, px + pw, top + chip_h / 2 - 2, sfs, Color("#fff27a") if full2 else Color.WHITE, "right", 3, Color(0, 0, 0, 0.85))
 	var by2: float = top + chip_h
 	var bw: float = (pw - 6) / 2
 	var uu = u
 	var cid: String = u.ab_class
 	var sid: String = u.ab_sub
+	var aid: String = auto_ab(u.name) if CHAR.has(u.name) else ""
 	if cid != "":
-		ab_button("abq_c", Rect2(px, by2, bw, bh2), "CLASS · " + u.cls, cid, u.ab_queued == cid, not full2, func(): queue_ability(uu, cid))
+		ab_button("abq_c", Rect2(px, by2, bw, bh2), "CLASS" + ("  · AUTO" if aid == cid else ""), cid, u.ab_queued == cid, not full2, func(): queue_ability(uu, cid))
 	if sid != "":
-		ab_button("abq_s", Rect2(px + bw + 6, by2, bw, bh2), "SUB · " + u.sub, sid, u.ab_queued == sid, not full2, func(): queue_ability(uu, sid))
+		ab_button("abq_s", Rect2(px + bw + 6, by2, bw, bh2), "SUB" + ("  · AUTO" if aid == sid else ""), sid, u.ab_queued == sid, not full2, func(): queue_ability(uu, sid))
 	return top
 
-## Inventory > Abilities tab. Pick one class + one subclass ability to bring into battle.
 func draw_inv_abilities(name: String, dx: float, y: float, dw: float, bottom: float, short: bool) -> void:
 	validate_ab_equip(name)
 	var lv: int = hero_level(name)
 	var cls_ids: Array = class_ability_ids(name)
 	var sub: String = str(CHAR[name].sub)
 	var sub_ids: Array = sub_ability_ids(sub)
-	var det_h: float = 40.0 if short else 54.0
-	var list_bot: float = bottom - det_h - 4
-	var col_gap := 8.0
-	var lw: float = (dw - col_gap) * 0.56
-	var rw: float = dw - col_gap - lw
-	text("CLASS (%s only) — %d/10 owned" % [name, unlocked_class_ids(name).size()], dx, y + 8, 10, Color("#5b3b20"), "left")
-	text("SUBCLASS %s — %d/5" % [sub, unlocked_sub_ids(name).size()], dx + lw + col_gap, y + 8, 10, Color("#5b3b20"), "left")
-	var ly: float = y + 16
-	var rh: float = (list_bot - ly) / 10.0
+	var cid: String = str(AB_EQUIP[name].cls)
+	var sid: String = str(AB_EQUIP[name].sub)
+	var aid: String = auto_ab(name)
+	section_label("IN BATTLE  ·  use with a full MP bar", dx, y + 6.0, short)
+	y += 16.0 if short else 20.0
+	var gap: float = 10.0
+	var stack: bool = dw < 480.0
+	var lh: float = 50.0 if short else 66.0
+	var lw: float = dw if stack else (dw - gap) / 2.0
+	var slots: Array = [["CLASS ABILITY", cid, "c"], ["SUBCLASS · " + sub.to_upper(), sid, "s"]]
+	for i in 2:
+		var sl: Array = slots[i]
+		var r := Rect2(dx + (0.0 if stack else (lw + gap) * float(i)), y + (float(i) * (lh + 6.0) if stack else 0.0), lw, lh)
+		var abid: String = str(sl[1])
+		var col: Color = ab_color(abid)
+		rbox(r, 20.0, UI_CARD, col, 2.5, 4.0)
+		var dot := Vector2(r.position.x + 20.0, r.get_center().y)
+		draw_circle(dot, 8.0, ca(col))
+		var tx: float = r.position.x + 38.0
+		var is_auto: bool = aid != "" and aid == abid
+		var aw: float = 76.0 if short else 92.0
+		var ah: float = 30.0 if short else 36.0
+		var tw: float = r.size.x - 38.0 - aw - 18.0
+		text(str(sl[0]), tx, r.position.y + (11.0 if short else 15.0), 10.0 if short else 11.0, UI_MUTED, "left")
+		var nm: String = str(ABILITY_DEFS[abid].name) if ABILITY_DEFS.has(abid) else "—"
+		text(nm, tx, r.position.y + (28.0 if short else 35.0), fit_size(nm, 16.0 if short else 19.0, tw, 11.0), UI_INK, "left")
+		if ABILITY_DEFS.has(abid):
+			var el: String = ab_effect_line(abid)
+			text(el, tx, r.position.y + (42.0 if short else 54.0), fit_size(el, 11.0 if short else 12.0, tw, 8.0), UI_TEAL_D, "left")
+		var aid2: String = abid
+		pill("invauto_" + str(sl[2]), Rect2(r.end.x - aw - 10.0, r.get_center().y - ah / 2.0, aw, ah), "AUTO ON" if is_auto else "Set AUTO", "gold" if is_auto else "soft", 12.0 if short else 13.0, func(): set_auto_ab(name, aid2))
+	y += (lh * 2.0 + 6.0 if stack else lh) + (8.0 if short else 12.0)
+	# Ability lists
+	var show_detail: bool = not short and bottom - y > 250.0
+	var det_h: float = 40.0 if show_detail else 0.0
+	var list_bot: float = bottom - (det_h + 8.0 if show_detail else 0.0)
+	var c_w: float = dw if stack else (dw - gap) * 0.64
+	var s_w: float = dw if stack else dw - gap - c_w
+	var s_x: float = dx if stack else dx + c_w + gap
+	section_label("CLASS  ·  %d/10 owned" % unlocked_class_ids(name).size(), dx, y + 6.0, short)
+	if not stack:
+		section_label("SUBCLASS %s  ·  %d/5 owned" % [sub.to_upper(), unlocked_sub_ids(name).size()], s_x, y + 6.0, short)
+	y += 16.0 if short else 20.0
+	var rows_h: float = list_bot - y
+	if stack:
+		rows_h = (list_bot - y - 22.0) * 0.5
+	var rg: float = 4.0 if short else 6.0
+	var rh: float = minf(44.0, (rows_h - rg * 4.0) / 5.0)
+	var ccw: float = (c_w - rg) / 2.0
 	for i in cls_ids.size():
-		var cid: String = cls_ids[i]
-		_inv_ab_row("invab_c%d" % i, Rect2(dx, ly + i * rh, lw, rh - 2), cid, name, lv, AB_EQUIP[name].cls == cid)
-	var rh2: float = minf(rh * 2.0, (list_bot - ly) / 5.0)
+		var c_id: String = cls_ids[i]
+		var col_i: int = int(i / 5)
+		var row_i: int = i % 5
+		_inv_ab_row("invab_c%d" % i, Rect2(dx + float(col_i) * (ccw + rg), y + float(row_i) * (rh + rg), ccw, rh), c_id, name, lv, cid == c_id, aid == c_id)
+	var sy: float = y
+	if stack:
+		sy = y + 5.0 * (rh + rg) + 4.0
+		section_label("SUBCLASS %s  ·  %d/5 owned" % [sub.to_upper(), unlocked_sub_ids(name).size()], s_x, sy + 6.0, short)
+		sy += 18.0
 	for j in sub_ids.size():
-		var sid: String = sub_ids[j]
-		_inv_ab_row("invab_s%d" % j, Rect2(dx + lw + col_gap, ly + j * rh2, rw, rh2 - 2), sid, name, lv, AB_EQUIP[name].sub == sid)
-	# detail box with the full blurb
-	var view: String = inv_ab_view
-	if not ABILITY_DEFS.has(view):
-		view = str(AB_EQUIP[name].cls)
-	var dr := Rect2(dx, bottom - det_h, dw, det_h)
-	var plate := Color("#2a1a10")
-	plate.a = 0.2
-	draw_rect(dr, plate)
-	if ABILITY_DEFS.has(view):
-		var ab: Dictionary = ABILITY_DEFS[view]
-		var owned: bool = lv >= int(ab.lv)
-		var head: String = str(ab.name) + "  ·  " + ("Class" if str(ab.src) == "class" else "Subclass " + str(ab.owner)) + "  ·  Lv " + str(int(ab.lv)) + ("" if owned else "  (locked)") + "  ·  Needs full MP"
-		text(head, dr.position.x + 8, dr.position.y + 11, fit_size(head, 12, dw - 16, 9), Color("#2a1a10"), "left")
-		var body: String = str(ab.blurb) + "  " + ab_effect_line(view) + "."
-		var bl: Array = wrap_words(body, 11, dw - 16)
-		for li in mini(bl.size(), 2 if short else 3):
-			text(str(bl[li]), dr.position.x + 8, dr.position.y + 25 + li * 13, 11, Color("#5b3b20"), "left")
+		var s_id: String = sub_ids[j]
+		_inv_ab_row("invab_s%d" % j, Rect2(s_x, sy + float(j) * (rh + rg), s_w, rh), s_id, name, lv, sid == s_id, aid == s_id)
+	if show_detail:
+		var view: String = inv_ab_view
+		if not ABILITY_DEFS.has(view):
+			view = cid
+		if ABILITY_DEFS.has(view):
+			var ab: Dictionary = ABILITY_DEFS[view]
+			var dr := Rect2(dx, bottom - det_h, dw, det_h)
+			rbox(dr, det_h / 2.0, UI_TEAL_L)
+			var owned: bool = lv >= int(ab.lv)
+			var body: String = str(ab.name) + ":  " + str(ab.blurb) + ("" if owned else "  (Unlocks at Lv %d)" % int(ab.lv))
+			text(body, dr.position.x + 18.0, dr.get_center().y, fit_size(body, 13.0, dr.size.x - 36.0, 9.0), UI_TEAL_D, "left")
 
-func _inv_ab_row(id_btn: String, r: Rect2, ab_id: String, name: String, lv: int, on: bool) -> void:
+func _inv_ab_row(id_btn: String, r: Rect2, ab_id: String, name: String, lv: int, on: bool, is_auto: bool = false) -> void:
 	var ab: Dictionary = ABILITY_DEFS[ab_id]
 	var owned: bool = lv >= int(ab.lv)
 	var col: Color = ab_color(ab_id)
+	var rad: float = minf(16.0, r.size.y / 2.0)
+	var viewing: bool = inv_ab_view == ab_id
 	if on:
-		draw_rect(r, Color("#c8a05a"))
-		draw_rect(Rect2(r.position.x + 2, r.position.y + 2, r.size.x - 4, r.size.y - 4), Color("#3a2412"))
+		rbox(r, rad, UI_GOLD_L, UI_GOLD, 2.5)
+	elif owned:
+		rbox(r, rad, UI_CARD, UI_TEAL if viewing else UI_LINE, 2.0 if viewing else 1.5)
 	else:
-		var pl := Color("#2a1a10")
-		pl.a = 0.14 if owned else 0.06
-		draw_rect(r, pl)
-	if inv_ab_view == ab_id:
-		draw_rect(Rect2(r.position.x, r.position.y, 3, r.size.y), col)
-	var lvs: String = "Lv%d" % int(ab.lv)
-	var nm: String = str(ab.name) + ("  (ON)" if on else "")
-	var tc: Color = Color("#ffe27a") if on else (Color("#2a1a10") if owned else Color("#9a8060"))
-	var lc: Color = Color("#c8a06a") if on else Color("#7a5a32")
-	var two_line: bool = r.size.y >= 30
-	text(lvs, r.position.x + 6, r.position.y + (10 if two_line else r.size.y * 0.52), 9, lc, "left")
-	var nx: float = r.position.x + 36
-	var nw: float = r.size.x - 40
-	if two_line:
-		text(nm, nx, r.position.y + 10, fit_size(nm, 12, nw, 9), tc, "left")
-		var el: String = ab_effect_line(ab_id) if owned else ("Locked — reach Lv %d" % int(ab.lv))
-		text(el, nx, r.position.y + 23, fit_size(el, 10, nw, 7), lc, "left")
+		rbox(r, rad, Color(1, 1, 1, 0.25), UI_TEAL if viewing else Color(UI_LINE.r, UI_LINE.g, UI_LINE.b, 0.7), 1.5)
+	var x: float = r.position.x + 12.0
+	if owned:
+		draw_circle(Vector2(x + 4.0, r.get_center().y), 5.0, ca(col))
 	else:
-		var one: String = nm + "  " + (ab_effect_line(ab_id) if owned else "(locked)")
-		text(one, nx, r.position.y + r.size.y * 0.52, fit_size(one, 11, nw, 7), tc, "left")
+		draw_circle(Vector2(x + 4.0, r.get_center().y), 5.0, ca(Color(UI_LOCK.r, UI_LOCK.g, UI_LOCK.b, 0.5)))
+	x += 16.0
+	var right: float = r.end.x - 8.0
+	var bfs: float = 10.0
+	if on:
+		right -= chip("ON", right, r.get_center().y, bfs, UI_GOLD, Color("#3d2706"), "right") + 4.0
+		if is_auto:
+			right -= chip("AUTO", right, r.get_center().y, bfs, UI_TEAL, Color.WHITE, "right") + 4.0
+	elif not owned:
+		right -= chip("Lv %d" % int(ab.lv), right, r.get_center().y, bfs, Color(UI_LOCK.r, UI_LOCK.g, UI_LOCK.b, 0.22), UI_MUTED, "right") + 4.0
+	var nw: float = right - x - 4.0
+	var nm: String = str(ab.name)
+	var tc: Color = UI_INK if owned else UI_LOCK
+	if r.size.y >= 34.0:
+		text(nm, x, r.get_center().y - 7.0, fit_size(nm, 13.0, nw, 9.0), tc, "left")
+		var el: String = ab_effect_line(ab_id) if owned else "Locked"
+		text(el, x, r.get_center().y + 8.0, fit_size(el, 10.0, nw, 7.0), UI_TEAL_D if owned else UI_LOCK, "left")
+	else:
+		text(nm, x, r.get_center().y, fit_size(nm, 12.0, nw, 8.0), tc, "left")
 	var aid: String = ab_id
 	add_btn(id_btn, r, func(): _inv_tap_ability(name, aid))
 
@@ -3916,6 +4115,7 @@ func show_results() -> void:
 		raid_name = "Wild Lv." + str(int(encounter.get("level", 1)))
 	if r == "draw" and encounter.is_empty():
 		xp_full = raid_xp_award(G.n_red, false)
+	stash_party_mp()
 	var ups: Array = []
 	# Fighters get full XP; bench gets half on a win, none on a loss or draw.
 	for name in party_names():
