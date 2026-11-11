@@ -640,11 +640,12 @@ func level_bonus(level: int, sub: String = "Riftblade") -> Dictionary:
 	# General bump on every stat, plus a larger extra bump on the current subclass focus.
 	# Recalculated from level + current subclass (not historic).
 	var lv: int = maxi(0, level - 1)
+	# Combat pass: general growth roughly doubled so ten levels are felt in a fight (L1 is unchanged).
 	var d := {
-		"hp": 2 * lv,
-		"atk": int(roundf(0.25 * lv)),
-		"def": int(roundf(0.25 * lv)),
-		"armor": int(roundf(0.10 * lv)),
+		"hp": 4 * lv,
+		"atk": int(roundf(0.5 * lv)),
+		"def": int(roundf(0.4 * lv)),
+		"armor": int(roundf(0.15 * lv)),
 		"crit": int(roundf(0.15 * lv)),
 		"mana": int(roundf(0.10 * lv)),
 		"speed": int(roundf(0.15 * lv)),
@@ -814,8 +815,8 @@ func char_stats(name: String, kind: String, team: String, n_red: int) -> Diction
 		return compute_hero_stats(name)
 	var g: Dictionary = GOB_CLASS[kind]
 	var f: Dictionary = GOB_FLAVOR.get(name, {"atk": 1.0, "def": 1.0})
-	var hpM := 4.2 if n_red == 1 else (2.2 if n_red == 2 else 1.25)
-	var atkM := 1.35 if n_red == 1 else (1.15 if n_red == 2 else 1.0)
+	var hpM := BOSS_HP_M if n_red == 1 else (2.2 if n_red == 2 else 1.25)
+	var atkM := BOSS_ATK_M if n_red == 1 else (1.15 if n_red == 2 else 1.0)
 	var defM := 1.25 if n_red == 1 else (1.1 if n_red == 2 else 1.0)
 	return {
 		"hp": int(roundf(hp_from_atk(g.atk) * hpM)),
@@ -829,6 +830,8 @@ func char_stats(name: String, kind: String, team: String, n_red: int) -> Diction
 		"kind": kind,
 		"scale": 1.4 if n_red == 1 else (1.12 if n_red == 2 else 1.0),
 	}
+var BOSS_HP_M := 5.4 # was 4.2: the boss now acts twice a turn and is meant to be the hardest raid
+var BOSS_ATK_M := 1.45 # was 1.35
 func def_mit(d: float) -> float: return 100.0 / (100.0 + maxf(0.0, d))
 func uS(u) -> float: return US * (u.scale if u else 1.0)
 # landscape design coords, front (melee) slots first. Slot 1 = single boss (missing in game.js).
@@ -1006,13 +1009,14 @@ func new_battle(n: int = 0) -> void:
 	else:
 		last_raid = n
 		red = build_red_roster(n)
+		emult = raid_level_mult()
 	for team in ["blue", "red"]:
 		var roster: Array = build_blue_roster() if team == "blue" else red
 		for i in roster.size():
 			var r: Array = roster[i]
 			var p := mp(r[2], r[3])
 			var st: Dictionary = char_stats(r[1], r[0], team, 3 if enc_on else n)
-			if enc_on and team == "red":
+			if team == "red" and not emult.is_empty():
 				st.hp = maxi(40, int(roundf(float(st.hp) * float(emult.hp))))
 				st.atk = maxi(1, int(roundf(float(st.atk) * float(emult.atk))))
 				st.def = maxi(1, int(roundf(float(st.def) * float(emult.def))))
@@ -1034,6 +1038,21 @@ func new_battle(n: int = 0) -> void:
 	G.units = units
 	G.n_red = n
 	fx = []; projectiles = []; texts = []; banner = null; cast_banner = null; screen_flash = null
+
+## Raids follow the party's level on the same curve as wild fights (encounters.json "scaling"),
+## normalised at RAID_REF_LV: parties at or below it see the original raid numbers.
+var RAID_REF_LV := 10
+func raid_level_mult() -> Dictionary:
+	if WORLD == null:
+		return {}
+	var tot := 0
+	var names := party_names()
+	for nm in names:
+		tot += hero_level(nm)
+	var lv: int = maxi(1, int(roundf(float(tot) / maxf(1.0, float(names.size())))))
+	var a: Dictionary = WORLD.enemy_mult(lv)
+	var b: Dictionary = WORLD.enemy_mult(RAID_REF_LV)
+	return {"hp": maxf(1.0, float(a.hp) / maxf(0.01, float(b.hp))), "atk": maxf(1.0, float(a.atk) / maxf(0.01, float(b.atk))), "def": maxf(1.0, float(a.def) / maxf(0.01, float(b.def)))}
 
 # ---------------------------------------------------------------- simulation
 func alive(team: String) -> Array:
@@ -1324,12 +1343,25 @@ func hit(u, t, mult: float, special: bool, is_splash: bool = false, color: Strin
 		return
 	sync_pending.append({"u": u, "t": t, "mult": mult, "special": special, "color": color, "age": 0.0})
 
+const ARMOR_FLOOR := 0.3 # armor soaks flat damage but every hit keeps at least this share of its post-Defense value
 func mitigate_raw(raw: float, t) -> int:
-	var cut: float = raw * def_mit(t.def) - float(t.armor)
+	var after_def: float = raw * def_mit(t.def)
+	var cut: float = maxf(after_def - float(t.armor), after_def * ARMOR_FLOOR)
 	return maxi(1, int(roundf(cut)))
+
+## Speed is evasion: a faster target slips some normal hits (never abilities, specials or splash).
+const DODGE_PER_SPD := 0.006
+const DODGE_CAP := 0.22
+func dodge_chance(u, t) -> float:
+	return clampf((float(t.speed) - float(u.speed)) * DODGE_PER_SPD, 0.0, DODGE_CAP)
 
 func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "", ab: bool = false) -> void:
 	if t == null or t.dead: return
+	if not special and not is_splash and not ab and randf() < dodge_chance(u, t):
+		add_text(t.x + rand(-8, 8), t.y - t.K.head * uS(t) - 6, "DODGE", "#d8f6ff", 15, 650, true)
+		t.kx = (1.0 if t.x >= u.x else -1.0) * 12
+		sfx.tone(1180, 0.05, "triangle", 0.025, 0.6)
+		return
 	var crit_p: float = clampf(float(u.crit) / 100.0, 0.0, 0.6)
 	var crit := (ab or not special) and not is_splash and randf() < crit_p
 	# Melee damage is fixed (crits and combos are the only swings); ranged keeps a small roll.
@@ -1467,6 +1499,9 @@ func execute_orders() -> void:
 func begin_enemy_turn() -> void:
 	G.side = "red"; G.mode = "enemyIntro"; G.gap = 520; G.qi = 0; G.cur = null
 	G.queue = shuffled(alive("red"))
+	# A raid boss is one unit against five: it takes two actions a turn so the fight has real pressure.
+	if G.n_red == 1 and encounter.is_empty() and G.queue.size() == 1:
+		G.queue.append(G.queue[0])
 	tick_mods("red")
 	apply_mana_regen("red")
 	plan_actions(G.queue)
@@ -1497,6 +1532,8 @@ func controller(dt: float) -> void:
 		while G.qi < G.queue.size() and G.queue[G.qi].dead: G.qi += 1
 		if G.qi < G.queue.size():
 			var u = G.queue[G.qi]
+			if u.act != null:
+				return # same unit queued again (boss): let its previous action finish first
 			G.qi += 1
 			G.cur = u
 			start_action(u)
@@ -1530,9 +1567,26 @@ func auto_queue_turn() -> void:
 		u.ab_queued = ""
 		if u.gauge >= AB_MP:
 			var aid: String = auto_ab(u.name) if CHAR.has(u.name) else ""
-			if aid != "" and ABILITY_DEFS.has(aid) and (aid == u.ab_class or aid == u.ab_sub):
+			if aid != "" and ABILITY_DEFS.has(aid) and (aid == u.ab_class or aid == u.ab_sub) and auto_wants(u, aid):
 				u.ab_queued = aid
 	execute_orders()
+
+## AUTO keeps a heal banked (basic attack instead) until someone is actually hurt.
+func auto_wants(u, id: String) -> bool:
+	var ab: Dictionary = ABILITY_DEFS[id]
+	var kind: String = str(ab.kind)
+	if kind == "heal_single":
+		var t = u if bool(ab.params.get("self", false)) else lowest_ally(u)
+		return t != null and float(t.hp) / maxf(1.0, float(t.maxhp)) < 0.6
+	if kind == "heal_party":
+		var lo := 1.0
+		var tot := 0.0
+		var al := alive(u.team)
+		for a in al:
+			var r: float = float(a.hp) / maxf(1.0, float(a.maxhp))
+			lo = minf(lo, r); tot += r
+		return lo < 0.5 or (al.size() > 0 and tot / al.size() < 0.75)
+	return true
 
 func toggle_auto() -> void:
 	AUTO = not AUTO
@@ -1707,6 +1761,10 @@ func start_ability(u, id: String) -> bool:
 		if foes.is_empty():
 			return false
 		t = u.plan.target if (u.plan != null and u.plan.target != null and not u.plan.target.dead) else pick(foes)
+		if kind == "damage_single":
+			# Players can't aim, so a big single hit goes where it can finish someone: the foe with the least HP.
+			for f in foes:
+				if f.hp < t.hp: t = f
 		if u.plan != null: u.plan.target = t
 	elif kind == "heal_single":
 		t = u if bool(p.get("self", false)) else lowest_ally(u)

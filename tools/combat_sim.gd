@@ -28,8 +28,14 @@ func set_levels(lv: int, best: bool) -> void:
 		if best:
 			var c: Array = g.unlocked_class_ids(h)
 			var s: Array = g.unlocked_sub_ids(h)
-			if c.size() > 0: g.AB_EQUIP[h].cls = c[c.size() - 1]
-			if s.size() > 0: g.AB_EQUIP[h].sub = s[s.size() - 1]
+			if c.size() > 0: g.AB_EQUIP[h].cls = pick_best(c)
+			if s.size() > 0: g.AB_EQUIP[h].sub = pick_best(s)
+
+## Newest unlocked damage ability (what a player chasing damage would equip); newest overall if none.
+func pick_best(ids: Array) -> String:
+	for i in range(ids.size() - 1, -1, -1):
+		if str(g.ABILITY_DEFS[ids[i]].kind).begins_with("damage"): return ids[i]
+	return ids[ids.size() - 1]
 
 func fight(mode: int, enc: Dictionary) -> Dictionary:
 	if enc.is_empty():
@@ -100,6 +106,15 @@ func summarize(tag: String, rs: Array) -> void:
 func _run() -> void:
 	await wait(300)
 	g.sfx.muted = true
+	# --set=VAR:val,VAR:val overrides game.gd vars; --scale=key:val overrides encounters.json scaling (tuning sweeps).
+	if args.has("set"):
+		for kv in str(args.set).split(","):
+			var p := kv.split(":")
+			g.set(p[0], float(p[1]))
+	if args.has("scale"):
+		for kv in str(args.scale).split(","):
+			var p2 := kv.split(":")
+			g.WORLD.enc_cfg.scaling[p2[0]] = float(p2[1])
 	var n := int(args.get("n", "30"))
 	var best: bool = args.get("best", "1") == "1"
 	var levels: Array = []
@@ -113,6 +128,9 @@ func _run() -> void:
 				set_levels(lv, best)
 				rs.append(fight(mode, {}))
 			summarize("L%d raid6v%d" % [lv, mode], rs)
+		if args.has("zones"):
+			# --zones=15,25,35 enemy levels; --gap=0 hero level offset over the zone (uses lv as gap list when --gaps given)
+			pass
 		if args.get("wild", "0") == "1":
 			for kinds in [["torch"], ["torch", "barrel"], ["torch", "barrel", "tnt"], ["tnt", "tnt", "barrel"]]:
 				var rs2: Array = []
@@ -120,4 +138,14 @@ func _run() -> void:
 					set_levels(lv, best)
 					rs2.append(fight(3, {"kinds": kinds, "level": lv, "area": "brookside_wilds"}))
 				summarize("L%d wild %s" % [lv, "+".join(kinds)], rs2)
+	if args.has("zones"):
+		for z in str(args.zones).split(","):
+			for gp in str(args.get("gaps", "0,5,10")).split(","):
+				var zl := int(z); var hl := mini(99, zl + int(gp))
+				var rs3: Array = []
+				for kinds in [["torch", "barrel"], ["torch", "barrel", "tnt"], ["tnt", "tnt", "barrel"], ["barrel", "barrel"]]:
+					for i in maxi(1, n / 4):
+						set_levels(hl, best)
+						rs3.append(fight(3, {"kinds": kinds, "level": zl, "area": "x"}))
+				summarize("zone L%d hero L%d" % [zl, hl], rs3)
 	quit()
