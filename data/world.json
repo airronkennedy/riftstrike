@@ -1,0 +1,984 @@
+{
+ "_readme": "Riftstrike world graph. Edit freely: areas (name, rec level, map pos), links, gates (set enabled=false to unlock), flags. Tile layout lives in world_map.txt; area/gate tile rects in world_tiles.json.",
+ "region": "The Riftmarch",
+ "acts": {
+  "1": "Act I \u00b7 The Riverlands",
+  "2": "Act II \u00b7 The Ember Highlands",
+  "3": "Act III \u00b7 Frostveil",
+  "4": "Act IV \u00b7 The Crownlands",
+  "5": "Post-game"
+ },
+ "gates_enabled": true,
+ "start_area": "rivenbrook",
+ "wardens": [
+  "warden_bells",
+  "warden_lanterns",
+  "warden_moons",
+  "warden_forge"
+ ],
+ "flags": {
+  "lighthouse_key": "Key from the marsh keeper.",
+  "thornwick_pass": "Militia pass from Thornwick's captain.",
+  "boss_ironbridge": "Fort commander defeated.",
+  "warden_bells": "WARDEN: Warden of Bells (Sunken Abbey).",
+  "warden_lanterns": "WARDEN: Warden of Lanterns (Lanternkeep).",
+  "warden_moons": "WARDEN: Warden of Moons (Seer's Spire).",
+  "warden_forge": "WARDEN: Warden of the Forge (Molten Capital).",
+  "catacomb_bridge_dropped": "Caldera bridge cut in the catacomb.",
+  "catacomb_cleared": "Underroot Catacomb boss defeated.",
+  "vault_key": "Jailer's key from the terraces.",
+  "drake_sigil": "Sigil found in the citadel.",
+  "boss_kingshold": "Citadel guardians defeated.",
+  "archive_cleared": "Starfall Archive boss defeated.",
+  "game_cleared": "Ending reached."
+ },
+ "start_flags": [],
+ "areas": [
+  {
+   "id": "rivenbrook",
+   "name": "Rivenbrook",
+   "kind": "town",
+   "act": 1,
+   "rec": 1,
+   "rec_max": 1,
+   "hours": 0.5,
+   "optional": false,
+   "map": [
+    8,
+    70
+   ],
+   "built": "walkable",
+   "blurb": "Starter hamlet on the river. Home base."
+  },
+  {
+   "id": "brookside_meadow",
+   "name": "Brookside Meadow",
+   "kind": "wild",
+   "act": 1,
+   "rec": 2,
+   "rec_max": 4,
+   "hours": 1.0,
+   "optional": false,
+   "map": [
+    18,
+    70
+   ],
+   "built": "walkable",
+   "blurb": "Tall-grass fields east of town. First wild encounters."
+  },
+  {
+   "id": "whisperreed_marsh",
+   "name": "Whisperreed Marsh",
+   "kind": "wild",
+   "act": 1,
+   "rec": 4,
+   "rec_max": 6,
+   "hours": 1.0,
+   "optional": true,
+   "map": [
+    14,
+    84
+   ],
+   "built": "walkable",
+   "blurb": "Reedy ponds south of Rivenbrook. Optional loot and grinding."
+  },
+  {
+   "id": "old_mill_road",
+   "name": "Old Mill Road",
+   "kind": "route",
+   "act": 1,
+   "rec": 4,
+   "rec_max": 7,
+   "hours": 1.0,
+   "optional": false,
+   "map": [
+    28,
+    70
+   ],
+   "built": "walkable",
+   "blurb": "Sandy road past the old mill toward Thornwick."
+  },
+  {
+   "id": "thornwick",
+   "name": "Thornwick",
+   "kind": "town",
+   "act": 1,
+   "rec": 7,
+   "rec_max": 7,
+   "hours": 0.5,
+   "optional": false,
+   "map": [
+    38,
+    70
+   ],
+   "built": "walkable",
+   "blurb": "Crossroads town. First real fork in the road."
+  },
+  {
+   "id": "hollowpine_wood",
+   "name": "Hollowpine Wood",
+   "kind": "wild",
+   "act": 1,
+   "rec": 8,
+   "rec_max": 11,
+   "hours": 1.5,
+   "optional": false,
+   "map": [
+    46,
+    60
+   ],
+   "built": "walkable",
+   "blurb": "Dense pine forest. North way to the fort."
+  },
+  {
+   "id": "saltmere_shore",
+   "name": "Saltmere Shore",
+   "kind": "wild",
+   "act": 1,
+   "rec": 8,
+   "rec_max": 11,
+   "hours": 1.5,
+   "optional": false,
+   "map": [
+    46,
+    82
+   ],
+   "built": "walkable",
+   "blurb": "Dunes and tide pools. South way to the fort."
+  },
+  {
+   "id": "gullcliff_lighthouse",
+   "name": "Gullcliff Lighthouse",
+   "kind": "dungeon",
+   "act": 1,
+   "rec": 12,
+   "rec_max": 13,
+   "hours": 1.0,
+   "optional": true,
+   "map": [
+    56,
+    92
+   ],
+   "built": "stub",
+   "blurb": "Sealed lighthouse on a sea spit. Optional climb."
+  },
+  {
+   "id": "ironbridge_fort",
+   "name": "Ironbridge Fort",
+   "kind": "dungeon",
+   "act": 1,
+   "rec": 13,
+   "rec_max": 14,
+   "hours": 1.5,
+   "optional": false,
+   "map": [
+    56,
+    70
+   ],
+   "built": "stub",
+   "blurb": "Garrison over the gorge. Both forest and shore paths meet here."
+  },
+  {
+   "id": "emberfall",
+   "name": "Emberfall",
+   "kind": "town",
+   "act": 2,
+   "rec": 15,
+   "rec_max": 15,
+   "hours": 0.5,
+   "optional": false,
+   "map": [
+    64,
+    62
+   ],
+   "built": "planned",
+   "blurb": "Mining town on the highland rim."
+  },
+  {
+   "id": "kindlegrass_steppe",
+   "name": "Kindlegrass Steppe",
+   "kind": "wild",
+   "act": 2,
+   "rec": 16,
+   "rec_max": 19,
+   "hours": 1.5,
+   "optional": false,
+   "map": [
+    70,
+    52
+   ],
+   "built": "planned",
+   "blurb": "Windy red-grass plains. Splits west and east."
+  },
+  {
+   "id": "redcap_hills",
+   "name": "Redcap Hills",
+   "kind": "wild",
+   "act": 2,
+   "rec": 24,
+   "rec_max": 27,
+   "hours": 1.0,
+   "optional": true,
+   "map": [
+    78,
+    64
+   ],
+   "built": "planned",
+   "blurb": "Mushroom hills with tougher wild packs."
+  },
+  {
+   "id": "glasswind_canyon",
+   "name": "Glasswind Canyon",
+   "kind": "route",
+   "act": 2,
+   "rec": 19,
+   "rec_max": 22,
+   "hours": 1.5,
+   "optional": false,
+   "map": [
+    64,
+    40
+   ],
+   "built": "planned",
+   "blurb": "West branch: crystal canyon toward the abbey."
+  },
+  {
+   "id": "sunken_abbey",
+   "name": "Sunken Abbey",
+   "kind": "dungeon",
+   "act": 2,
+   "rec": 23,
+   "rec_max": 25,
+   "hours": 2.0,
+   "optional": false,
+   "map": [
+    58,
+    30
+   ],
+   "built": "planned",
+   "blurb": "Flooded abbey. Warden of Bells waits below."
+  },
+  {
+   "id": "mirefen_deep",
+   "name": "Mirefen Deep",
+   "kind": "wild",
+   "act": 2,
+   "rec": 20,
+   "rec_max": 23,
+   "hours": 1.5,
+   "optional": false,
+   "map": [
+    80,
+    46
+   ],
+   "built": "planned",
+   "blurb": "East branch: bog wilds toward Foxglove."
+  },
+  {
+   "id": "foxglove_hamlet",
+   "name": "Foxglove Hamlet",
+   "kind": "town",
+   "act": 2,
+   "rec": 21,
+   "rec_max": 21,
+   "hours": 0.5,
+   "optional": false,
+   "map": [
+    88,
+    52
+   ],
+   "built": "planned",
+   "blurb": "Hidden village in the fen."
+  },
+  {
+   "id": "lanternkeep",
+   "name": "Lanternkeep",
+   "kind": "dungeon",
+   "act": 2,
+   "rec": 25,
+   "rec_max": 27,
+   "hours": 2.0,
+   "optional": false,
+   "map": [
+    88,
+    38
+   ],
+   "built": "planned",
+   "blurb": "Keep of hanging lanterns. Warden of Lanterns."
+  },
+  {
+   "id": "underroot_catacomb",
+   "name": "Underroot Catacomb",
+   "kind": "dungeon",
+   "act": 2,
+   "rec": 27,
+   "rec_max": 30,
+   "hours": 2.0,
+   "optional": false,
+   "map": [
+    80,
+    30
+   ],
+   "built": "planned",
+   "blurb": "Root-choked tombs under the keep."
+  },
+  {
+   "id": "smokewater_caldera",
+   "name": "Smokewater Caldera",
+   "kind": "dungeon",
+   "act": 2,
+   "rec": 31,
+   "rec_max": 34,
+   "hours": 1.5,
+   "optional": true,
+   "map": [
+    90,
+    22
+   ],
+   "built": "planned",
+   "blurb": "Optional volcanic lake below the catacomb."
+  },
+  {
+   "id": "frostveil_bridge",
+   "name": "Frostveil Bridge",
+   "kind": "route",
+   "act": 3,
+   "rec": 30,
+   "rec_max": 32,
+   "hours": 0.5,
+   "optional": false,
+   "map": [
+    70,
+    22
+   ],
+   "built": "planned",
+   "blurb": "Long frozen bridge. Sealed until the abbey and catacomb fall."
+  },
+  {
+   "id": "frostveil",
+   "name": "Frostveil",
+   "kind": "town",
+   "act": 3,
+   "rec": 32,
+   "rec_max": 32,
+   "hours": 0.5,
+   "optional": false,
+   "map": [
+    62,
+    16
+   ],
+   "built": "planned",
+   "blurb": "Snowbound city of spires."
+  },
+  {
+   "id": "moonlit_terraces",
+   "name": "Moonlit Terraces",
+   "kind": "wild",
+   "act": 3,
+   "rec": 33,
+   "rec_max": 36,
+   "hours": 1.5,
+   "optional": false,
+   "map": [
+    52,
+    12
+   ],
+   "built": "planned",
+   "blurb": "Terraced gardens. Splits to the spire or the vault."
+  },
+  {
+   "id": "seers_spire",
+   "name": "Seer's Spire",
+   "kind": "dungeon",
+   "act": 3,
+   "rec": 37,
+   "rec_max": 40,
+   "hours": 2.0,
+   "optional": false,
+   "map": [
+    42,
+    6
+   ],
+   "built": "planned",
+   "blurb": "West branch: tower of the Warden of Moons."
+  },
+  {
+   "id": "deepvault_prison",
+   "name": "Deepvault Prison",
+   "kind": "dungeon",
+   "act": 3,
+   "rec": 37,
+   "rec_max": 40,
+   "hours": 1.5,
+   "optional": false,
+   "map": [
+    52,
+    24
+   ],
+   "built": "planned",
+   "blurb": "East branch: prison under the terraces."
+  },
+  {
+   "id": "molten_capital",
+   "name": "Molten Capital",
+   "kind": "dungeon",
+   "act": 3,
+   "rec": 41,
+   "rec_max": 44,
+   "hours": 2.0,
+   "optional": false,
+   "map": [
+    44,
+    28
+   ],
+   "built": "planned",
+   "blurb": "Fallen city past the prison. Warden of the Forge."
+  },
+  {
+   "id": "hoarfrost_pass",
+   "name": "Hoarfrost Pass",
+   "kind": "wild",
+   "act": 3,
+   "rec": 42,
+   "rec_max": 45,
+   "hours": 1.0,
+   "optional": true,
+   "map": [
+    34,
+    18
+   ],
+   "built": "planned",
+   "blurb": "Icy pass west of Frostveil. Back way to the crown lands."
+  },
+  {
+   "id": "kingshold_approach",
+   "name": "Kingshold Approach",
+   "kind": "route",
+   "act": 4,
+   "rec": 45,
+   "rec_max": 47,
+   "hours": 1.0,
+   "optional": false,
+   "map": [
+    30,
+    34
+   ],
+   "built": "planned",
+   "blurb": "Royal road behind the fort, sealed by the royal ward."
+  },
+  {
+   "id": "kingshold_citadel",
+   "name": "Kingshold Citadel",
+   "kind": "dungeon",
+   "act": 4,
+   "rec": 48,
+   "rec_max": 51,
+   "hours": 2.0,
+   "optional": false,
+   "map": [
+    22,
+    42
+   ],
+   "built": "planned",
+   "blurb": "The king's citadel."
+  },
+  {
+   "id": "withered_garden",
+   "name": "Withered Royal Garden",
+   "kind": "wild",
+   "act": 4,
+   "rec": 47,
+   "rec_max": 50,
+   "hours": 1.0,
+   "optional": true,
+   "map": [
+    12,
+    36
+   ],
+   "built": "planned",
+   "blurb": "Optional overgrown palace garden."
+  },
+  {
+   "id": "drakespire_peak",
+   "name": "Drakespire Peak",
+   "kind": "dungeon",
+   "act": 4,
+   "rec": 55,
+   "rec_max": 58,
+   "hours": 1.5,
+   "optional": true,
+   "map": [
+    8,
+    22
+   ],
+   "built": "planned",
+   "blurb": "Optional summit. Needs the drake sigil."
+  },
+  {
+   "id": "starfall_archive",
+   "name": "Starfall Archive",
+   "kind": "dungeon",
+   "act": 4,
+   "rec": 54,
+   "rec_max": 57,
+   "hours": 2.0,
+   "optional": false,
+   "map": [
+    22,
+    24
+   ],
+   "built": "planned",
+   "blurb": "Library of falling stars. Last stop before the heart."
+  },
+  {
+   "id": "rift_heart",
+   "name": "The Rift Heart",
+   "kind": "final",
+   "act": 4,
+   "rec": 60,
+   "rec_max": 60,
+   "hours": 1.0,
+   "optional": false,
+   "map": [
+    22,
+    10
+   ],
+   "built": "planned",
+   "blurb": "Where the rift began. Needs all four warden seals."
+  },
+  {
+   "id": "hushed_hollow",
+   "name": "Hushed Hollow",
+   "kind": "secret",
+   "act": 5,
+   "rec": 65,
+   "rec_max": 68,
+   "hours": 1.0,
+   "optional": true,
+   "map": [
+    3,
+    56
+   ],
+   "built": "planned",
+   "blurb": "Post-game secret behind Rivenbrook."
+  },
+  {
+   "id": "shattered_expanse",
+   "name": "Shattered Expanse",
+   "kind": "postgame",
+   "act": 5,
+   "rec": 75,
+   "rec_max": 85,
+   "hours": 2.0,
+   "optional": true,
+   "map": [
+    34,
+    4
+   ],
+   "built": "planned",
+   "blurb": "Post-game rift fields."
+  },
+  {
+   "id": "riftsea_depths",
+   "name": "Riftsea Depths",
+   "kind": "postgame",
+   "act": 5,
+   "rec": 88,
+   "rec_max": 99,
+   "hours": 2.0,
+   "optional": true,
+   "map": [
+    48,
+    2
+   ],
+   "built": "planned",
+   "blurb": "Post-game abyss. Level 99 content."
+  }
+ ],
+ "links": [
+  {
+   "from": "rivenbrook",
+   "to": "brookside_meadow",
+   "gate": ""
+  },
+  {
+   "from": "rivenbrook",
+   "to": "whisperreed_marsh",
+   "gate": ""
+  },
+  {
+   "from": "brookside_meadow",
+   "to": "whisperreed_marsh",
+   "gate": ""
+  },
+  {
+   "from": "brookside_meadow",
+   "to": "old_mill_road",
+   "gate": ""
+  },
+  {
+   "from": "old_mill_road",
+   "to": "thornwick",
+   "gate": ""
+  },
+  {
+   "from": "thornwick",
+   "to": "hollowpine_wood",
+   "gate": ""
+  },
+  {
+   "from": "thornwick",
+   "to": "saltmere_shore",
+   "gate": ""
+  },
+  {
+   "from": "saltmere_shore",
+   "to": "gullcliff_lighthouse",
+   "gate": "g_lighthouse_door"
+  },
+  {
+   "from": "hollowpine_wood",
+   "to": "ironbridge_fort",
+   "gate": "g_fort_north"
+  },
+  {
+   "from": "saltmere_shore",
+   "to": "ironbridge_fort",
+   "gate": "g_fort_south"
+  },
+  {
+   "from": "ironbridge_fort",
+   "to": "emberfall",
+   "gate": "g_ironbridge_span"
+  },
+  {
+   "from": "emberfall",
+   "to": "kindlegrass_steppe",
+   "gate": ""
+  },
+  {
+   "from": "emberfall",
+   "to": "redcap_hills",
+   "gate": ""
+  },
+  {
+   "from": "kindlegrass_steppe",
+   "to": "glasswind_canyon",
+   "gate": ""
+  },
+  {
+   "from": "glasswind_canyon",
+   "to": "sunken_abbey",
+   "gate": ""
+  },
+  {
+   "from": "kindlegrass_steppe",
+   "to": "mirefen_deep",
+   "gate": ""
+  },
+  {
+   "from": "mirefen_deep",
+   "to": "foxglove_hamlet",
+   "gate": ""
+  },
+  {
+   "from": "foxglove_hamlet",
+   "to": "lanternkeep",
+   "gate": ""
+  },
+  {
+   "from": "lanternkeep",
+   "to": "underroot_catacomb",
+   "gate": "g_catacomb_stair"
+  },
+  {
+   "from": "underroot_catacomb",
+   "to": "smokewater_caldera",
+   "gate": "g_caldera_bridge"
+  },
+  {
+   "from": "sunken_abbey",
+   "to": "frostveil_bridge",
+   "gate": ""
+  },
+  {
+   "from": "underroot_catacomb",
+   "to": "frostveil_bridge",
+   "gate": ""
+  },
+  {
+   "from": "frostveil_bridge",
+   "to": "frostveil",
+   "gate": "g_frostveil_seal"
+  },
+  {
+   "from": "frostveil",
+   "to": "moonlit_terraces",
+   "gate": ""
+  },
+  {
+   "from": "moonlit_terraces",
+   "to": "seers_spire",
+   "gate": ""
+  },
+  {
+   "from": "moonlit_terraces",
+   "to": "deepvault_prison",
+   "gate": "g_deepvault_door"
+  },
+  {
+   "from": "deepvault_prison",
+   "to": "molten_capital",
+   "gate": ""
+  },
+  {
+   "from": "frostveil",
+   "to": "hoarfrost_pass",
+   "gate": ""
+  },
+  {
+   "from": "ironbridge_fort",
+   "to": "kingshold_approach",
+   "gate": "g_royal_ward"
+  },
+  {
+   "from": "hoarfrost_pass",
+   "to": "kingshold_approach",
+   "gate": "g_royal_ward_north"
+  },
+  {
+   "from": "kingshold_approach",
+   "to": "kingshold_citadel",
+   "gate": ""
+  },
+  {
+   "from": "kingshold_citadel",
+   "to": "withered_garden",
+   "gate": ""
+  },
+  {
+   "from": "withered_garden",
+   "to": "drakespire_peak",
+   "gate": "g_drake_altar"
+  },
+  {
+   "from": "kingshold_citadel",
+   "to": "starfall_archive",
+   "gate": "g_archive_doors"
+  },
+  {
+   "from": "starfall_archive",
+   "to": "rift_heart",
+   "gate": "g_rift_heart"
+  },
+  {
+   "from": "rivenbrook",
+   "to": "hushed_hollow",
+   "gate": "g_hushed_hollow"
+  },
+  {
+   "from": "rift_heart",
+   "to": "shattered_expanse",
+   "gate": "g_postgame"
+  },
+  {
+   "from": "shattered_expanse",
+   "to": "riftsea_depths",
+   "gate": ""
+  }
+ ],
+ "gates": [
+  {
+   "id": "g_lighthouse_door",
+   "from": "saltmere_shore",
+   "to": "gullcliff_lighthouse",
+   "enabled": true,
+   "flags_all": [
+    "lighthouse_key"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "The lighthouse door is rusted shut.",
+   "story_beat": "Placeholder: an old keeper in Whisperreed Marsh gives you the lighthouse key."
+  },
+  {
+   "id": "g_fort_north",
+   "from": "hollowpine_wood",
+   "to": "ironbridge_fort",
+   "enabled": true,
+   "flags_all": [
+    "thornwick_pass"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "Fort sentries turn you back. You need a Thornwick pass.",
+   "story_beat": "Placeholder: earn the militia captain's pass in Thornwick (both fort paths check the same flag)."
+  },
+  {
+   "id": "g_fort_south",
+   "from": "saltmere_shore",
+   "to": "ironbridge_fort",
+   "enabled": true,
+   "flags_all": [
+    "thornwick_pass"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "The sea gate is barred. You need a Thornwick pass.",
+   "story_beat": "Placeholder: same pass as the north gate, so either branch works once you have it."
+  },
+  {
+   "id": "g_ironbridge_span",
+   "from": "ironbridge_fort",
+   "to": "emberfall",
+   "enabled": true,
+   "flags_all": [
+    "boss_ironbridge"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "The bridge is raised.",
+   "story_beat": "Placeholder: defeat the fort's commander to lower the iron bridge."
+  },
+  {
+   "id": "g_catacomb_stair",
+   "from": "lanternkeep",
+   "to": "underroot_catacomb",
+   "enabled": true,
+   "flags_all": [
+    "warden_lanterns"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "The stair is sealed by lantern light.",
+   "story_beat": "Placeholder: the seal fades when the Warden of Lanterns falls."
+  },
+  {
+   "id": "g_caldera_bridge",
+   "from": "underroot_catacomb",
+   "to": "smokewater_caldera",
+   "enabled": true,
+   "flags_all": [
+    "catacomb_bridge_dropped"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "A rope bridge hangs out of reach.",
+   "story_beat": "Placeholder: cut the bridge mid-catacomb to drop down to the caldera."
+  },
+  {
+   "id": "g_frostveil_seal",
+   "from": "frostveil_bridge",
+   "to": "frostveil",
+   "enabled": true,
+   "flags_all": [
+    "warden_bells",
+    "catacomb_cleared"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "A frost seal blocks the bridge.",
+   "story_beat": "Placeholder: the abbey bell and the catacomb's cleared tombs together melt the seal."
+  },
+  {
+   "id": "g_deepvault_door",
+   "from": "moonlit_terraces",
+   "to": "deepvault_prison",
+   "enabled": true,
+   "flags_all": [
+    "vault_key"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "The prison door is locked.",
+   "story_beat": "Placeholder: a jailer's key is found in the Moonlit Terraces."
+  },
+  {
+   "id": "g_royal_ward",
+   "from": "ironbridge_fort",
+   "to": "kingshold_approach",
+   "enabled": true,
+   "flags_all": [],
+   "flags_any": [],
+   "wardens_min": 3,
+   "locked_text": "A royal ward holds the gate. Three warden seals will break it.",
+   "story_beat": "Placeholder: three of the four warden seals break the ward (either of two routes)."
+  },
+  {
+   "id": "g_royal_ward_north",
+   "from": "hoarfrost_pass",
+   "to": "kingshold_approach",
+   "enabled": true,
+   "flags_all": [],
+   "flags_any": [],
+   "wardens_min": 3,
+   "locked_text": "The pass is warded. Three warden seals will break it.",
+   "story_beat": "Placeholder: same ward, reached from the frozen north."
+  },
+  {
+   "id": "g_drake_altar",
+   "from": "withered_garden",
+   "to": "drakespire_peak",
+   "enabled": true,
+   "flags_all": [
+    "drake_sigil"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "An empty altar. Something belongs here.",
+   "story_beat": "Placeholder: the drake sigil is hidden in Kingshold Citadel."
+  },
+  {
+   "id": "g_archive_doors",
+   "from": "kingshold_citadel",
+   "to": "starfall_archive",
+   "enabled": true,
+   "flags_all": [
+    "boss_kingshold"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "The archive doors are shut from inside.",
+   "story_beat": "Placeholder: beat the citadel's twin guardians to open the archive."
+  },
+  {
+   "id": "g_rift_heart",
+   "from": "starfall_archive",
+   "to": "rift_heart",
+   "enabled": true,
+   "flags_all": [
+    "archive_cleared"
+   ],
+   "flags_any": [],
+   "wardens_min": 4,
+   "locked_text": "The rift will not open. All four warden seals are needed.",
+   "story_beat": "Placeholder: the final seal opens with all four wardens down and the archive cleared."
+  },
+  {
+   "id": "g_hushed_hollow",
+   "from": "rivenbrook",
+   "to": "hushed_hollow",
+   "enabled": true,
+   "flags_all": [
+    "game_cleared"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "A path you can't quite see.",
+   "story_beat": "Placeholder: post-game secret revealed after the ending."
+  },
+  {
+   "id": "g_postgame",
+   "from": "rift_heart",
+   "to": "shattered_expanse",
+   "enabled": true,
+   "flags_all": [
+    "game_cleared"
+   ],
+   "flags_any": [],
+   "wardens_min": 0,
+   "locked_text": "The rift is still collapsing.",
+   "story_beat": "Placeholder: post-game rift fields open after the ending."
+  }
+ ]
+}

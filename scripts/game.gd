@@ -143,16 +143,292 @@ var SUB_DEFS := {
 	"Duelist": {"blurb": "Pick your opening", "crit": 6, "atk": 4, "speed": 3},
 }
 var SUB_IDS := ["Riftblade", "Vanguard", "Scout", "Sharpshot", "Ironhide", "Raider", "Sage", "Duelist"]
-# Unique character abilities. Combat effects are not wired yet — data + UI only.
-# Each catalog character should keep a unique subclass and a unique ability as the roster grows.
-var ABILITY_DEFS := {
-	"rift_cut": {"name": "Rift Cut", "blurb": "A sharp opening strike"},
-	"shield_break": {"name": "Shield Break", "blurb": "Cracks a target's guard"},
-	"quick_mark": {"name": "Quick Mark", "blurb": "Finds the opening first"},
-	"piercing_shot": {"name": "Piercing Shot", "blurb": "A precise, punching arrow"},
-	"iron_wall": {"name": "Iron Wall", "blurb": "Braces and soaks the hit"},
-	"raid_step": {"name": "Raid Step", "blurb": "Hits and shifts off the line"},
+# ---------------------------------------------------------------- abilities (data-driven)
+# Every ability is one data row. Class abilities belong to ONE character (unique kit);
+# subclass abilities are shared by anyone running that subclass.
+# Using any ability needs a FULL MP bar (gauge 100) and spends the whole bar.
+const AB_MP := 100.0
+const CLASS_UNLOCKS := [1, 11, 21, 31, 41, 51, 61, 71, 81, 99]
+const SUB_UNLOCKS := [1, 20, 40, 60, 80]
+var ABILITY_DEFS: Dictionary = {}
+var AB_CLASS_LIST: Dictionary = {} # hero name -> [ids in unlock order]
+var AB_SUB_LIST: Dictionary = {} # subclass -> [ids in unlock order]
+var AB_EQUIP: Dictionary = {} # hero name -> {"cls": id, "sub": id}
+# Rows: [id, name, blurb, kind, params]. Unlock level comes from the row position.
+var AB_CLASS_ROWS := {
+	"Airron": [
+		["rift_cut", "Rift Cut", "A sharp opening strike that tears a seam in the air.", "damage_single", {"mult": 2.4}],
+		["seam_ward", "Seam Ward", "Folds the rift around himself to blunt incoming blows.", "buff_self", {"buffs": [["def", 20], ["armor", 6]], "turns": 2}],
+		["riftbrand_slash", "Riftbrand Slash", "A heavy cut that also strips the target's armor.", "damage_single", {"mult": 3.2, "debuff": [["armor", -6]], "dturns": 2}],
+		["rending_arc", "Rending Arc", "A wide rift arc that catches every enemy.", "damage_all_enemies", {"mult": 1.6}],
+		["knights_oath", "Knight's Oath", "Swears to the squad. The whole party gains Defense.", "buff_party", {"buffs": [["def", 15]], "turns": 2}],
+		["rift_lunge", "Rift Lunge", "Steps through the rift for a crushing single blow.", "damage_single", {"mult": 4.2}],
+		["sundering_wave", "Sundering Wave", "A wave of torn space hits all foes and cracks their guard.", "damage_all_enemies", {"mult": 2.2, "debuff": [["def", -15]], "dturns": 2}],
+		["bulwark_rally", "Bulwark Rally", "Rallies the line: party gains Armor and ATK.", "buff_party", {"buffs": [["armor", 8], ["atk", 10]], "turns": 2}],
+		["fault_line", "Fault Line", "Splits the ground under every enemy.", "damage_all_enemies", {"mult": 2.8}],
+		["worldsplitter", "Worldsplitter", "Capstone. Cleaves the rift itself — a massive hit on every foe.", "damage_all_enemies", {"mult": 3.4, "self_buff": [["atk", 15]], "sturns": 2}],
+	],
+	"Christian": [
+		["shield_break", "Shield Break", "Cracks a target's guard, lowering its Defense.", "damage_single", {"mult": 2.2, "debuff": [["def", -20]], "dturns": 2}],
+		["brace_up", "Brace Up", "Plants his feet and toughens up.", "buff_self", {"buffs": [["def", 18], ["armor", 5]], "turns": 2}],
+		["heavy_swing", "Heavy Swing", "One big, honest swing at a single foe.", "damage_single", {"mult": 3.2}],
+		["armor_crack", "Armor Crack", "A breaker's blow that shreds armor for longer.", "damage_single", {"mult": 2.6, "debuff": [["armor", -10]], "dturns": 3}],
+		["battle_cry", "Battle Cry", "A roar that lifts the whole party's ATK.", "buff_party", {"buffs": [["atk", 12]], "turns": 2}],
+		["crushing_blow", "Crushing Blow", "Crushes one foe and smashes its Defense.", "damage_single", {"mult": 4.2, "debuff": [["def", -25]], "dturns": 2}],
+		["line_breaker", "Line Breaker", "Charges the enemy line, hitting all and lowering Defense.", "damage_all_enemies", {"mult": 2.0, "debuff": [["def", -12]], "dturns": 2}],
+		["iron_resolve", "Iron Resolve", "Steels himself: big ATK and Defense for three turns.", "buff_self", {"buffs": [["atk", 20], ["def", 20]], "turns": 3}],
+		["earthshaker", "Earthshaker", "Slams the ground — every enemy is rocked.", "damage_all_enemies", {"mult": 2.8}],
+		["final_verdict", "Final Verdict", "Capstone. A finishing blow that breaks any guard.", "damage_single", {"mult": 6.2, "debuff": [["def", -30]], "dturns": 2}],
+	],
+	"Weston": [
+		["quick_mark", "Quick Mark", "Finds the opening first: hits and marks the target (DEF down).", "damage_single", {"mult": 2.0, "debuff": [["def", -15]], "dturns": 2}],
+		["fleet_foot", "Fleet Foot", "Light on his feet: Speed and Crit up.", "buff_self", {"buffs": [["speed", 12], ["crit", 10]], "turns": 2}],
+		["twin_shot", "Twin Shot", "Two arrows nocked as one — a strong single shot.", "damage_single", {"mult": 3.0}],
+		["volley", "Volley", "Arrows over the whole enemy line.", "damage_all_enemies", {"mult": 1.6}],
+		["hunters_call", "Hunter's Call", "Calls the hunt: party Crit up.", "buff_party", {"buffs": [["crit", 10]], "turns": 2}],
+		["pinning_shot", "Pinning Shot", "Pins one foe hard and slows it.", "damage_single", {"mult": 3.8, "debuff": [["speed", -15]], "dturns": 2}],
+		["arrow_rain", "Arrow Rain", "A heavy rain of arrows on every enemy.", "damage_all_enemies", {"mult": 2.2}],
+		["trailwise", "Trailwise", "Leads the party: Speed and ATK up.", "buff_party", {"buffs": [["speed", 12], ["atk", 8]], "turns": 2}],
+		["storm_of_arrows", "Storm of Arrows", "A storm of shafts batters all foes.", "damage_all_enemies", {"mult": 2.8}],
+		["skyfall_volley", "Skyfall Volley", "Capstone. The sky falls on every enemy and opens their guard.", "damage_all_enemies", {"mult": 3.4, "debuff": [["def", -15]], "dturns": 2}],
+	],
+	"Wiesen": [
+		["piercing_shot", "Piercing Shot", "A precise, punching arrow that pierces armor.", "damage_single", {"mult": 2.6, "debuff": [["armor", -6]], "dturns": 2}],
+		["steady_aim", "Steady Aim", "Breathes out and lines up: ATK and Crit up.", "buff_self", {"buffs": [["atk", 15], ["crit", 10]], "turns": 2}],
+		["headshot", "Headshot", "A clean shot at one target's weak spot.", "damage_single", {"mult": 3.4}],
+		["ricochet", "Ricochet", "One arrow skips off every enemy.", "damage_all_enemies", {"mult": 1.6}],
+		["spotters_eye", "Spotter's Eye", "Calls out openings: party Crit up.", "buff_party", {"buffs": [["crit", 12]], "turns": 2}],
+		["armor_piercer", "Armor Piercer", "A heavy bolt that shreds armor for three turns.", "damage_single", {"mult": 4.0, "debuff": [["armor", -12]], "dturns": 3}],
+		["suppressing_fire", "Suppressing Fire", "Pins down all enemies and weakens their ATK.", "damage_all_enemies", {"mult": 2.0, "debuff": [["atk", -12]], "dturns": 2}],
+		["deadeye_focus", "Deadeye Focus", "Total focus: huge ATK and Crit.", "buff_self", {"buffs": [["atk", 30], ["crit", 15]], "turns": 2}],
+		["longshot", "Longshot", "A shot from impossible range at one foe.", "damage_single", {"mult": 5.2}],
+		["one_clean_shot", "One Clean Shot", "Capstone. The perfect shot — enormous single-target damage.", "damage_single", {"mult": 7.0}],
+	],
+	"Lanning": [
+		["iron_wall", "Iron Wall", "Braces and soaks the hit: big Defense and Armor.", "buff_self", {"buffs": [["def", 25], ["armor", 8]], "turns": 2}],
+		["shield_bash", "Shield Bash", "Bashes one foe and dulls its ATK.", "damage_single", {"mult": 2.2, "debuff": [["atk", -12]], "dturns": 2}],
+		["bastion", "Bastion", "Becomes a wall for everyone: party Armor up.", "buff_party", {"buffs": [["armor", 6]], "turns": 2}],
+		["rallying_stand", "Rallying Stand", "Steadies the line, healing the whole party a little.", "heal_party", {"pct": 0.12}],
+		["stone_skin", "Stone Skin", "Skin like stone: Armor and Defense for three turns.", "buff_self", {"buffs": [["armor", 16], ["def", 20]], "turns": 3}],
+		["ground_slam", "Ground Slam", "Slams the ground, hitting all foes and slowing them.", "damage_all_enemies", {"mult": 1.8, "debuff": [["speed", -12]], "dturns": 2}],
+		["aegis_line", "Aegis Line", "Raises a shield line: party Defense and Armor up.", "buff_party", {"buffs": [["def", 20], ["armor", 6]], "turns": 2}],
+		["second_wind", "Second Wind", "Pulls the weakest ally back up with a large heal.", "heal_single", {"pct": 0.45}],
+		["fortress", "Fortress", "The party becomes a fortress for three turns.", "buff_party", {"buffs": [["def", 25], ["armor", 10]], "turns": 3}],
+		["unbreakable", "Unbreakable", "Capstone. Heals the party and makes it nearly unbreakable.", "heal_party", {"pct": 0.30, "party_buff": [["armor", 12], ["def", 20]], "pturns": 3}],
+	],
+	"Rico": [
+		["raid_step", "Raid Step", "Hits and shifts off the line, gaining Speed.", "damage_single", {"mult": 2.4, "self_buff": [["speed", 10]], "sturns": 2}],
+		["hit_and_run", "Hit and Run", "Strikes and slips away, guarding himself.", "damage_single", {"mult": 2.8, "self_buff": [["def", 12]], "sturns": 1}],
+		["plunder_strike", "Plunder Strike", "Steals the fight from one foe, lowering its ATK.", "damage_single", {"mult": 3.2, "debuff": [["atk", -10]], "dturns": 2}],
+		["whirling_raid", "Whirling Raid", "Spins through the whole enemy line.", "damage_all_enemies", {"mult": 1.8}],
+		["war_drums", "War Drums", "Beats the drums: party Speed up.", "buff_party", {"buffs": [["speed", 12]], "turns": 2}],
+		["flank_rush", "Flank Rush", "Rushes the flank for a big hit, then Speed and Crit up.", "damage_single", {"mult": 4.2, "self_buff": [["speed", 12], ["crit", 10]], "sturns": 2}],
+		["reavers_sweep", "Reaver's Sweep", "A reckless sweep across every enemy.", "damage_all_enemies", {"mult": 2.4}],
+		["bloodrush", "Bloodrush", "All-in aggression: huge ATK and Speed.", "buff_self", {"buffs": [["atk", 30], ["speed", 15]], "turns": 2}],
+		["raiders_storm", "Raider's Storm", "Storms all foes and keeps the momentum (ATK up).", "damage_all_enemies", {"mult": 3.0, "self_buff": [["atk", 15]], "sturns": 2}],
+		["warpath", "Warpath", "Capstone. Tears through every foe and drives the party forward.", "damage_all_enemies", {"mult": 3.6, "party_buff": [["speed", 12], ["atk", 10]], "pturns": 2}],
+	],
 }
+var AB_SUB_ROWS := {
+	"Riftblade": [
+		["rift_edge", "Rift Edge", "A quick rift-edged cut on one foe.", "damage_single", {"mult": 2.2}],
+		["seam_burst", "Seam Burst", "Bursts a seam under every enemy.", "damage_all_enemies", {"mult": 1.4}],
+		["blade_focus", "Blade Focus", "Hones the edge: ATK and Crit up.", "buff_self", {"buffs": [["atk", 20], ["crit", 10]], "turns": 2}],
+		["rift_rend", "Rift Rend", "Rends one foe and its armor.", "damage_single", {"mult": 4.0, "debuff": [["armor", -10]], "dturns": 2}],
+		["riftstorm", "Riftstorm", "A storm of rift blades hits all foes hard.", "damage_all_enemies", {"mult": 2.8}],
+	],
+	"Vanguard": [
+		["hold_the_line", "Hold the Line", "Digs in: Defense up.", "buff_self", {"buffs": [["def", 20]], "turns": 2}],
+		["shoulder_charge", "Shoulder Charge", "Charges one foe and slows it.", "damage_single", {"mult": 2.4, "debuff": [["speed", -10]], "dturns": 2}],
+		["front_guard", "Front Guard", "Guards the whole party: Defense up.", "buff_party", {"buffs": [["def", 15]], "turns": 2}],
+		["rally_point", "Rally Point", "Heals the party a little and adds Armor.", "heal_party", {"pct": 0.15, "party_buff": [["armor", 5]], "pturns": 2}],
+		["vanguards_wall", "Vanguard's Wall", "A full wall: big party Defense and Armor.", "buff_party", {"buffs": [["def", 25], ["armor", 10]], "turns": 3}],
+	],
+	"Scout": [
+		["swift_strike", "Swift Strike", "A fast strike, then Speed up.", "damage_single", {"mult": 2.0, "self_buff": [["speed", 10]], "sturns": 2}],
+		["scout_ahead", "Scout Ahead", "Finds the path: party Speed up.", "buff_party", {"buffs": [["speed", 10]], "turns": 2}],
+		["expose", "Expose", "Exposes one foe: hit and big Defense down.", "damage_single", {"mult": 2.4, "debuff": [["def", -20]], "dturns": 2}],
+		["smoke_screen", "Smoke Screen", "Covers the party: Defense and Speed up.", "buff_party", {"buffs": [["def", 18], ["speed", 8]], "turns": 2}],
+		["ambush", "Ambush", "Springs an ambush on every enemy.", "damage_all_enemies", {"mult": 2.6}],
+	],
+	"Sharpshot": [
+		["aimed_shot", "Aimed Shot", "A careful shot at one foe.", "damage_single", {"mult": 2.4}],
+		["weak_point", "Weak Point", "Hits a weak point and lowers Armor.", "damage_single", {"mult": 2.2, "debuff": [["armor", -10]], "dturns": 2}],
+		["keen_eyes", "Keen Eyes", "Sharpens the squad: party Crit up.", "buff_party", {"buffs": [["crit", 12]], "turns": 2}],
+		["scatter_shot", "Scatter Shot", "Scatters shots across all foes.", "damage_all_enemies", {"mult": 2.0}],
+		["killshot", "Killshot", "A lethal single shot.", "damage_single", {"mult": 5.0}],
+	],
+	"Ironhide": [
+		["harden", "Harden", "Hardens up: Armor up.", "buff_self", {"buffs": [["armor", 10]], "turns": 2}],
+		["iron_hide", "Iron Hide", "Iron skin: big Defense and Armor.", "buff_self", {"buffs": [["def", 25], ["armor", 12]], "turns": 2}],
+		["shrug_off", "Shrug Off", "Shrugs off the damage, healing himself a lot.", "heal_single", {"pct": 0.40, "self": true}],
+		["iron_bond", "Iron Bond", "Shares the iron: party Armor up.", "buff_party", {"buffs": [["armor", 8]], "turns": 2}],
+		["living_fortress", "Living Fortress", "Party Armor and Defense way up for three turns.", "buff_party", {"buffs": [["armor", 12], ["def", 20]], "turns": 3}],
+	],
+	"Raider": [
+		["raid_strike", "Raid Strike", "A raider's opening hit on one foe.", "damage_single", {"mult": 2.2}],
+		["loot_run", "Loot Run", "Hits one foe and runs off faster.", "damage_single", {"mult": 2.6, "self_buff": [["speed", 12]], "sturns": 2}],
+		["pillage", "Pillage", "Pillages the line: hits all and lowers Armor.", "damage_all_enemies", {"mult": 1.6, "debuff": [["armor", -6]], "dturns": 2}],
+		["warband_rush", "Warband Rush", "The warband surges: party ATK and Speed up.", "buff_party", {"buffs": [["atk", 12], ["speed", 8]], "turns": 2}],
+		["sack_the_line", "Sack the Line", "Sacks every foe and breaks their Defense.", "damage_all_enemies", {"mult": 2.8, "debuff": [["def", -15]], "dturns": 2}],
+	],
+	"Sage": [
+		["mend", "Mend", "Heals one ally for a large amount (lowest HP first).", "heal_single", {"pct": 0.50}],
+		["mana_ward", "Mana Ward", "Wards the party: Defense and Armor up.", "buff_party", {"buffs": [["def", 12], ["armor", 4]], "turns": 2}],
+		["soothing_rain", "Soothing Rain", "Heals the whole party for a medium amount.", "heal_party", {"pct": 0.25}],
+		["renewal", "Renewal", "Heals the whole party and adds Defense.", "heal_party", {"pct": 0.30, "party_buff": [["def", 12]], "pturns": 2}],
+		["grand_restoration", "Grand Restoration", "Heals the whole party for a large amount.", "heal_party", {"pct": 0.50}],
+	],
+	"Duelist": [
+		["riposte", "Riposte", "Strikes one foe and guards the counter.", "damage_single", {"mult": 2.2, "self_buff": [["def", 12]], "sturns": 1}],
+		["feint", "Feint", "A feint that opens the guard (big Defense down).", "damage_single", {"mult": 2.0, "debuff": [["def", -18]], "dturns": 2}],
+		["en_garde", "En Garde", "Ready stance: Crit and Speed up.", "buff_self", {"buffs": [["crit", 15], ["speed", 10]], "turns": 2}],
+		["perfect_lunge", "Perfect Lunge", "One perfect lunge — heavy single-target damage.", "damage_single", {"mult": 4.2}],
+		["duels_end", "Duel's End", "Ends the duel: huge hit, then Crit up.", "damage_single", {"mult": 5.2, "self_buff": [["crit", 15]], "sturns": 2}],
+	],
+}
+
+func build_abilities() -> void:
+	ABILITY_DEFS = {}
+	AB_CLASS_LIST = {}
+	AB_SUB_LIST = {}
+	for hero in AB_CLASS_ROWS:
+		var rows: Array = AB_CLASS_ROWS[hero]
+		var ids: Array = []
+		for i in rows.size():
+			var r: Array = rows[i]
+			var lv: int = int(CLASS_UNLOCKS[mini(i, CLASS_UNLOCKS.size() - 1)])
+			ABILITY_DEFS[r[0]] = {"id": r[0], "name": r[1], "blurb": r[2], "kind": r[3], "params": r[4],
+				"lv": lv, "src": "class", "owner": hero, "mp": AB_MP, "tier": i + 1}
+			ids.append(r[0])
+		AB_CLASS_LIST[hero] = ids
+	for sub in AB_SUB_ROWS:
+		var rows2: Array = AB_SUB_ROWS[sub]
+		var ids2: Array = []
+		for i in rows2.size():
+			var r2: Array = rows2[i]
+			var lv2: int = int(SUB_UNLOCKS[mini(i, SUB_UNLOCKS.size() - 1)])
+			ABILITY_DEFS[r2[0]] = {"id": r2[0], "name": r2[1], "blurb": r2[2], "kind": r2[3], "params": r2[4],
+				"lv": lv2, "src": "sub", "owner": sub, "mp": AB_MP, "tier": i + 1}
+			ids2.append(r2[0])
+		AB_SUB_LIST[sub] = ids2
+
+const STAT_SHORT := {"atk": "ATK", "def": "DEF", "armor": "ARM", "speed": "SPD", "crit": "CRIT"}
+
+func mods_text(mods: Array) -> String:
+	var parts: Array = []
+	for m in mods:
+		var stat: String = str(m[0])
+		var amt: int = int(m[1])
+		parts.append("%s %+d" % [str(STAT_SHORT.get(stat, stat.to_upper())), amt])
+	return ", ".join(parts)
+
+## Short, phone-readable effect line generated from the data row.
+func ab_effect_line(id: String) -> String:
+	if not ABILITY_DEFS.has(id):
+		return ""
+	var ab: Dictionary = ABILITY_DEFS[id]
+	var p: Dictionary = ab.params
+	var kind: String = str(ab.kind)
+	var out: String = ""
+	if kind == "damage_single":
+		out = "Hits one foe x%.1f" % float(p.get("mult", 1.0))
+	elif kind == "damage_all_enemies":
+		out = "Hits all foes x%.1f" % float(p.get("mult", 1.0))
+	elif kind == "heal_single":
+		var size_s: String = "large" if float(p.get("pct", 0.0)) >= 0.4 else "medium"
+		out = ("Heals self (%s)" % size_s) if bool(p.get("self", false)) else ("Heals one ally (%s)" % size_s)
+	elif kind == "heal_party":
+		var pct: float = float(p.get("pct", 0.0))
+		var size_p: String = "large" if pct >= 0.45 else ("medium" if pct >= 0.2 else "small")
+		out = "Heals party (%s)" % size_p
+	elif kind == "buff_self":
+		out = "Self " + mods_text(p.get("buffs", [])) + " %dT" % int(p.get("turns", 1))
+	elif kind == "buff_party":
+		out = "Party " + mods_text(p.get("buffs", [])) + " %dT" % int(p.get("turns", 1))
+	if p.has("debuff"):
+		out += " · Foe " + mods_text(p.debuff)
+	if p.has("self_buff"):
+		out += " · Self " + mods_text(p.self_buff)
+	if p.has("party_buff"):
+		out += " · Party " + mods_text(p.party_buff)
+	return out
+
+func ab_color(id: String) -> Color:
+	if not ABILITY_DEFS.has(id):
+		return Color("#c9a0ff")
+	var kind: String = str(ABILITY_DEFS[id].kind)
+	if kind == "heal_single" or kind == "heal_party":
+		return Color("#5dff8a")
+	if kind == "buff_self" or kind == "buff_party":
+		return Color("#7fd8ff")
+	return Color("#c98bff")
+
+func class_ability_ids(name: String) -> Array:
+	return AB_CLASS_LIST.get(name, [])
+
+func sub_ability_ids(sub: String) -> Array:
+	return AB_SUB_LIST.get(sub, [])
+
+func ab_unlocked(name: String, id: String) -> bool:
+	if not ABILITY_DEFS.has(id):
+		return false
+	return hero_level(name) >= int(ABILITY_DEFS[id].lv)
+
+func unlocked_class_ids(name: String) -> Array:
+	var out: Array = []
+	for id in class_ability_ids(name):
+		if ab_unlocked(name, id):
+			out.append(id)
+	return out
+
+func unlocked_sub_ids(name: String) -> Array:
+	var out: Array = []
+	var sub: String = str(CHAR[name].sub)
+	for id in sub_ability_ids(sub):
+		if ab_unlocked(name, id):
+			out.append(id)
+	return out
+
+## Keeps a hero's two equipped abilities valid: one owned class ability, one owned
+## ability from the CURRENT subclass. Invalid picks fall back to the first unlocked.
+func validate_ab_equip(name: String) -> void:
+	if not AB_EQUIP.has(name):
+		AB_EQUIP[name] = {"cls": "", "sub": ""}
+	var e: Dictionary = AB_EQUIP[name]
+	var cids: Array = unlocked_class_ids(name)
+	var cur_c: String = str(e.get("cls", ""))
+	if cids.find(cur_c) < 0:
+		e["cls"] = str(cids[0]) if cids.size() > 0 else ""
+	var sids: Array = unlocked_sub_ids(name)
+	var cur_s: String = str(e.get("sub", ""))
+	if sids.find(cur_s) < 0:
+		e["sub"] = str(sids[0]) if sids.size() > 0 else ""
+
+func equipped_class_ab(name: String) -> String:
+	validate_ab_equip(name)
+	return str(AB_EQUIP[name].cls)
+
+func equipped_sub_ab(name: String) -> String:
+	validate_ab_equip(name)
+	return str(AB_EQUIP[name].sub)
+
+func equip_ability(name: String, id: String) -> bool:
+	if not ABILITY_DEFS.has(id) or not ab_unlocked(name, id):
+		return false
+	validate_ab_equip(name)
+	var ab: Dictionary = ABILITY_DEFS[id]
+	if str(ab.src) == "class":
+		if str(ab.owner) != name:
+			return false
+		AB_EQUIP[name]["cls"] = id
+	else:
+		if str(ab.owner) != str(CHAR[name].sub):
+			return false
+		AB_EQUIP[name]["sub"] = id
+	save_cfg()
+	return true
+
 # Class is locked to the character. Only subclass is swappable in the Characters page.
 var CHAR := {
 	"Airron": {"cls": "Knight", "sub": "Riftblade", "ability": "rift_cut"},
@@ -546,6 +822,7 @@ class Act:
 	var hit_done := false
 	var hold_t := 0.0
 	var doubled := false
+	var ability := ""
 
 class Unit:
 	var id := ""
@@ -585,6 +862,10 @@ class Unit:
 	var pop := 0.0
 	var burn = null
 	var plan = null
+	var buffs := []
+	var ab_class := ""
+	var ab_sub := ""
+	var ab_queued := ""
 
 class Proj:
 	var kind := ""
@@ -607,6 +888,7 @@ class Proj:
 	var delay := 0.0
 	var rot := 0.0
 	var ang := 0.0
+	var ability := ""
 
 class Battle:
 	var units := []
@@ -621,6 +903,7 @@ class Battle:
 	var cur = null
 	var end_t := 0.0
 	var result := ""
+	var ab_focus = null
 
 # ---------------------------------------------------------------- state
 var G: Battle = null
@@ -676,12 +959,14 @@ func new_battle(n: int = 0) -> void:
 			u.armor = st.get("armor", 0); u.crit = st.get("crit", 10)
 			u.mana_regen = st.get("mana", 0); u.speed = st.get("speed", 12)
 			u.cls = st.cls; u.sub = st.sub; u.scale = st.scale
+			if team == "blue" and CHAR.has(u.name):
+				u.ab_class = equipped_class_ab(u.name); u.ab_sub = equipped_sub_ab(u.name)
 			u.gauge = rand(0, 30); u.facing = 1 if team == "blue" else -1; u.at = rand(0, 1000)
 			units.append(u)
 	G = Battle.new()
 	G.units = units
 	G.n_red = n
-	fx = []; projectiles = []; texts = []; banner = null
+	fx = []; projectiles = []; texts = []; banner = null; cast_banner = null; screen_flash = null
 
 # ---------------------------------------------------------------- simulation
 func alive(team: String) -> Array:
@@ -722,7 +1007,11 @@ func start_action(u) -> bool:
 	if foes.is_empty(): return false
 	var t = u.plan.target if (u.plan != null and u.plan.target != null and not u.plan.target.dead) else pick(foes)
 	if u.plan != null: u.plan.target = t
-	var special: bool = u.gauge >= 100
+	if u.team == "blue" and u.ab_queued != "" and ABILITY_DEFS.has(u.ab_queued) and u.gauge >= AB_MP:
+		return start_ability(u, u.ab_queued)
+	u.ab_queued = ""
+	# Heroes HOLD a full MP bar for an ability; only enemies auto-fire their kit special.
+	var special: bool = u.gauge >= 100 and u.team != "blue"
 	var a := Act.new()
 	a.target = t; a.special = special; a.stage = "atk" if u.K.ranged != "" else "go"
 	u.act = a
@@ -788,6 +1077,12 @@ func update_unit(u, dt: float) -> void:
 		if fr >= d.n:
 			a.hold_t += dt
 			if a.hold_t < d.get("hold", 150): return
+			if a.ability != "":
+				if a.stage == "atk" and (a.target == u or str(ABILITY_DEFS[a.ability].kind) != "damage_single" or u.K.ranged != ""):
+					a.stage = "wait"
+				else:
+					a.stage = "back"; a.ready = true
+				return
 			if u.kind == "warrior" and a.swing == 0:
 				a.swing = 1; begin_swing(u); return
 			# Follow-up strike if still in range. Warriors already swing twice as their kit.
@@ -893,9 +1188,12 @@ func resolve_sync_group(group: Array) -> void:
 	else:
 		for h in group:
 			if t.dead: return
-			apply_hit(h.u, t, h.mult, h.special, false, h.color)
+			apply_hit(h.u, t, h.mult, h.special, false, h.color, bool(h.get("ab", false)))
 
 func resolve_hit(u, a) -> void:
+	if a.ability != "":
+		resolve_ability(u, a)
+		return
 	var t = a.target
 	var K: Dictionary = u.K
 	var sp: bool = a.special
@@ -962,12 +1260,14 @@ func mitigate_raw(raw: float, t) -> int:
 	var cut: float = raw * def_mit(t.def) - float(t.armor)
 	return maxi(1, int(roundf(cut)))
 
-func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "") -> void:
+func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "", ab: bool = false) -> void:
 	if t == null or t.dead: return
 	var crit_p: float = clampf(float(u.crit) / 100.0, 0.0, 0.6)
 	var crit := not special and not is_splash and randf() < crit_p
-	var raw: float = u.atk * rand(0.85, 1.15) * mult * (1.5 if crit else 1.0) * surge_mult()
-	deal_damage(u, t, mitigate_raw(raw, t), {"special": special, "isSplash": is_splash, "crit": crit, "color": color})
+	# Melee damage is fixed (crits and combos are the only swings); ranged keeps a small roll.
+	var roll: float = rand(0.85, 1.15) if str(u.K.ranged) != "" else 1.0
+	var raw: float = u.atk * roll * mult * (1.5 if crit else 1.0) * surge_mult()
+	deal_damage(u, t, mitigate_raw(raw, t), {"special": special, "isSplash": is_splash, "crit": crit, "color": color, "ab": ab})
 
 func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 	if t.dead: return
@@ -988,7 +1288,7 @@ func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 	t.flash = 180.0 if combo else 110.0
 	t.shake = 240.0 if combo else 160.0
 	t.kx = (1.0 if t.x >= u.x else -1.0) * (14 if combo else (9 if opt.get("special", false) else 5))
-	var big: bool = combo or (opt.get("special", false) and not opt.get("isSplash", false))
+	var big: bool = combo or bool(opt.get("ab", false)) or (opt.get("special", false) and not opt.get("isSplash", false))
 	var crit: bool = opt.get("crit", false)
 	var label := ("COMBO x%d  %d" % [opt.n, dmg]) if combo else str(dmg)
 	var col: String = opt.get("color", "")
@@ -1035,7 +1335,9 @@ func update_projectiles(dt: float) -> void:
 			var st: float = p.speed * dt / 1000.0
 			p.ang = atan2(dy, dx)
 			if d <= st + 6 or t.dead:
-				if not t.dead:
+				if p.ability != "":
+					ability_impact(p.owner, p.ability, t)
+				elif not t.dead:
 					hit(p.owner, t, p.mult, p.special)
 				if p.pierce:
 					splash(p.owner, tx, ty + 30, 75, 0.4, t)
@@ -1073,7 +1375,9 @@ func apply_mana_regen(team: String) -> void:
 		u.gauge = minf(100.0, u.gauge + u.mana_regen)
 
 func begin_player_turn() -> void:
-	G.side = "blue"; G.mode = "select"; G.queue = []; G.qi = 0; G.turn += 1
+	G.side = "blue"; G.mode = "select"; G.queue = []; G.qi = 0; G.turn += 1; G.ab_focus = null
+	for bu in G.units: bu.ab_queued = ""
+	tick_mods("blue")
 	apply_mana_regen("blue")
 	banner = {"text": "YOUR TURN", "sub": "Tap knights to set the attack order" if G.turn == 1 else "Turn %d" % G.turn, "t": 0.0, "life": 1000.0, "color": "blue"}
 	if G.turn == 4: banner.sub = "RIFT SURGE — damage rising!"
@@ -1091,6 +1395,7 @@ func execute_orders() -> void:
 func begin_enemy_turn() -> void:
 	G.side = "red"; G.mode = "enemyIntro"; G.gap = 520; G.qi = 0; G.cur = null
 	G.queue = shuffled(alive("red"))
+	tick_mods("red")
 	apply_mana_regen("red")
 	plan_actions(G.queue)
 	banner = {"text": "ENEMY TURN", "sub": "", "t": 0.0, "life": 850.0, "color": "red"}
@@ -1137,8 +1442,11 @@ func controller(dt: float) -> void:
 func toggle_queue(u) -> void:
 	if G == null or G.mode != "select" or u.dead or u.team != "blue" or phase != "battle": return
 	var i := G.queue.find(u)
-	if i >= 0: G.queue.remove_at(i)
-	else: G.queue.append(u)
+	if i >= 0:
+		G.queue.remove_at(i); u.ab_queued = ""
+		if G.ab_focus == u: G.ab_focus = G.queue[G.queue.size() - 1] if G.queue.size() > 0 else null
+	else:
+		G.queue.append(u); G.ab_focus = u
 	u.pop = 160.0
 	sfx.tone(440 if i >= 0 else 660 + G.queue.size() * 40, 0.05, "square", 0.03)
 
@@ -1150,7 +1458,8 @@ func queue_all() -> void:
 
 func clear_queue() -> void:
 	if G == null or G.mode != "select" or phase != "battle": return
-	G.queue = []
+	G.queue = []; G.ab_focus = null
+	for u in G.units: u.ab_queued = ""
 	sfx.tone(330, 0.05, "square", 0.03)
 
 func step(dt: float) -> void:
@@ -1160,7 +1469,12 @@ func step(dt: float) -> void:
 			hitstop -= dt; dt *= 0.15
 		G.t += dt
 		if phase == "battle" and AUTO and G.mode == "select":
-			for u in shuffled(alive("blue")): G.queue.append(u)
+			for u in shuffled(alive("blue")):
+				G.queue.append(u)
+				if u.gauge >= AB_MP:
+					var pick_id: String = u.ab_class if randf() < 0.5 else u.ab_sub
+					if pick_id == "": pick_id = u.ab_class
+					u.ab_queued = pick_id
 			execute_orders()
 		var order := shuffled(G.units)
 		for u in order: update_unit(u, dt)
@@ -1197,6 +1511,231 @@ func step(dt: float) -> void:
 	if banner != null:
 		banner.t += dt
 		if banner.t > banner.life: banner = null
+	if cast_banner != null:
+		cast_banner.t += dt
+		if cast_banner.t > cast_banner.life: cast_banner = null
+	if screen_flash != null:
+		screen_flash.t += dt
+		if screen_flash.t > screen_flash.life: screen_flash = null
+
+# ---------------------------------------------------------------- ability combat
+var cast_banner = null # {"text", "sub", "t", "life", "color"}
+var screen_flash = null # {"color", "t", "life"}
+
+func stat_floor(stat: String) -> int:
+	if stat == "armor" or stat == "crit":
+		return 0
+	return 1
+
+## Adds a timed stat change. The same stat + direction from a newer cast replaces the
+## older one instead of stacking. turns counts the unit's own side turns.
+func add_mod(u, stat: String, amt: int, turns: int) -> void:
+	if u == null or u.dead or amt == 0:
+		return
+	for i in range(u.buffs.size() - 1, -1, -1):
+		var b: Dictionary = u.buffs[i]
+		if str(b.stat) == stat and (int(b.req) > 0) == (amt > 0):
+			u.set(stat, int(u.get(stat)) - int(b.d))
+			u.buffs.remove_at(i)
+	var cur: int = int(u.get(stat))
+	var nv: int = maxi(stat_floor(stat), cur + amt)
+	var d: int = nv - cur
+	u.set(stat, nv)
+	u.buffs.append({"stat": stat, "d": d, "req": amt, "turns": turns})
+
+func tick_mods(team: String) -> void:
+	for u in G.units:
+		if u.team != team:
+			continue
+		for i in range(u.buffs.size() - 1, -1, -1):
+			var b: Dictionary = u.buffs[i]
+			b.turns = int(b.turns) - 1
+			if int(b.turns) <= 0:
+				u.set(str(b.stat), int(u.get(str(b.stat))) - int(b.d))
+				u.buffs.remove_at(i)
+
+func apply_mod_list(u, mods: Array, turns: int, show: bool) -> void:
+	for m in mods:
+		add_mod(u, str(m[0]), int(m[1]), maxi(1, turns))
+	if show and not mods.is_empty() and u != null and not u.dead:
+		var good: bool = int(mods[0][1]) > 0
+		add_text(u.x, u.y - u.K.head * uS(u) - 50, mods_text(mods), "#7fd8ff" if good else "#ff9a4a", 13, 1100, true)
+		fx.append({"type": "aura", "unit": u, "t": 0.0, "life": 900.0, "color": Color("#7fd8ff") if good else Color("#ff8a4a")})
+
+func lowest_ally(u):
+	var best = null
+	var br := 9.0
+	for a in alive(u.team):
+		var r: float = float(a.hp) / maxf(1.0, float(a.maxhp))
+		if r < br:
+			br = r; best = a
+	return best
+
+func heal_unit(t, pct: float) -> void:
+	if t == null or t.dead:
+		return
+	var amt: int = maxi(1, int(roundf(float(t.maxhp) * pct)))
+	var before: int = t.hp
+	t.hp = mini(t.maxhp, t.hp + amt)
+	var got: int = t.hp - before
+	add_text(t.x + rand(-6, 6), t.y - t.K.head * uS(t) - 6, "+" + str(got), "#5dff8a", 24, 1000, true)
+	fx.append({"type": "pulse", "x": t.x, "y": t.y - 4, "t": 0.0, "life": 650.0, "r": 46.0, "color": Color("#5dff8a")})
+	fx.append({"type": "aura", "unit": t, "t": 0.0, "life": 800.0, "color": Color("#5dff8a")})
+
+func queue_ability(u, id: String) -> void:
+	if G == null or G.mode != "select" or phase != "battle" or u == null or u.dead:
+		return
+	if u.ab_queued == id:
+		u.ab_queued = ""
+		sfx.tone(392, 0.05, "square", 0.03)
+		return
+	if u.gauge < AB_MP or not ABILITY_DEFS.has(id):
+		sfx.tone(196, 0.05, "square", 0.02)
+		return
+	u.ab_queued = id
+	if G.queue.find(u) < 0:
+		G.queue.append(u)
+	u.pop = 160.0
+	sfx.tone(988, 0.07, "triangle", 0.035)
+
+## Replaces the unit's normal attack for this turn. Spends the full MP bar.
+func start_ability(u, id: String) -> bool:
+	var ab: Dictionary = ABILITY_DEFS[id]
+	var kind: String = str(ab.kind)
+	var p: Dictionary = ab.params
+	u.gauge = 0.0
+	u.ab_queued = ""
+	var col: Color = ab_color(id)
+	var t = null
+	if kind == "damage_single" or kind == "damage_all_enemies":
+		var foes := alive(enemy_of(u))
+		if foes.is_empty():
+			return false
+		t = u.plan.target if (u.plan != null and u.plan.target != null and not u.plan.target.dead) else pick(foes)
+		if u.plan != null: u.plan.target = t
+	elif kind == "heal_single":
+		t = u if bool(p.get("self", false)) else lowest_ally(u)
+	else:
+		t = u
+	if t == null:
+		t = u
+	var a := Act.new()
+	a.target = t
+	a.special = false
+	a.ability = id
+	u.act = a
+	var melee_go: bool = kind == "damage_single" and str(u.K.ranged) == ""
+	if melee_go:
+		a.stage = "go"
+	else:
+		begin_swing(u)
+		if t == u:
+			u.facing = home_facing(u)
+	# Loud, readable tell: name popup, caster burst, screen flash, top banner.
+	add_text(u.x, u.y - u.K.head * uS(u) - 34, str(ab.name), "#" + col.to_html(false), 22, 1300, true)
+	fx.append({"type": "ring", "x": u.x, "y": u.y - 10, "t": 0.0, "life": 520.0, "color": col})
+	fx.append({"type": "pulse", "x": u.x, "y": u.y - 4, "t": 0.0, "life": 520.0, "r": 40.0, "color": col})
+	fx.append({"type": "aura", "unit": u, "t": 0.0, "life": 900.0, "color": col})
+	screen_flash = {"color": col, "t": 0.0, "life": 260.0}
+	cast_banner = {"text": str(ab.name), "sub": u.name + " · " + ab_effect_line(id), "t": 0.0, "life": 1500.0, "color": col}
+	hitstop = maxf(hitstop, 70)
+	sfx.special()
+	return true
+
+## Fires at the ability's hit frame.
+func resolve_ability(u, a) -> void:
+	var id: String = a.ability
+	var ab: Dictionary = ABILITY_DEFS[id]
+	var kind: String = str(ab.kind)
+	if kind == "damage_single" and (u.K.ranged == "arrow" or u.K.ranged == "bolt"):
+		var t = a.target
+		if t == null or t.dead:
+			var foes := alive(enemy_of(u))
+			if foes.is_empty():
+				a.ready = true
+				return
+			t = pick(foes); a.target = t
+		sfx.shoot()
+		var pr := Proj.new()
+		pr.kind = u.K.ranged; pr.owner = u; pr.act = a; pr.last = true; pr.target = t
+		pr.x = u.x + u.facing * 20; pr.y = u.y - 34
+		pr.special = true; pr.pierce = false; pr.mult = 1.0; pr.speed = 1100; pr.delay = 0
+		pr.ability = id
+		projectiles.append(pr)
+		return
+	ability_impact(u, id, a.target)
+	a.ready = true
+
+func ability_impact(u, id: String, t) -> void:
+	var ab: Dictionary = ABILITY_DEFS[id]
+	var kind: String = str(ab.kind)
+	var p: Dictionary = ab.params
+	var col: Color = ab_color(id)
+	var mult: float = float(p.get("mult", 1.0))
+	if kind == "damage_single":
+		if t == null or t.dead or t.team == u.team:
+			var foes := alive(enemy_of(u))
+			if foes.is_empty(): return
+			t = pick(foes)
+		explode(t.x, t.y, 0.9)
+		fx.append({"type": "pulse", "x": t.x, "y": t.y - 4, "t": 0.0, "life": 520.0, "r": 60.0, "color": col})
+		fx.append({"type": "slash", "x": t.x, "y": t.y - 30, "t": 0.0, "life": 320.0, "dir": u.facing})
+		shake(7, 220)
+		sync_pending.append({"u": u, "t": t, "mult": mult, "special": false, "color": "", "age": 0.0, "ab": true})
+		if p.has("debuff"):
+			apply_mod_list(t, p.debuff, int(p.get("dturns", 2)), true)
+	elif kind == "damage_all_enemies":
+		var foes2 := alive(enemy_of(u))
+		var cx := 0.0
+		var cy := 0.0
+		for e in foes2:
+			cx += e.x; cy += e.y
+		if foes2.size() > 0:
+			cx /= foes2.size(); cy /= foes2.size()
+			fx.append({"type": "pulse", "x": cx, "y": cy, "t": 0.0, "life": 700.0, "r": 150.0, "color": col})
+		shake(9, 280)
+		for e in foes2:
+			explode(e.x, e.y, 0.75)
+			apply_hit(u, e, mult, true, false, "#e2b8ff", true)
+		if p.has("debuff"):
+			for e2 in alive(enemy_of(u)):
+				apply_mod_list(e2, p.debuff, int(p.get("dturns", 2)), true)
+	elif kind == "heal_single":
+		if t == null or t.dead or t.team != u.team:
+			t = lowest_ally(u)
+		heal_unit(t, float(p.get("pct", 0.3)))
+		sfx.tone(784, 0.12, "triangle", 0.04, 1.5)
+	elif kind == "heal_party":
+		var al := alive(u.team)
+		var cx2 := 0.0
+		var cy2 := 0.0
+		for m in al:
+			cx2 += m.x; cy2 += m.y
+		if al.size() > 0:
+			cx2 /= al.size(); cy2 /= al.size()
+			fx.append({"type": "pulse", "x": cx2, "y": cy2, "t": 0.0, "life": 900.0, "r": 190.0, "color": Color("#5dff8a")})
+		for m2 in al:
+			heal_unit(m2, float(p.get("pct", 0.2)))
+		sfx.tone(659, 0.18, "triangle", 0.045, 1.5)
+	elif kind == "buff_self":
+		apply_mod_list(u, p.get("buffs", []), int(p.get("turns", 2)), true)
+		sfx.tone(880, 0.1, "triangle", 0.035, 1.3)
+	elif kind == "buff_party":
+		var al2 := alive(u.team)
+		var cx3 := 0.0
+		var cy3 := 0.0
+		for m3 in al2:
+			cx3 += m3.x; cy3 += m3.y
+		if al2.size() > 0:
+			fx.append({"type": "pulse", "x": cx3 / al2.size(), "y": cy3 / al2.size(), "t": 0.0, "life": 800.0, "r": 180.0, "color": Color("#7fd8ff")})
+		for m4 in al2:
+			apply_mod_list(m4, p.get("buffs", []), int(p.get("turns", 2)), true)
+		sfx.tone(880, 0.12, "triangle", 0.04, 1.3)
+	if p.has("self_buff"):
+		apply_mod_list(u, p.self_buff, int(p.get("sturns", 2)), true)
+	if p.has("party_buff"):
+		for m5 in alive(u.team):
+			apply_mod_list(m5, p.party_buff, int(p.get("pturns", 2)), true)
 
 # ---------------------------------------------------------------- terrain
 var props := []
@@ -1359,6 +1898,16 @@ func draw_unit(u) -> void:
 		save(); _alpha = 0.35 + 0.25 * p
 		fill_ellipse(x, y - 4, 26 + p * 4, 9 + p * 2, Color("#8fe6ff") if u.team == "blue" else Color("#ffb35a"))
 		restore()
+	if u.buffs.size() > 0 and phase == "battle":
+		var good := false
+		var bad := false
+		for b in u.buffs:
+			if int(b.req) > 0: good = true
+			else: bad = true
+		save(); _alpha = 0.45 + 0.2 * sin(now / 260.0)
+		if good: stroke_ellipse(x, y - 3, 30, 10, Color("#7fd8ff"), 2.5)
+		if bad: stroke_ellipse(x, y - 1, 34, 12, Color("#ff8a4a"), 2.5)
+		restore()
 	var qn := queued_num(u)
 	if qn == 0 and G != null and G.mode == "select" and u.team == "blue" and phase == "battle":
 		save(); _alpha = 0.25 + 0.15 * sin(now / 200.0)
@@ -1396,9 +1945,13 @@ func draw_badge(u) -> void:
 	var r: float = 11 * TS * (1 + u.pop / 400.0 if u.pop > 0 else 1.0)
 	var x: float = u.x
 	var y: float = u.y - u.K.head * uS(u) - 24 - 14 * TS
-	draw_circle(Vector2(x, y), r + 2.5, ca(Color("#0d3d4a")))
-	draw_circle(Vector2(x, y), r, ca(Color("#38f2ff")))
+	var abq: bool = u.ab_queued != ""
+	draw_circle(Vector2(x, y), r + 2.5, ca(Color("#3a1450") if abq else Color("#0d3d4a")))
+	draw_circle(Vector2(x, y), r, ca(Color("#c98bff") if abq else Color("#38f2ff")))
 	text(str(n), x, y + 1, roundf(r * 1.35), Color("#062830"))
+	if abq and ABILITY_DEFS.has(u.ab_queued):
+		var an: String = str(ABILITY_DEFS[u.ab_queued].name)
+		text(an, x, y - r - 9 * TS, roundf(10 * TS), Color("#f0d8ff"), "center", 3, Color(0, 0, 0, 0.85))
 
 func draw_bars(u) -> void:
 	if u.dead: return
@@ -1417,6 +1970,13 @@ func draw_bars(u) -> void:
 	draw_rect(Rect2(x, y + bh + 1, w, gh), ca(Color("#2a2a3a")))
 	var gc := (Color("#fff6a0") if int(now / 120) % 2 == 1 else Color("#ffc928")) if gp >= 1 else Color("#ffc928")
 	draw_rect(Rect2(x, y + bh + 1, w * gp, gh), ca(gc))
+	if u.team == "blue" and gp >= 1 and phase == "battle":
+		text("MP FULL", x + w + 4, y + bh, roundf(8 * TS), Color("#fff27a"), "left", 2.5, Color(0, 0, 0, 0.8))
+	if u.buffs.size() > 0:
+		var tags: Array = []
+		for b in u.buffs:
+			tags.append(str(STAT_SHORT.get(str(b.stat), str(b.stat))) + ("+" if int(b.req) > 0 else "-"))
+		text(" ".join(tags), u.x, y + bh + gh + 9 * TS, roundf(8 * TS), Color("#bfeeff"), "center", 2.5, Color(0, 0, 0, 0.8))
 	var nfs := roundf(10 * TS)
 	# canvas uses alphabetic baseline at y-4; convert to middle
 	var ny := y - 4 - nfs * 0.35
@@ -1452,6 +2012,27 @@ func draw_fx(e: Dictionary) -> void:
 			var ks: float = e.t / e.life
 			save(); tr_(e.x, e.y); scale_by(e.dir, 1); _alpha *= 1 - ks
 			draw_arc(Vector2(-10, 0), 40 + ks * 18, -1.2, 1.2, 20, ca(Color("#e8fbff")), 7 * (1 - ks) + 2, true)
+			restore()
+		"pulse":
+			var kp: float = e.t / e.life
+			var pr: float = float(e.r) * (0.25 + 0.95 * kp)
+			var pc: Color = e.color
+			save(); _alpha *= (1.0 - kp)
+			fill_ellipse(e.x, e.y, pr, pr * 0.42, Color(pc.r, pc.g, pc.b, 0.28))
+			stroke_ellipse(e.x, e.y, pr, pr * 0.42, pc, 6.0 * (1.0 - kp) + 2.0)
+			stroke_ellipse(e.x, e.y, pr * 0.7, pr * 0.3, Color(1, 1, 1, 0.7), 3.0 * (1.0 - kp) + 1.0)
+			restore()
+		"aura":
+			var ua = e.unit
+			if ua == null or ua.dead: return
+			var ka: float = e.t / e.life
+			var ac: Color = e.color
+			save(); _alpha *= (1.0 - ka)
+			fill_ellipse(ua.x, ua.y - 4, 30, 11, Color(ac.r, ac.g, ac.b, 0.35))
+			for ri in 3:
+				var rk: float = fmod(ka * 1.6 + ri * 0.33, 1.0)
+				var ry: float = ua.y - 6 - rk * 70.0
+				stroke_ellipse(ua.x, ry, 26 - rk * 8, 9 - rk * 3, Color(ac.r, ac.g, ac.b, 1.0 - rk), 3.0)
 			restore()
 		"stuck":
 			save(); _alpha *= 1 - e.t / e.life; tr_(e.x, e.y); rotate_by(e.ang)
@@ -1685,6 +2266,8 @@ func save_cfg() -> void:
 		for slot in SLOT_IDS:
 			ev.append(str(eq.get(slot, "")))
 		cf.set_value("equip", name, "|".join(ev))
+		validate_ab_equip(name)
+		cf.set_value("abilities", name, "%s|%s" % [str(AB_EQUIP[name].cls), str(AB_EQUIP[name].sub)])
 	cf.set_value("party", "squad", ",".join(SQUAD))
 	cf.set_value("inv", "bag", ",".join(INV))
 	cf.save("user://riftstrike.cfg")
@@ -1722,6 +2305,13 @@ func load_cfg() -> void:
 					EQUIP[name][SLOT_IDS[si]] = iid
 				else:
 					EQUIP[name][SLOT_IDS[si]] = ""
+		var abr = cf.get_value("abilities", name, "")
+		AB_EQUIP[name] = {"cls": "", "sub": ""}
+		if typeof(abr) == TYPE_STRING and abr != "":
+			var ap: PackedStringArray = abr.split("|")
+			AB_EQUIP[name]["cls"] = ap[0] if ap.size() >= 1 else ""
+			AB_EQUIP[name]["sub"] = ap[1] if ap.size() >= 2 else ""
+		validate_ab_equip(name)
 	if cf.has_section_key("party", "squad"):
 		var sq = cf.get_value("party", "squad", "")
 		if typeof(sq) == TYPE_STRING and sq != "":
@@ -1794,6 +2384,10 @@ func apply_loadout_preview(name: String) -> void:
 		u.speed = st.speed
 		u.cls = st.cls
 		u.sub = st.sub
+		u.buffs = []
+		u.ab_queued = ""
+		u.ab_class = equipped_class_ab(name)
+		u.ab_sub = equipped_sub_ab(name)
 		u.anim = "idle"
 		return
 
@@ -1811,6 +2405,7 @@ func cycle_sub(dir: int) -> void:
 	if i < 0:
 		i = 0
 	CHAR[name].sub = SUB_IDS[(i + dir + SUB_IDS.size()) % SUB_IDS.size()]
+	validate_ab_equip(name)
 	char_delta_t = 900.0
 	save_cfg()
 	apply_loadout_preview(name)
@@ -1948,8 +2543,17 @@ func draw_chars() -> void:
 	y += draw_locked_row(dx, y, dw, "CLASS", st.cls, cls_hint, short)
 	var sub_hint := "" if short else (String(st.sub_blurb) + "  ·  Level focus: " + str(st.focus_name))
 	y += draw_cycle_row("sub", dx, y, dw, "SUBCLASS", st.sub, sub_hint, func(): cycle_sub(-1), func(): cycle_sub(1))
-	var ab_hint := "" if short else String(st.ability_blurb)
-	y += draw_locked_row(dx, y, dw, "ABILITY", String(st.ability_name), ab_hint, short)
+	var c_own: int = unlocked_class_ids(name).size()
+	var s_own: int = unlocked_sub_ids(name).size()
+	var eq_line: String = str(ABILITY_DEFS[equipped_class_ab(name)].name) + " + " + (str(ABILITY_DEFS[equipped_sub_ab(name)].name) if ABILITY_DEFS.has(equipped_sub_ab(name)) else "—")
+	var next_s: String = ""
+	for nid in class_ability_ids(name):
+		if not ab_unlocked(name, nid):
+			next_s = "Next: Lv %d %s" % [int(ABILITY_DEFS[nid].lv), str(ABILITY_DEFS[nid].name)]
+			break
+	if next_s == "": next_s = "All 10 class abilities owned"
+	var ab_hint := "" if short else ("Class %d/10 · Sub %d/5 owned · %s · swap in Inventory" % [c_own, s_own, next_s])
+	y += draw_locked_row(dx, y, dw, "ABILITIES", eq_line, ab_hint, short)
 	var rows := [
 		["hp", "HP", 1200.0, Color("#4fd36b"), ""],
 		["atk", "ATK", 180.0, Color("#e85a3a"), ""],
@@ -1982,7 +2586,7 @@ func draw_chars() -> void:
 	var footer_y: float = inner.position.y + inner.size.y - 6
 	if not short:
 		text("Defense cuts a percent of a hit. Armor subtracts a flat amount. Mana returns each turn.", dx + dw / 2, footer_y, 10, Color("#7a5a32"))
-		text("Tap arrows or the subclass name to swap and watch the stats move. Class and ability stay locked.", dx + dw / 2, footer_y - 14, 10, Color("#7a5a32"))
+		text("Tap arrows or the subclass name to swap and watch the stats move. Class stays locked; equip abilities in Inventory.", dx + dw / 2, footer_y - 14, 10, Color("#7a5a32"))
 
 
 
@@ -2029,6 +2633,16 @@ func draw_inv() -> void:
 	var xp_txt := "MAX" if int(st.level) >= LEVEL_CAP else ("%d / %d XP" % [int(st.xp), int(st.xp_next)])
 	text("Lv." + str(int(st.level)) + "  ·  " + st.cls + "  ·  Focus " + str(st.focus_name) + "  ·  " + xp_txt, dx + 80, y + (36 if short else 44), 12.0 if short else 14.0, Color("#7a5a32"), "left")
 	y += spr_h + (2 if short else 4)
+	var tab_w := 104.0 if short else 120.0
+	var tab_h := 30.0 if short else 34.0
+	var tab_y: float = top
+	ui_button("invtab_gear", Rect2(dx + dw - tab_w * 2 - 6, tab_y, tab_w, tab_h), "GEAR", inv_tab != "gear", 13, 18, func(): _set_inv_tab("gear"), inv_tab != "gear")
+	ui_button("invtab_ab", Rect2(dx + dw - tab_w, tab_y, tab_w, tab_h), "ABILITIES", inv_tab != "abilities", 13, 18, func(): _set_inv_tab("abilities"), inv_tab != "abilities")
+	if inv_tab == "abilities":
+		draw_inv_abilities(name, dx, y, dw, inner.position.y + inner.size.y - (2 if short else 14), short)
+		if not short:
+			text("Tap an owned ability to equip it. One class + one subclass ability go into battle; use them when the MP bar is full.", dx + dw / 2, inner.position.y + inner.size.y - 2, 10, Color("#7a5a32"))
+		return
 	# Equipment slots
 	var eq: Dictionary = EQUIP[name] if EQUIP.has(name) else {}
 	var slot_h := 28.0 if short else 34.0
@@ -2127,6 +2741,11 @@ func draw_inv() -> void:
 	if not short:
 		text("Tap a slot to unequip, or a bag item to put it on. Stats update right away.", dx + dw / 2, inner.position.y + inner.size.y - 2, 10, Color("#7a5a32"))
 
+
+func _set_inv_tab(t: String) -> void:
+	inv_tab = t
+	inv_ab_view = ""
+	sfx.tone(587, 0.04, "square", 0.025)
 
 func _inv_tap_slot(slot: String) -> void:
 	var name := selected_hero()
@@ -2753,18 +3372,217 @@ func draw_battle_ui() -> void:
 	ui_button("exec", Rect2(bx + cw + 8, by, ew, bh), ("EXECUTE %d" % n) if n > 0 else "EXECUTE", false, efs, ecap, execute_orders, n == 0, locked)
 	ui_button("all", Rect2(bx + cw + ew + 16, by, cw, bh), "ALL", false, cfs, ccap, queue_all, not sel or n == liv, locked)
 	var hint := ""
+	var hint_base: float = by
+	if sel and n > 0:
+		hint_base = draw_ability_panel(short_land, by) - 4
 	if G != null and phase == "battle":
-		if sel: hint = "Tap again to remove · order = attack order" if n > 0 else "Tap your knights in attack order"
+		if sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your knights in attack order"
 		else: hint = "Your knights are attacking…" if G.side == "blue" else "Goblins are attacking…"
 	if hint != "":
 		var hfs := 12.0 if short_land else 14.0
-		var hy := by - 2 - 9
+		var hy := hint_base - 2 - 9
 		if short_land: text(hint, VWc - 8, hy, hfs, Color.WHITE, "right", 3, Color(0, 0, 0, 0.85))
 		else: text(hint, VWc / 2, hy, hfs, Color.WHITE, "center", 3, Color(0, 0, 0, 0.85))
 	if paused:
 		var pfs := clampf3(36, VWc * 0.1, 56)
 		text("PAUSED", VWc / 2 + 3, VHc * 0.42 + pfs / 2 + 4, pfs, Color.BLACK, "center", 4, Color.BLACK)
 		text("PAUSED", VWc / 2, VHc * 0.42 + pfs / 2, pfs, Color.WHITE, "center", 4, Color.BLACK)
+
+# ---------------------------------------------------------------- ability UI
+var inv_tab := "gear" # gear | abilities
+var inv_ab_view := ""
+
+func draw_cast_banner() -> void:
+	if cast_banner == null or phase == "title":
+		return
+	var k: float = cast_banner.t / cast_banner.life
+	var al: float = 1.0 - (k - 0.8) / 0.2 if k > 0.8 else 1.0
+	var sc: float = 1.35 - k / 0.1 * 0.35 if k < 0.1 else 1.0
+	var col: Color = cast_banner.color
+	var fs := 22.0
+	var sfs := 12.0
+	var w: float = minf(VWc - 20, maxf(text_w(str(cast_banner.text), fs) + 120, text_w(str(cast_banner.sub), sfs) + 60))
+	var h := 58.0
+	var cy: float = (64.0 + SAFE_T) if PORT else (VHc * 0.2)
+	save(); _alpha *= al
+	tr_(VWc / 2, cy); scale_by(sc, sc)
+	draw_rect(Rect2(-w / 2, -h / 2, w, h), ca(Color(0.05, 0.03, 0.08, 0.82)))
+	draw_rect(Rect2(-w / 2, -h / 2, w, 3), ca(col))
+	draw_rect(Rect2(-w / 2, h / 2 - 3, w, 3), ca(col))
+	text(str(cast_banner.text), 0, -8, fs, col, "center", 4, Color(0, 0, 0, 0.9))
+	text(str(cast_banner.sub), 0, 15, sfs, Color("#f4ecff"), "center", 3, Color(0, 0, 0, 0.9))
+	restore()
+
+func fit_size(s: String, base: float, maxw: float, lo: float) -> float:
+	var f := base
+	while f > lo and text_w(s, f) > maxw:
+		f -= 1.0
+	return f
+
+## Compact ability button for battle and inventory. Shows name + effect line.
+func ab_button(id_btn: String, r: Rect2, tag: String, ab_id: String, on: bool, locked: bool, cb: Callable, note: String = "") -> void:
+	var col: Color = ab_color(ab_id)
+	var down: bool = pressed_id == id_btn and not locked
+	save()
+	if locked: _alpha *= 0.5
+	draw_rect(r, ca(Color(0.06, 0.04, 0.03, 0.86)))
+	if on:
+		draw_rect(r, ca(Color(col.r, col.g, col.b, 0.28)))
+	var bw: float = 3.0 if on else 1.5
+	draw_rect(Rect2(r.position.x, r.position.y, r.size.x, bw), ca(col))
+	draw_rect(Rect2(r.position.x, r.position.y + r.size.y - bw, r.size.x, bw), ca(col))
+	draw_rect(Rect2(r.position.x, r.position.y, bw, r.size.y), ca(col))
+	draw_rect(Rect2(r.position.x + r.size.x - bw, r.position.y, bw, r.size.y), ca(col))
+	if down:
+		draw_rect(r, ca(Color(1, 1, 1, 0.12)))
+	var nm: String = str(ABILITY_DEFS[ab_id].name) if ABILITY_DEFS.has(ab_id) else "—"
+	var pad := 7.0
+	var tw: float = r.size.x - pad * 2
+	var tag_s: String = tag + ("  · ON" if on else "")
+	text(tag_s, r.position.x + pad, r.position.y + 9, 9, Color("#fff27a") if on else Color("#c8b8a0"), "left", 2, Color(0, 0, 0, 0.8))
+	var nfs: float = fit_size(nm, 15, tw, 10)
+	text(nm, r.position.x + pad, r.position.y + 24, nfs, Color.WHITE, "left", 3, Color(0, 0, 0, 0.85))
+	var line: String = ab_effect_line(ab_id) if note == "" else note
+	var efs: float = fit_size(line, 11, tw, 8)
+	text(line, r.position.x + pad, r.position.y + r.size.y - 10, efs, Color(col.r * 0.5 + 0.5, col.g * 0.5 + 0.5, col.b * 0.5 + 0.5), "left", 2.5, Color(0, 0, 0, 0.85))
+	restore()
+	if not locked: add_btn(id_btn, r, cb)
+
+func ab_panel_focus():
+	if G == null or G.queue.is_empty():
+		return null
+	if G.ab_focus != null and G.queue.find(G.ab_focus) >= 0 and not G.ab_focus.dead:
+		return G.ab_focus
+	return G.queue[G.queue.size() - 1]
+
+## Battle: the last tapped (or chip-selected) queued unit shows its two equipped abilities.
+## Returns the panel top so hint text can sit above it.
+func draw_ability_panel(short_land: bool, by: float) -> float:
+	var u = ab_panel_focus()
+	if u == null:
+		return by
+	var pw: float = minf(VWc - 16, 470.0)
+	var px: float = (VWc - 8 - pw) if (short_land and VWc > 640) else (VWc - pw) / 2
+	var bh2 := 48.0 if short_land else 54.0
+	var chip_h := 24.0
+	var top: float = by - 22 - bh2 - chip_h - 6
+	# unit chips
+	var cx: float = px
+	for q in G.queue:
+		if q.dead: continue
+		var lab: String = q.name + (" *" if q.ab_queued != "" else "")
+		var cw: float = text_w(lab, 11) + 16
+		if cx + cw > px + pw: break
+		var rr := Rect2(cx, top, cw, chip_h - 3)
+		var full: bool = q.gauge >= AB_MP
+		draw_rect(rr, Color(0.06, 0.04, 0.03, 0.85))
+		if q == u:
+			draw_rect(Rect2(rr.position.x, rr.position.y + rr.size.y - 3, rr.size.x, 3), Color("#38f2ff"))
+		text(lab, rr.get_center().x, rr.get_center().y, 11, Color("#fff27a") if full else Color("#bcd"), "center", 2, Color(0, 0, 0, 0.8))
+		var qq = q
+		add_btn("abchip_" + str(q.id), rr, func(): _set_ab_focus(qq))
+		cx += cw + 4
+	var full2: bool = u.gauge >= AB_MP
+	var status: String = (u.name + ": MP full — pick one ability or hold it") if full2 else (u.name + ": MP %d/100 — fills over turns" % int(u.gauge))
+	var sfs: float = fit_size(status, 11, pw - (cx - px) - 6, 8)
+	if cx - px + text_w(status, sfs) + 6 > pw:
+		status = ("MP FULL" if full2 else "MP %d/100" % int(u.gauge))
+		sfs = 11
+	text(status, px + pw, top + chip_h / 2 - 1, sfs, Color("#fff27a") if full2 else Color.WHITE, "right", 3, Color(0, 0, 0, 0.85))
+	var by2: float = top + chip_h
+	var bw: float = (pw - 6) / 2
+	var uu = u
+	var cid: String = u.ab_class
+	var sid: String = u.ab_sub
+	if cid != "":
+		ab_button("abq_c", Rect2(px, by2, bw, bh2), "CLASS · " + u.cls, cid, u.ab_queued == cid, not full2, func(): queue_ability(uu, cid))
+	if sid != "":
+		ab_button("abq_s", Rect2(px + bw + 6, by2, bw, bh2), "SUB · " + u.sub, sid, u.ab_queued == sid, not full2, func(): queue_ability(uu, sid))
+	return top
+
+## Inventory > Abilities tab. Pick one class + one subclass ability to bring into battle.
+func draw_inv_abilities(name: String, dx: float, y: float, dw: float, bottom: float, short: bool) -> void:
+	validate_ab_equip(name)
+	var lv: int = hero_level(name)
+	var cls_ids: Array = class_ability_ids(name)
+	var sub: String = str(CHAR[name].sub)
+	var sub_ids: Array = sub_ability_ids(sub)
+	var det_h: float = 40.0 if short else 54.0
+	var list_bot: float = bottom - det_h - 4
+	var col_gap := 8.0
+	var lw: float = (dw - col_gap) * 0.56
+	var rw: float = dw - col_gap - lw
+	text("CLASS (%s only) — %d/10 owned" % [name, unlocked_class_ids(name).size()], dx, y + 8, 10, Color("#5b3b20"), "left")
+	text("SUBCLASS %s — %d/5" % [sub, unlocked_sub_ids(name).size()], dx + lw + col_gap, y + 8, 10, Color("#5b3b20"), "left")
+	var ly: float = y + 16
+	var rh: float = (list_bot - ly) / 10.0
+	for i in cls_ids.size():
+		var cid: String = cls_ids[i]
+		_inv_ab_row("invab_c%d" % i, Rect2(dx, ly + i * rh, lw, rh - 2), cid, name, lv, AB_EQUIP[name].cls == cid)
+	var rh2: float = minf(rh * 2.0, (list_bot - ly) / 5.0)
+	for j in sub_ids.size():
+		var sid: String = sub_ids[j]
+		_inv_ab_row("invab_s%d" % j, Rect2(dx + lw + col_gap, ly + j * rh2, rw, rh2 - 2), sid, name, lv, AB_EQUIP[name].sub == sid)
+	# detail box with the full blurb
+	var view: String = inv_ab_view
+	if not ABILITY_DEFS.has(view):
+		view = str(AB_EQUIP[name].cls)
+	var dr := Rect2(dx, bottom - det_h, dw, det_h)
+	var plate := Color("#2a1a10")
+	plate.a = 0.2
+	draw_rect(dr, plate)
+	if ABILITY_DEFS.has(view):
+		var ab: Dictionary = ABILITY_DEFS[view]
+		var owned: bool = lv >= int(ab.lv)
+		var head: String = str(ab.name) + "  ·  " + ("Class" if str(ab.src) == "class" else "Subclass " + str(ab.owner)) + "  ·  Lv " + str(int(ab.lv)) + ("" if owned else "  (locked)") + "  ·  Needs full MP"
+		text(head, dr.position.x + 8, dr.position.y + 11, fit_size(head, 12, dw - 16, 9), Color("#2a1a10"), "left")
+		var body: String = str(ab.blurb) + "  " + ab_effect_line(view) + "."
+		var bl: Array = wrap_words(body, 11, dw - 16)
+		for li in mini(bl.size(), 2 if short else 3):
+			text(str(bl[li]), dr.position.x + 8, dr.position.y + 25 + li * 13, 11, Color("#5b3b20"), "left")
+
+func _inv_ab_row(id_btn: String, r: Rect2, ab_id: String, name: String, lv: int, on: bool) -> void:
+	var ab: Dictionary = ABILITY_DEFS[ab_id]
+	var owned: bool = lv >= int(ab.lv)
+	var col: Color = ab_color(ab_id)
+	if on:
+		draw_rect(r, Color("#c8a05a"))
+		draw_rect(Rect2(r.position.x + 2, r.position.y + 2, r.size.x - 4, r.size.y - 4), Color("#3a2412"))
+	else:
+		var pl := Color("#2a1a10")
+		pl.a = 0.14 if owned else 0.06
+		draw_rect(r, pl)
+	if inv_ab_view == ab_id:
+		draw_rect(Rect2(r.position.x, r.position.y, 3, r.size.y), col)
+	var lvs: String = "Lv%d" % int(ab.lv)
+	var nm: String = str(ab.name) + ("  (ON)" if on else "")
+	var tc: Color = Color("#ffe27a") if on else (Color("#2a1a10") if owned else Color("#9a8060"))
+	var lc: Color = Color("#c8a06a") if on else Color("#7a5a32")
+	var two_line: bool = r.size.y >= 30
+	text(lvs, r.position.x + 6, r.position.y + (10 if two_line else r.size.y * 0.52), 9, lc, "left")
+	var nx: float = r.position.x + 36
+	var nw: float = r.size.x - 40
+	if two_line:
+		text(nm, nx, r.position.y + 10, fit_size(nm, 12, nw, 9), tc, "left")
+		var el: String = ab_effect_line(ab_id) if owned else ("Locked — reach Lv %d" % int(ab.lv))
+		text(el, nx, r.position.y + 23, fit_size(el, 10, nw, 7), lc, "left")
+	else:
+		var one: String = nm + "  " + (ab_effect_line(ab_id) if owned else "(locked)")
+		text(one, nx, r.position.y + r.size.y * 0.52, fit_size(one, 11, nw, 7), tc, "left")
+	var aid: String = ab_id
+	add_btn(id_btn, r, func(): _inv_tap_ability(name, aid))
+
+func _inv_tap_ability(name: String, id: String) -> void:
+	inv_ab_view = id
+	if equip_ability(name, id):
+		sfx.tone(880, 0.05, "triangle", 0.03)
+	else:
+		sfx.tone(330, 0.05, "square", 0.02)
+
+func _set_ab_focus(q) -> void:
+	if G == null: return
+	G.ab_focus = q
+	sfx.tone(587, 0.04, "square", 0.025)
 
 # ---------------------------------------------------------------- render
 func _draw() -> void:
@@ -2805,7 +3623,11 @@ func _draw() -> void:
 	for t in texts: draw_text_fx(t)
 	restore()
 	set_xf(base)
-	draw_hud(); draw_banner()
+	if screen_flash != null:
+		var fk: float = screen_flash.t / screen_flash.life
+		var fcol: Color = screen_flash.color
+		draw_rect(Rect2(0, 0, VWc, VHc), Color(fcol.r, fcol.g, fcol.b, 0.32 * (1.0 - fk)))
+	draw_hud(); draw_banner(); draw_cast_banner()
 	if screen == "title": draw_title()
 	elif screen == "chars": draw_chars()
 	elif screen == "inv": draw_inv()
@@ -3010,6 +3832,7 @@ func on_key(k: int) -> void:
 # ---------------------------------------------------------------- loop
 func _ready() -> void:
 	randomize()
+	build_abilities()
 	sfx = preload("res://scripts/sfx.gd").new()
 	add_child(sfx)
 	load_cfg()
@@ -3077,20 +3900,91 @@ func _shot(path: String) -> void:
 func _wait_ms(ms: float) -> void:
 	await get_tree().create_timer(ms / 1000.0).timeout
 
+## Headless check: force-cast every ability once and confirm it spends the full bar.
+func _abtest() -> void:
+	var m: bool = sfx.muted
+	sfx.muted = true
+	var ok := 0
+	var bad: Array = []
+	for id in ABILITY_DEFS:
+		new_battle(3); phase = "battle"; begin_player_turn()
+		var blues: Array = G.units.filter(func(x): return x.team == "blue")
+		var u = blues[0]
+		for x in blues:
+			if str(ABILITY_DEFS[id].src) == "class" and x.name == str(ABILITY_DEFS[id].owner): u = x
+		var hp0 := 0
+		for x in G.units: hp0 += x.hp
+		for x in blues: x.hp = maxi(1, int(x.maxhp / 2))
+		var bhp := 0
+		for x in blues: bhp += x.hp
+		var rhp := 0
+		for x in alive("red"): rhp += x.hp
+		u.gauge = 100.0
+		G.queue = [u]
+		queue_ability(u, id)
+		var queued: bool = u.ab_queued == id
+		execute_orders()
+		var guard := 0
+		while phase == "battle" and G.side == "blue" and guard < 4000:
+			step(17); guard += 1
+		var bhp2 := 0
+		for x in G.units.filter(func(x2): return x2.team == "blue"): bhp2 += x.hp
+		var rhp2 := 0
+		for x in G.units.filter(func(x2): return x2.team == "red"): rhp2 += x.hp
+		var buffs := 0
+		for x in G.units: buffs += x.buffs.size()
+		var kind: String = str(ABILITY_DEFS[id].kind)
+		var effect := false
+		if kind.begins_with("damage"): effect = rhp2 < rhp
+		elif kind.begins_with("heal"): effect = bhp2 > bhp
+		else: effect = buffs > 0
+		if queued and effect and u.gauge < 100.0 and guard < 4000: ok += 1
+		else: bad.append("%s q=%s eff=%s g=%d guard=%d" % [id, str(queued), str(effect), int(u.gauge), guard])
+		phase = "title"
+	sfx.muted = m
+	print("ABTEST ok=", ok, " total=", ABILITY_DEFS.size(), " bad=", bad)
+
 func _autotest() -> void:
 	var dir: String = params.shot
+	if params.has("abtest"):
+		_abtest()
+		get_tree().quit()
+		return
 	if params.has("sim"):
 		print("SIM ", JSON.stringify(_sim(int(params.sim))))
 		to_title()
 	await _wait_ms(400)
 	await _shot(dir + "/01_title.png")
+	open_inv(); inv_tab = "abilities"
+	await _wait_ms(300)
+	await _shot(dir + "/01b_inv_abilities.png")
+	select_hero(4); inv_tab = "abilities"
+	await _wait_ms(200)
+	await _shot(dir + "/01c_inv_lanning.png")
+	inv_tab = "gear"
+	await _wait_ms(200)
+	await _shot(dir + "/01d_inv_gear.png")
+	open_chars()
+	await _wait_ms(300)
+	await _shot(dir + "/01e_chars.png")
+	to_title()
 	start_fight(int(params.get("mode", "1")))
 	await _wait_ms(1600)
 	for u in G.units.filter(func(u): return u.team == "blue").slice(0, 4): toggle_queue(u)
 	await _wait_ms(200)
 	await _shot(dir + "/02_queued.png")
+	var qb: Array = G.queue.duplicate()
+	for qu in qb: qu.gauge = 100.0
+	if qb.size() >= 2:
+		queue_ability(qb[0], qb[0].ab_class)
+		queue_ability(qb[1], qb[1].ab_sub)
+		G.ab_focus = qb[1]
+	await _wait_ms(300)
+	await _shot(dir + "/02b_abilities.png")
 	execute_orders()
-	await _wait_ms(900)
+	await _wait_ms(500)
+	await _shot(dir + "/03a_cast.png")
+	await _wait_ms(400)
 	await _shot(dir + "/03_attack.png")
 	speed = 2
 	while phase == "battle" and G.side == "blue": await _wait_ms(100)

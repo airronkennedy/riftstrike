@@ -1,0 +1,43 @@
+{
+ "_readme": "Wild encounter tables. Encounters roll once per 'step' (step_px of walking) on wild-grass tiles (\") inside the listed area. rate = chance per step. grace_steps = safe steps after a battle or entering grass. pity_steps = force an encounter after this many steps without one. Each group: weight, kinds (torch/barrel/tnt; 1-3 of them), level range. URL ?enc=3 multiplies rate for quick testing; ?enc=0 turns encounters off.",
+ "step_px": 64,
+ "grace_steps": 4,
+ "pity_steps": 22,
+ "xp_per_level": 9,
+ "areas": {
+  "brookside_meadow": {"rate": 0.09, "groups": [
+    {"weight": 5, "kinds": ["torch"], "level": [2, 3]},
+    {"weight": 4, "kinds": ["barrel"], "level": [2, 3]},
+    {"weight": 3, "kinds": ["torch", "barrel"], "level": [2, 4]},
+    {"weight": 2, "kinds": ["torch", "tnt"], "level": [3, 4]},
+    {"weight": 1, "kinds": ["torch", "barrel", "tnt"], "level": [3, 4]}
+  ]},
+  "whisperreed_marsh": {"rate": 0.10, "groups": [
+    {"weight": 4, "kinds": ["barrel", "barrel"], "level": [4, 5]},
+    {"weight": 3, "kinds": ["tnt", "torch"], "level": [4, 6]},
+    {"weight": 2, "kinds": ["torch", "barrel", "tnt"], "level": [5, 6]}
+  ]},
+  "old_mill_road": {"rate": 0.08, "groups": [
+    {"weight": 4, "kinds": ["torch", "torch"], "level": [4, 6]},
+    {"weight": 3, "kinds": ["barrel", "tnt"], "level": [5, 7]},
+    {"weight": 1, "kinds": ["torch", "barrel", "tnt"], "level": [6, 7]}
+  ]},
+  "hollowpine_wood": {"rate": 0.10, "groups": [
+    {"weight": 4, "kinds": ["torch", "torch"], "level": [8, 10]},
+    {"weight": 3, "kinds": ["torch", "barrel", "torch"], "level": [8, 11]},
+    {"weight": 2, "kinds": ["tnt", "tnt", "barrel"], "level": [9, 11]}
+  ]},
+  "saltmere_shore": {"rate": 0.10, "groups": [
+    {"weight": 4, "kinds": ["barrel", "barrel"], "level": [8, 10]},
+    {"weight": 3, "kinds": ["tnt", "barrel", "torch"], "level": [8, 11]},
+    {"weight": 2, "kinds": ["tnt", "tnt", "torch"], "level": [9, 11]}
+  ]}
+ },
+ "scaling": {
+  "_readme": "Enemy stat multiplier vs a normal 6v3 raid goblin: mult = base + per_level * level (capped at max).",
+  "hp_base": 0.40, "hp_per_level": 0.07,
+  "atk_base": 0.62, "atk_per_level": 0.045,
+  "def_base": 0.70, "def_per_level": 0.035,
+  "max": 3.0
+ }
+}

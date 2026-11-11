@@ -1,0 +1,211 @@
+{
+ "_readme": "Tile rects are [col0,row0,col1,row1] inclusive (64px tiles). First matching rect wins. 'start' is the new-game tile. Gate rects tie X tiles to world.json gates.",
+ "tile": 64,
+ "start": [
+  10,
+  8
+ ],
+ "areas": [
+  {
+   "id": "rivenbrook",
+   "rects": [
+    [
+     1,
+     1,
+     16,
+     12
+    ]
+   ]
+  },
+  {
+   "id": "brookside_meadow",
+   "rects": [
+    [
+     17,
+     1,
+     38,
+     14
+    ]
+   ]
+  },
+  {
+   "id": "whisperreed_marsh",
+   "rects": [
+    [
+     2,
+     13,
+     31,
+     30
+    ]
+   ]
+  },
+  {
+   "id": "old_mill_road",
+   "rects": [
+    [
+     39,
+     3,
+     62,
+     13
+    ]
+   ]
+  },
+  {
+   "id": "thornwick",
+   "rects": [
+    [
+     63,
+     1,
+     80,
+     15
+    ]
+   ]
+  },
+  {
+   "id": "hollowpine_wood",
+   "rects": [
+    [
+     81,
+     1,
+     110,
+     19
+    ]
+   ]
+  },
+  {
+   "id": "ironbridge_fort",
+   "rects": [
+    [
+     101,
+     20,
+     110,
+     34
+    ]
+   ]
+  },
+  {
+   "id": "gullcliff_lighthouse",
+   "rects": [
+    [
+     58,
+     34,
+     63,
+     43
+    ]
+   ]
+  },
+  {
+   "id": "saltmere_shore",
+   "rects": [
+    [
+     56,
+     16,
+     100,
+     33
+    ]
+   ]
+  }
+ ],
+ "gates": [
+  {
+   "id": "g_fort_north",
+   "rects": [
+    [
+     103,
+     20,
+     109,
+     20
+    ]
+   ]
+  },
+  {
+   "id": "g_fort_south",
+   "rects": [
+    [
+     101,
+     23,
+     101,
+     27
+    ]
+   ]
+  },
+  {
+   "id": "g_lighthouse_door",
+   "rects": [
+    [
+     58,
+     42,
+     63,
+     42
+    ]
+   ]
+  }
+ ],
+ "props": [
+  {
+   "img": "tower",
+   "x": 50,
+   "y": 5,
+   "s": 0.62,
+   "note": "the old mill"
+  },
+  {
+   "img": "ghouse",
+   "x": 46,
+   "y": 10,
+   "s": 0.8
+  },
+  {
+   "img": "ghouse",
+   "x": 66,
+   "y": 4,
+   "s": 0.84
+  },
+  {
+   "img": "ghouse",
+   "x": 75,
+   "y": 4,
+   "s": 0.84,
+   "flip": true
+  },
+  {
+   "img": "ghouse",
+   "x": 66,
+   "y": 12,
+   "s": 0.86
+  },
+  {
+   "img": "ghouse",
+   "x": 76,
+   "y": 12,
+   "s": 0.82,
+   "flip": true
+  },
+  {
+   "img": "tower",
+   "x": 78,
+   "y": 8,
+   "s": 0.7
+  },
+  {
+   "img": "tower",
+   "x": 104,
+   "y": 28,
+   "s": 0.8,
+   "note": "fort keep (sealed)"
+  },
+  {
+   "img": "tower",
+   "x": 108,
+   "y": 26,
+   "s": 0.7
+  },
+  {
+   "img": "tower",
+   "x": 61,
+   "y": 43,
+   "s": 0.8,
+   "note": "lighthouse"
+  }
+ ]
+}
