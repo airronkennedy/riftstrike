@@ -1423,7 +1423,7 @@ func draw_bars(u) -> void:
 	text(u.name, u.x, ny, nfs, Color("#d6f1ff") if u.team == "blue" else Color("#ffd9cf"), "center", 3, Color(0, 0, 0, 0.75))
 	if u.sub != "":
 		var rfs := roundf(7.5 * TS)
-		var role := u.cls + " · " + u.sub
+		var role: String = u.cls + " · " + u.sub
 		if u.team == "blue":
 			role = "Lv." + str(hero_level(u.name)) + "  " + role
 		text(role, u.x, y - 4 - 11 * TS - rfs * 0.35, rfs, Color("#9fd4e8") if u.team == "blue" else Color("#f0b6a8"), "center", 2.5, Color(0, 0, 0, 0.75))
@@ -1941,7 +1941,7 @@ func draw_chars() -> void:
 	draw_hero_sprite(st.kind, dx + 44, y + spr_h - 4, 0.82 if short else 1.05)
 	text(name, dx + 88, y + 18, 24.0 if short else 30.0, Color("#2a1a10"), "left")
 	var focus_bit := "Focus " + str(st.focus_name)
-	var head2 := ("Lv." + str(int(st.level)) + "  ·  " + focus_bit) if short else ("Lv." + str(int(st.level)) + "  ·  " + st.cls + "  ·  " + st.sub + "  ·  " + focus_bit)
+	var head2: String = ("Lv." + str(int(st.level)) + "  ·  " + focus_bit) if short else ("Lv." + str(int(st.level)) + "  ·  " + st.cls + "  ·  " + st.sub + "  ·  " + focus_bit)
 	text(head2, dx + 88, y + (40 if short else 48), 13.0 if short else 15.0, Color("#7a5a32"), "left")
 	y += spr_h + (2 if short else 6)
 	var cls_hint := "" if short else String(st.blurb)
