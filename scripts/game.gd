@@ -1108,8 +1108,26 @@ func start_action(u) -> bool:
 		fx.append({"type": "ring", "x": u.x, "y": u.y - 20, "t": 0.0, "life": 380.0, "color": Color("#7fd8ff") if u.team == "blue" else Color("#ff9a4a")})
 		sfx.special()
 	else:
-		u.gauge = minf(100, u.gauge + 22)
+		gain_mp(u, 22)
 	return true
+
+## All MP gains go through here so a hero's bar filling up gets one clear "MP FULL" pop and chime.
+func gain_mp(u, amt: float) -> void:
+	var was: float = u.gauge
+	u.gauge = minf(100.0, u.gauge + amt)
+	if u.team == "blue" and was < AB_MP and u.gauge >= AB_MP and not u.dead and phase == "battle":
+		add_text(u.x, stack_y(u, u.y - u.K.head * uS(u) - 40), "MP FULL!", "#fff27a", 14, 900, true)
+		fx.append({"type": "ring", "x": u.x, "y": u.y - 10, "t": 0.0, "life": 420.0, "color": Color("#fff27a")})
+		sfx.tone(1320, 0.07, "triangle", 0.03, 1.2)
+
+## Floating numbers that land on the same unit at nearly the same moment stack upward instead of overprinting.
+var _text_stack := {}
+func stack_y(u, y: float) -> float:
+	var k: String = str(u.id)
+	var e: Dictionary = _text_stack.get(k, {"t": -1e9, "n": 0})
+	var n: int = int(e.n) + 1 if now - float(e.t) < 260.0 else 0
+	_text_stack[k] = {"t": now, "n": n}
+	return y - 17.0 * float(mini(n, 3))
 
 func begin_swing(u) -> void:
 	var a = u.act
@@ -1358,7 +1376,7 @@ func dodge_chance(u, t) -> float:
 func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "", ab: bool = false) -> void:
 	if t == null or t.dead: return
 	if not special and not is_splash and not ab and randf() < dodge_chance(u, t):
-		add_text(t.x + rand(-8, 8), t.y - t.K.head * uS(t) - 6, "DODGE", "#d8f6ff", 15, 650, true)
+		add_text(t.x + rand(-8, 8), stack_y(t, t.y - t.K.head * uS(t) - 6), "DODGE", "#d8f6ff", 15, 650, true)
 		t.kx = (1.0 if t.x >= u.x else -1.0) * 12
 		sfx.tone(1180, 0.05, "triangle", 0.025, 0.6)
 		return
@@ -1388,20 +1406,19 @@ func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 		u.dmg += dmg - credited
 	else:
 		u.dmg += dmg
-	t.gauge = minf(100, t.gauge + (16 if combo else 9))
+	gain_mp(t, 16 if combo else 9)
 	t.flash = 180.0 if combo else 110.0
 	t.shake = 240.0 if combo else 160.0
 	t.kx = (1.0 if t.x >= u.x else -1.0) * (14 if combo else (9 if opt.get("special", false) else 5))
 	var big: bool = combo or bool(opt.get("ab", false)) or (opt.get("special", false) and not opt.get("isSplash", false))
 	var crit: bool = opt.get("crit", false)
-	var label := ("COMBO x%d  %d" % [opt.n, dmg]) if combo else str(dmg)
+	var label := ("COMBO x%d  %d" % [opt.n, dmg]) if combo else (str(dmg) + ("!" if crit else ""))
 	var col: String = opt.get("color", "")
 	if col == "": col = "#ffd23f" if (combo or big) else ("#ff8a3d" if crit else "#ffffff")
-	add_text(t.x + rand(-10, 10), t.y - t.K.head * uS(t) - 6, label, col, 28 if combo else (26 if big else (21 if crit else 17)), 1100 if combo else 760, big or crit)
+	add_text(t.x + rand(-10, 10), stack_y(t, t.y - t.K.head * uS(t) - 6), label, col, 28 if combo else (26 if big else (21 if crit else 17)), 1100 if combo else 760, big or crit)
 	fx.append({"type": "spark", "x": t.x - t.kx * 2, "y": t.y - 32, "t": 0.0, "life": 280.0 if big else 170.0, "big": big or crit, "rot": randf() * 6})
 	if combo:
 		fx.append({"type": "ring", "x": t.x, "y": t.y - 20, "t": 0.0, "life": 420.0, "color": Color("#ffd23f")})
-		add_text(t.x, t.y - t.K.head * uS(t) - 36, "x3", "#fff27a", 18, 800, true)
 		hitstop = maxf(hitstop, 90)
 		sfx.special()
 	elif big:
@@ -1409,8 +1426,9 @@ func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 	sfx.hit()
 	if t.hp <= 0:
 		t.dead = true; t.death_t = 0.0; t.act = null; t.burn = null; u.kos += 1
-		add_text(t.x, t.y - t.K.head * uS(t) - 28, "KO!", "#ff5a5a", 20, 800, true)
-		sfx.ko(); shake(7 if combo else 4, 200 if combo else 140)
+		add_text(t.x, t.y - t.K.head * uS(t) - 44, "KO!", "#ff5a5a", 22, 900, true)
+		hitstop = maxf(hitstop, 80)
+		sfx.ko(); shake(7 if combo else 5, 200 if combo else 160)
 		var qi := G.queue.find(t)
 		if qi >= 0 and qi >= G.qi: G.queue.remove_at(qi)
 
@@ -1476,7 +1494,7 @@ func busy() -> bool:
 func apply_mana_regen(team: String) -> void:
 	for u in alive(team):
 		if u.mana_regen <= 0: continue
-		u.gauge = minf(100.0, u.gauge + u.mana_regen)
+		gain_mp(u, u.mana_regen)
 
 func begin_player_turn() -> void:
 	G.side = "blue"; G.mode = "select"; G.queue = []; G.qi = 0; G.turn += 1; G.ab_focus = null
@@ -1727,7 +1745,10 @@ func heal_unit(t, pct: float) -> void:
 	var before: int = t.hp
 	t.hp = mini(t.maxhp, t.hp + amt)
 	var got: int = t.hp - before
-	add_text(t.x + rand(-6, 6), t.y - t.K.head * uS(t) - 6, "+" + str(got), "#5dff8a", 24, 1000, true)
+	if got > 0:
+		add_text(t.x + rand(-6, 6), stack_y(t, t.y - t.K.head * uS(t) - 6), "+" + str(got), "#5dff8a", 24, 1000, true)
+	else:
+		add_text(t.x, stack_y(t, t.y - t.K.head * uS(t) - 6), "FULL", "#bff5cf", 13, 700)
 	fx.append({"type": "pulse", "x": t.x, "y": t.y - 4, "t": 0.0, "life": 650.0, "r": 46.0, "color": Color("#5dff8a")})
 	fx.append({"type": "aura", "unit": t, "t": 0.0, "life": 800.0, "color": Color("#5dff8a")})
 
@@ -3867,7 +3888,7 @@ func draw_battle_ui() -> void:
 	if G != null and phase == "battle":
 		if AUTO: hint = "Auto-battle on · tap AUTO to take control"
 		elif sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your knights in attack order · or tap AUTO"
-		else: hint = "Your knights are attacking…" if G.side == "blue" else "Goblins are attacking…"
+		else: hint = "Your knights are attacking…" if G.side == "blue" else ("The boss is attacking…" if (G.n_red == 1 and encounter.is_empty()) else "Enemies are attacking…")
 	if hint != "":
 		var hfs := 12.0 if short_land else 14.0
 		var hy := hint_base - 2 - 9
@@ -3899,9 +3920,8 @@ func draw_cast_banner() -> void:
 	var cy: float = bar_top - 28.0 - h / 2.0
 	save(); _alpha *= al
 	tr_(VWc / 2, cy); scale_by(sc, sc)
-	draw_rect(Rect2(-w / 2, -h / 2, w, h), ca(Color(0.05, 0.03, 0.08, 0.82)))
-	draw_rect(Rect2(-w / 2, -h / 2, w, 3), ca(col))
-	draw_rect(Rect2(-w / 2, h / 2 - 3, w, 3), ca(col))
+	# Soft pill in the menu style: dark glass with the ability colour as the rim.
+	rbox(Rect2(-w / 2, -h / 2, w, h), h / 2.0, Color(0.05, 0.07, 0.1, 0.86), col, 3.0, 6.0)
 	text(str(cast_banner.text), 0, -8, fs, col, "center", 4, Color(0, 0, 0, 0.9))
 	text(str(cast_banner.sub), 0, 15, sfs, Color("#f4ecff"), "center", 3, Color(0, 0, 0, 0.9))
 	restore()
