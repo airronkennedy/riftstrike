@@ -1152,8 +1152,9 @@ func update_unit(u, dt: float) -> void:
 				return
 			if u.kind == "warrior" and a.swing == 0:
 				a.swing = 1; begin_swing(u); return
-			# Follow-up strike if still in range. Warriors already swing twice as their kit.
-			if u.kind != "warrior" and not a.doubled and a.target != null and not a.target.dead:
+			# Melee follow-up strike if still in range. Warriors already swing twice as their kit.
+			# Ranged units never follow up (the boss's 360 range used to reach the front-centre slot and fire twice).
+			if u.kind != "warrior" and str(u.K.ranged) == "" and not a.doubled and a.target != null and not a.target.dead:
 				var dx: float = a.target.x - u.x
 				var dy: float = a.target.y - u.y
 				if sqrt(dx * dx + dy * dy) <= float(u.K.range) + 12.0:
@@ -1330,14 +1331,18 @@ func mitigate_raw(raw: float, t) -> int:
 func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color: String = "", ab: bool = false) -> void:
 	if t == null or t.dead: return
 	var crit_p: float = clampf(float(u.crit) / 100.0, 0.0, 0.6)
-	var crit := not special and not is_splash and randf() < crit_p
+	var crit := (ab or not special) and not is_splash and randf() < crit_p
 	# Melee damage is fixed (crits and combos are the only swings); ranged keeps a small roll.
 	var roll: float = rand(0.85, 1.15) if str(u.K.ranged) != "" else 1.0
 	var raw: float = u.atk * roll * mult * (1.5 if crit else 1.0) * surge_mult()
 	deal_damage(u, t, mitigate_raw(raw, t), {"special": special, "isSplash": is_splash, "crit": crit, "color": color, "ab": ab})
 
+var combat_trace = null # Array when a headless tool wants a per-hit log (tools/combat_sim.gd); null in play.
+
 func deal_damage(u, t, dmg: int, opt: Dictionary) -> void:
 	if t.dead: return
+	if combat_trace != null:
+		combat_trace.append({"turn": G.turn, "src": u.name, "dst": t.name, "dmg": dmg, "combo": opt.get("combo", false), "ab": opt.get("ab", false), "crit": opt.get("crit", false), "splash": opt.get("isSplash", false), "special": opt.get("special", false)})
 	var combo: bool = opt.get("combo", false)
 	t.hp = maxi(0, t.hp - dmg)
 	if combo:
@@ -1618,6 +1623,10 @@ func stat_floor(stat: String) -> int:
 func add_mod(u, stat: String, amt: int, turns: int) -> void:
 	if u == null or u.dead or amt == 0:
 		return
+	# Mods tick at the start of the target side's turn. A debuff cast on the other side would lose a
+	# tick before its target ever acts, so "2T" on a foe only covered one of its turns; count it from their next turn.
+	if G != null and u.team != G.side:
+		turns += 1
 	for i in range(u.buffs.size() - 1, -1, -1):
 		var b: Dictionary = u.buffs[i]
 		if str(b.stat) == stat and (int(b.req) > 0) == (amt > 0):
@@ -1767,7 +1776,8 @@ func ability_impact(u, id: String, t) -> void:
 		fx.append({"type": "pulse", "x": t.x, "y": t.y - 4, "t": 0.0, "life": 520.0, "r": 60.0, "color": col})
 		fx.append({"type": "slash", "x": t.x, "y": t.y - 30, "t": 0.0, "life": 320.0, "dir": u.facing})
 		shake(7, 220)
-		sync_pending.append({"u": u, "t": t, "mult": mult, "special": false, "color": "", "age": 0.0, "ab": true})
+		# Resolve right away: an ability hit must keep its own multiplier instead of being folded into a COMBO.
+		apply_hit(u, t, mult, false, false, "", true)
 		if p.has("debuff"):
 			apply_mod_list(t, p.debuff, int(p.get("dturns", 2)), true)
 	elif kind == "damage_all_enemies":
@@ -3825,7 +3835,10 @@ func draw_cast_banner() -> void:
 	var sfs := 12.0
 	var w: float = minf(VWc - 20, maxf(text_w(str(cast_banner.text), fs) + 120, text_w(str(cast_banner.sub), sfs) + 60))
 	var h := 58.0
-	var cy: float = (64.0 + SAFE_T) if PORT else (VHc * 0.2)
+	# Sit just above the action bar (the RUN / AUTO pills used to cover it at the top of the field).
+	var short_land := VHc <= 520 and VWc > VHc
+	var bar_top: float = VHc - (4.0 if short_land else 6.0) - (50.0 if short_land else 60.0)
+	var cy: float = bar_top - 28.0 - h / 2.0
 	save(); _alpha *= al
 	tr_(VWc / 2, cy); scale_by(sc, sc)
 	draw_rect(Rect2(-w / 2, -h / 2, w, h), ca(Color(0.05, 0.03, 0.08, 0.82)))
@@ -4179,7 +4192,7 @@ func show_results() -> void:
 		up_line,
 	]
 	res = {
-		"result": r, "n_red": G.n_red,
+		"result": r, "n_red": G.n_red if encounter.is_empty() else 0,
 		"title": "VICTORY" if r == "win" else ("DEFEAT" if r == "lose" else "DRAW"),
 		"sub": "The squad holds the rift!" if r == "win" else ("The rift was overrun…" if r == "lose" else "Nobody left standing!"),
 		"lines": lines_out,
