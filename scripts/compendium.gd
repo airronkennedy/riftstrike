@@ -222,12 +222,12 @@ func draw(g: Object, vw: float, vh: float) -> void:
 		capstone = abl.size() - 1
 		var hero: String = str(kit.hero)
 		if e.upcoming:
-			label = "%s'S KIT WHEN THE NEW MODEL LANDS  ·  10 abilities  ·  Lv 1, 11 … 81, 99" % hero.to_upper()
+			label = "%s's kit · coming with the new art · Lv 1, 11 … 81, 99" % hero
 		else:
-			label = "%s'S CLASS KIT  ·  unique to %s  ·  Lv 1, 11 … 81, 99" % [hero.to_upper(), hero]
+			label = "%s's class kit · unique to %s · Lv 1, 11 … 81, 99" % [hero, hero]
 	else:
 		abl = e.abl
-		label = "SUBCLASS ABILITIES  ·  shared by anyone running %s  ·  Lv 1, 20, 40, 60, 80" % str(e.name)
+		label = "Subclass abilities · shared by anyone running %s · Lv 1, 20, 40, 60, 80" % str(e.name)
 	var lfs: float = g.fit_size(label, 11.0 if short else 12.0, area.size.x - 8.0, 8.0)
 	g.text(label, area.position.x + 4.0, y + 6.0, lfs, g.UI_MUTED, "left")
 	y += 16.0 if short else 20.0
@@ -241,20 +241,11 @@ func _draw_head(g: Object, e: Dictionary, idx: int, n: int, r0: Rect2, short: bo
 	var blurb: String = str(d.get("blurb", ""))
 	var pack: String = pack_text(d)
 	var narrow: bool = r0.size.x < 520.0
-	var hh: float = 66.0 if short else (112.0 if narrow else 100.0)
-	var r := Rect2(r0.position.x, r0.position.y, r0.size.x, hh)
-	g.rbox(r, 22.0, g.UI_GOLD_L if upcoming else g.UI_CARD, g.UI_GOLD if upcoming else g.UI_LINE, 2.0, 3.0)
 	var ab: float = 34.0 if short else 42.0
-	var aby: float = r.get_center().y - ab / 2.0
-	g.pill("cmp_prev", Rect2(r.position.x + 8.0, aby, ab, ab), "", "primary", 18.0, func(): step_entry(g, -1), false, false, false, "", "left")
-	g.pill("cmp_next", Rect2(r.end.x - 8.0 - ab, aby, ab, ab), "", "primary", 18.0, func(): step_entry(g, 1), false, false, false, "", "right")
-	var cx: float = r.get_center().x
-	var tw: float = r.size.x - ab * 2.0 - 36.0
+	var tw: float = r0.size.x - ab * 2.0 - 36.0
 	var name: String = str(e.name)
 	var nfs: float = g.fit_size(name, 20.0 if short else 26.0, tw, 13.0)
-	var ny: float = r.position.y + (13.0 if short else 21.0)
-	g.text(name, cx, ny, nfs, g.UI_INK)
-	# chips
+	var cfs: float = 10.0 if short else 11.0
 	var chips: Array = []
 	if tab == 0:
 		chips.append(["%s %d / %d" % ["Upcoming" if upcoming else "Class", idx + 1, n], g.UI_GOLD if upcoming else g.UI_TEAL_L, Color("#3d2706") if upcoming else g.UI_TEAL_D])
@@ -273,12 +264,31 @@ func _draw_head(g: Object, e: Dictionary, idx: int, n: int, r0: Rect2, short: bo
 		chips.append(["Subclass %d / %d" % [idx + 1, n], g.UI_TEAL_L, g.UI_TEAL_D])
 		chips.append(["Focus " + str(e.focus), g.UI_GOLD_L, Color("#7a5208")])
 		chips.append(["Run by " + ", ".join(e.runners) if e.runners.size() > 0 else "Any hero can swap in", Color(g.UI_INK.r, g.UI_INK.g, g.UI_INK.b, 0.08), g.UI_INK])
-	var cfs: float = 10.0 if short else 11.0
-	var cy: float = ny + nfs * 0.5 + (10.0 if short else 15.0)
-	_chip_row(g, chips, cx, cy, tw, cfs)
-	var by: float = cy + (14.0 if short else 19.0)
+	var top_pad: float = 13.0 if short else 21.0
+	var chip_gap: float = 10.0 if short else 15.0
+	var row_h: float = cfs + 10.0
+	var rows: Array = _chip_rows(g, chips, tw, cfs)
+	var chip_h: float = float(maxi(1, rows.size())) * row_h
+	var after_chip: float = 14.0 if short else 19.0
 	var bfs: float = 11.0 if short else 13.0
-	if narrow and not short:
+	var split_pack: bool = narrow and not short
+	var blurb_h: float = (17.0 + 14.0) if split_pack else (bfs + 6.0)
+	var bot_pad: float = 12.0 if short else 16.0
+	var hh: float = top_pad + nfs * 0.5 + chip_gap + chip_h + after_chip + blurb_h + bot_pad
+	hh = maxf(hh, ab + 16.0)
+	var r := Rect2(r0.position.x, r0.position.y, r0.size.x, hh)
+	g.rbox(r, 22.0, g.UI_GOLD_L if upcoming else g.UI_CARD, g.UI_GOLD if upcoming else g.UI_LINE, 2.0, 3.0)
+	var cx: float = r.get_center().x
+	var ny: float = r.position.y + top_pad
+	var aby: float = ny - ab / 2.0
+	aby = clampf(aby, r.position.y + 6.0, r.end.y - 6.0 - ab)
+	g.pill("cmp_prev", Rect2(r.position.x + 8.0, aby, ab, ab), "", "primary", 18.0, func(): step_entry(g, -1), false, false, false, "", "left")
+	g.pill("cmp_next", Rect2(r.end.x - 8.0 - ab, aby, ab, ab), "", "primary", 18.0, func(): step_entry(g, 1), false, false, false, "", "right")
+	g.text(name, cx, ny, nfs, g.UI_INK)
+	var cy: float = ny + nfs * 0.5 + chip_gap
+	_draw_chip_rows(g, rows, cx, cy, cfs, row_h)
+	var by: float = cy + chip_h - row_h * 0.5 + after_chip
+	if split_pack:
 		g.text(blurb, cx, by, g.fit_size(blurb, bfs, tw, 8.0), g.UI_MUTED)
 		g.text(pack, cx, by + 17.0, g.fit_size(pack, 11.0, tw, 8.0), g.UI_TEAL_D)
 	else:
@@ -287,21 +297,37 @@ func _draw_head(g: Object, e: Dictionary, idx: int, n: int, r0: Rect2, short: bo
 	return hh
 
 
-## Centered chips; drops trailing chips that do not fit the width.
-func _chip_row(g: Object, chips: Array, cx: float, cy: float, maxw: float, fsz: float) -> void:
+## Centered chips, wrapping to another row instead of dropping ones that do not fit.
+func _chip_rows(g: Object, chips: Array, maxw: float, fsz: float) -> Array:
 	var gap: float = 6.0
-	var keep: Array = []
+	var rows: Array = []
+	var cur: Array = []
 	var total: float = 0.0
 	for c in chips:
 		var w: float = g.text_w(str(c[0]), fsz) + fsz * 1.2
-		var add: float = w + (gap if keep.size() > 0 else 0.0)
-		if total + add > maxw:
-			break
-		keep.append(c)
-		total += add
-	var x: float = cx - total / 2.0
-	for c2 in keep:
-		x += g.chip(str(c2[0]), x, cy, fsz, c2[1], c2[2], "left") + gap
+		var add: float = w + (gap if cur.size() > 0 else 0.0)
+		if cur.size() > 0 and total + add > maxw:
+			rows.append({"chips": cur, "w": total})
+			cur = [c]
+			total = w
+		else:
+			cur.append(c)
+			total += add
+	if cur.size() > 0:
+		rows.append({"chips": cur, "w": total})
+	return rows
+
+
+func _draw_chip_rows(g: Object, rows: Array, cx: float, cy: float, fsz: float, row_h: float) -> void:
+	var gap: float = 6.0
+	var y: float = cy
+	for row in rows:
+		var x: float = cx - float(row.w) / 2.0
+		for c2 in row.chips:
+			x += g.chip(str(c2[0]), x, y, fsz, c2[1], c2[2], "left") + gap
+		y += row_h
+
+
 
 
 func _draw_empty(g: Object, e: Dictionary, r: Rect2, short: bool) -> void:
