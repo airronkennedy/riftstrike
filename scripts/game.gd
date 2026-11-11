@@ -1212,7 +1212,7 @@ func update_unit(u, dt: float) -> void:
 				a.swing = 1; begin_swing(u); return
 			# Melee follow-up strike if still in range. Warriors already swing twice as their kit.
 			# Ranged units never follow up (the boss's 360 range used to reach the front-centre slot and fire twice).
-			if u.kind != "warrior" and str(u.K.ranged) == "" and not a.doubled and a.target != null and not a.target.dead:
+			if not is_warrior_kit(u.kind) and str(u.K.ranged) == "" and not a.doubled and a.target != null and not a.target.dead:
 				var dx: float = a.target.x - u.x
 				var dy: float = a.target.y - u.y
 				if sqrt(dx * dx + dy * dy) <= float(u.K.range) + 12.0:
