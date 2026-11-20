@@ -393,27 +393,39 @@ var AB_SEQ: Dictionary = {} # keeper -> [[ability id, condition id], ...] checke
 func build_rpg() -> void:
 	for cls in CLASS_DEFS.keys():
 		if not QuestRPG.CLASSES.has(cls): CLASS_DEFS.erase(cls)
+	SUB_DEFS = {}; AB_SUB_LIST = {}; SUB_FOCUS = {}
 	for cls in QuestRPG.CLASS_ORDER:
-		CLASS_DEFS[cls] = QuestRPG.CLASSES[cls].duplicate(true)
-		var ids: Array = []
-		var rows: Array = QuestRPG.POOLS[cls]
-		for i in rows.size():
-			var r: Array = rows[i]
-			ABILITY_DEFS[r[0]] = {"id": r[0], "name": r[1], "blurb": r[2], "kind": r[3], "params": r[4],
-				"lv": int(r[5]), "src": "class", "owner": cls, "mp": AB_MP, "tier": i + 1}
-			ids.append(r[0])
-		RPG_POOL_IDS[cls] = ids
+		var c: Dictionary = QuestRPG.CLASSES[cls]
+		CLASS_DEFS[cls] = c.duplicate(true)
+		RPG_POOL_IDS[cls] = rpg_rows(c.abilities, "class", cls)
+		AB_SUB_LIST[cls] = rpg_rows(c.sub_abilities, "sub", cls)
+		var sp := {"blurb": "As a subclass: " + str(c.blurb), "role": c.role}
+		for k in ["hp", "atk", "def", "armor", "crit", "mana", "speed"]:
+			sp[k] = int(roundf(float(c.get(k, 0)) * QuestRPG.SUB_STAT_SHARE))
+		SUB_DEFS[cls] = sp
+		SUB_FOCUS[cls] = str(c.focus)
 	CLASS_IDS = QuestRPG.CLASS_ORDER.duplicate()
+	SUB_IDS = QuestRPG.CLASS_ORDER.duplicate()
 	for h in AF_HEROES:
 		var nm: String = str(h.short)
 		var own: Array = AB_CLASS_LIST.get(nm, [])
 		if own.size() > 0 and ABILITY_DEFS.has(own[0]):
 			SIG_AB[nm] = str(own[0])
-			ABILITY_DEFS[own[0]].lv = 1
-			ABILITY_DEFS[own[0]].signature = true
-		CHAR[nm].cls = str(QuestRPG.FROM_KIT_CLASS.get(str(h.cls), "Warrior"))
+		var cl: String = str(QuestRPG.FROM_KIT_CLASS.get(str(h.cls), "Warrior"))
+		CHAR[nm].cls = cl
+		CHAR[nm].sub = str(QuestRPG.DEFAULT_SUB.get(cl, "Knight"))
+
+func rpg_rows(rows: Array, src: String, cls: String) -> Array:
+	var ids: Array = []
+	for i in rows.size():
+		var r: Array = rows[i]
+		ABILITY_DEFS[r[0]] = {"id": r[0], "name": r[1], "blurb": r[2], "kind": r[3], "params": r[4],
+			"lv": int(r[5]), "cond": str(r[6]), "src": src, "owner": cls, "mp": AB_MP, "tier": i + 1}
+		ids.append(r[0])
+	return ids
 
 ## Abilities this keeper may slot right now: signature + unlocked class pool + unlocked subclass pool.
+## A keeper's abilities: the 2 class abilities + the 2 subclass abilities they have unlocked.
 func loadout_pool(name: String) -> Array:
 	var out: Array = []
 	for id in class_ability_ids(name) + sub_ability_ids(str(CHAR[name].sub)):
@@ -422,47 +434,28 @@ func loadout_pool(name: String) -> Array:
 	return out
 
 func default_loadout(name: String) -> Array:
-	var pool: Array = loadout_pool(name)
-	var out: Array = []
-	for rr in QuestRPG.DEFAULT_SEQ.get(str(CHAR[name].cls), []):
-		if pool.find(rr[0]) >= 0 and out.find(rr[0]) < 0: out.append(rr[0])
-	if SIG_AB.has(name) and out.find(SIG_AB[name]) < 0: out.push_front(SIG_AB[name])
-	for id in pool:
-		if out.size() >= QuestRPG.LOADOUT_SLOTS: break
-		if out.find(id) < 0: out.append(id)
-	return out.slice(0, QuestRPG.LOADOUT_SLOTS)
+	return loadout_pool(name)
 
+## Default plan: each ability's own rule (from quest_rpg.gd), specific rules first, "always" rules last.
 func default_seq(name: String) -> Array:
-	var out: Array = []
-	if SIG_AB.has(name): out.append([SIG_AB[name], "boss"])
-	for rr in QuestRPG.DEFAULT_SEQ.get(str(CHAR[name].cls), []):
-		out.append([str(rr[0]), str(rr[1])])
-	return out
+	var first: Array = []
+	var last: Array = []
+	for id in class_ability_ids(name) + sub_ability_ids(str(CHAR[name].sub)):
+		var cond: String = str(ABILITY_DEFS[id].get("cond", "always"))
+		if cond == "always": last.append([id, cond])
+		else: first.append([id, cond])
+	return first + last
 
 func loadout_of(name: String) -> Array:
 	if not CHAR.has(name): return []
-	var pool: Array = loadout_pool(name)
-	var cur: Array = AB_LOADOUT.get(name, [])
-	var out: Array = []
-	for id in cur:
-		if pool.find(id) >= 0 and out.find(id) < 0 and out.size() < QuestRPG.LOADOUT_SLOTS: out.append(str(id))
-	if out.is_empty(): out = default_loadout(name)
+	var out := loadout_pool(name)
 	AB_LOADOUT[name] = out
 	return out
 
 ## Add or remove one ability from the loadout. Returns false when the slots are full.
-func toggle_loadout(name: String, id: String) -> bool:
-	var lo: Array = loadout_of(name).duplicate()
-	var i: int = lo.find(id)
-	if i >= 0:
-		if lo.size() <= 1: return false
-		lo.remove_at(i)
-	else:
-		if lo.size() >= QuestRPG.LOADOUT_SLOTS or loadout_pool(name).find(id) < 0: return false
-		lo.append(id)
-	AB_LOADOUT[name] = lo
-	save_cfg()
-	return true
+## Loadout is fixed now (class 2 + subclass 2); kept so old callers do not break.
+func toggle_loadout(_name: String, _id: String) -> bool:
+	return false
 
 func seq_of(name: String) -> Array:
 	if not AB_SEQ.has(name): AB_SEQ[name] = default_seq(name)
@@ -474,10 +467,16 @@ func seq_of(name: String) -> Array:
 
 func set_class(name: String, cls: String) -> void:
 	if not RPG_POOL_IDS.has(cls) or str(CHAR[name].cls) == cls: return
+	var old: String = str(CHAR[name].cls)
 	CHAR[name].cls = cls
-	# A new class means a new pool: reset the loadout and sequence to that class's defaults.
-	AB_LOADOUT.erase(name); AB_SEQ.erase(name)
-	loadout_of(name); seq_of(name)
+	if str(CHAR[name].sub) == cls: CHAR[name].sub = old # class and subclass must differ: swap them
+	AB_SEQ.erase(name); seq_of(name)
+	save_cfg()
+
+func set_sub(name: String, sub: String) -> void:
+	if not AB_SUB_LIST.has(sub) or str(CHAR[name].cls) == sub or str(CHAR[name].sub) == sub: return
+	CHAR[name].sub = sub
+	AB_SEQ.erase(name); seq_of(name)
 	save_cfg()
 
 func seq_condition_ok(u, cond: String) -> bool:
@@ -497,7 +496,10 @@ func seq_condition_ok(u, cond: String) -> bool:
 			for f in foes:
 				if float(f.hp) / maxf(1.0, float(f.maxhp)) < 0.3: return true
 			return false
-		"boss": return G != null and G.n_red == 1 and encounter.is_empty()
+		"boss":
+			for f in foes:
+				if f.tier != "regular": return true
+			return false
 		"turn_1": return G != null and G.turn <= 1
 	return false
 
@@ -629,18 +631,21 @@ func ab_color(id: String) -> Color:
 
 func class_ability_ids(name: String) -> Array:
 	if CHAR.has(name) and RPG_POOL_IDS.has(str(CHAR[name].cls)):
-		var out: Array = []
-		if SIG_AB.has(name): out.append(SIG_AB[name])
-		return out + RPG_POOL_IDS[str(CHAR[name].cls)]
+		return RPG_POOL_IDS[str(CHAR[name].cls)]
 	return AB_CLASS_LIST.get(name, [])
 
 func sub_ability_ids(sub: String) -> Array:
 	return AB_SUB_LIST.get(sub, [])
 
+## Class abilities unlock by that class's level, subclass abilities by that subclass's level.
 func ab_unlocked(name: String, id: String) -> bool:
 	if not ABILITY_DEFS.has(id):
 		return false
-	return hero_level(name) >= int(ABILITY_DEFS[id].lv)
+	var ab: Dictionary = ABILITY_DEFS[id]
+	if ab.has("owner") and QuestRPG.CLASSES.has(str(ab.owner)):
+		var lv := sub_level(name, str(ab.owner)) if str(ab.src) == "sub" else class_level(name, str(ab.owner))
+		return lv >= int(ab.lv)
+	return hero_level(name) >= int(ab.lv)
 
 func unlocked_class_ids(name: String) -> Array:
 	var out: Array = []
@@ -733,7 +738,7 @@ var CHAR := {
 }
 # Per-hero level / XP. Cap 99. Growth is computed from current level + current subclass
 # (changing subclass retargets the focused bonus; it is not locked at the time you leveled).
-const LEVEL_CAP := 99
+const LEVEL_CAP := QuestRPG.LEVEL_CAP
 var SUB_FOCUS := {
 	"Riftblade": "atk",
 	"Vanguard": "hp",
@@ -856,14 +861,14 @@ func compute_hero_stats(name: String) -> Dictionary:
 	pack_add(d, CLASS_DEFS[cls])
 	pack_add(d, SUB_DEFS[sub])
 	var lv: int = hero_level(name)
-	pack_add(d, level_bonus(lv, sub))
+	pack_add(d, level_bonus(lv, cls))
 	var eq: Dictionary = EQUIP[name] if EQUIP.has(name) else {}
 	for slot in SLOT_IDS:
 		var iid: String = str(eq.get(slot, ""))
 		if iid != "" and ITEM_DEFS.has(iid):
 			pack_add(d, ITEM_DEFS[iid])
 	var xp: int = hero_xp(name)
-	var focus: String = sub_focus_stat(sub)
+	var focus: String = sub_focus_stat(cls)
 	return {
 		"hp": clamp_range(d.hp, 140, 1200),
 		"atk": clamp_range(d.atk, 1, 180),
@@ -879,45 +884,46 @@ func compute_hero_stats(name: String) -> Dictionary:
 		"focus": focus, "focus_name": FOCUS_LABELS.get(focus, "ATK"),
 	}
 
+## Class EXP per keeper per class (and per subclass), saved in the kingdom save. See docs/BALANCE.md.
+var CLASS_XP := {} # keeper -> {class: total EXP}
+var SUB_XP := {}   # keeper -> {class: total EXP earned while it was the subclass}
+func class_level(name: String, cls: String) -> int:
+	return QuestRPG.level_for_xp(int(CLASS_XP.get(name, {}).get(cls, 0)))
+func sub_level(name: String, cls: String) -> int:
+	return QuestRPG.level_for_xp(int(SUB_XP.get(name, {}).get(cls, 0)))
+func set_hero_level(name: String, lv: int) -> void:
+	if not CLASS_XP.has(name): CLASS_XP[name] = {}
+	CLASS_XP[name][str(CHAR[name].cls)] = QuestRPG.xp_floor(clampi(lv, 1, LEVEL_CAP))
+
+## A keeper's level is the level of the class they have equipped.
 func hero_level(name: String) -> int:
-	if not HERO_PROG.has(name):
-		return 1
-	return int(HERO_PROG[name].level)
+	if not CHAR.has(name): return 1
+	return class_level(name, str(CHAR[name].cls))
 
 func hero_xp(name: String) -> int:
-	if not HERO_PROG.has(name):
-		return 0
-	return int(HERO_PROG[name].xp)
+	if not CHAR.has(name): return 0
+	var lv := hero_level(name)
+	if lv >= LEVEL_CAP: return 0
+	return int(CLASS_XP.get(name, {}).get(str(CHAR[name].cls), 0)) - QuestRPG.xp_floor(lv)
 
 func xp_to_next(level: int) -> int:
-	if level >= LEVEL_CAP:
+	if level >= LEVEL_CAP or level < 1:
 		return 0
-	# Early levels come in a fight or two; the curve steepens so 99 stays a long-term cap.
-	return 50 + 8 * level + int(level * level * 2 / 5)
+	return int(QuestRPG.XP_TO_NEXT[level - 1])
 
 func sub_focus_stat(sub: String) -> String:
 	if SUB_FOCUS.has(sub):
 		return str(SUB_FOCUS[sub])
 	return "atk"
 
-func level_bonus(level: int, sub: String = "Riftblade") -> Dictionary:
-	# General bump on every stat, plus a larger extra bump on the current subclass focus.
-	# Recalculated from level + current subclass (not historic).
+## Growth per class level above 1 (quest_rpg.gd GROWTH), plus the class's focus stat again (FOCUS_EXTRA).
+func level_bonus(level: int, cls: String = "Warrior") -> Dictionary:
 	var lv: int = maxi(0, level - 1)
-	# Combat pass: general growth roughly doubled so ten levels are felt in a fight (L1 is unchanged).
-	var d := {
-		"hp": 4 * lv,
-		"atk": int(roundf(0.5 * lv)),
-		"def": int(roundf(0.4 * lv)),
-		"armor": int(roundf(0.15 * lv)),
-		"crit": int(roundf(0.15 * lv)),
-		"mana": int(roundf(0.10 * lv)),
-		"speed": int(roundf(0.15 * lv)),
-	}
-	var focus := sub_focus_stat(sub)
-	var extra := {"hp": 4.0, "atk": 0.60, "def": 0.50, "armor": 0.25, "crit": 0.35, "mana": 0.30, "speed": 0.40}
-	var add := int(roundf(float(extra.get(focus, 0.6)) * lv))
-	d[focus] = int(d[focus]) + add
+	var d := {}
+	for k in QuestRPG.GROWTH:
+		d[k] = int(roundf(float(QuestRPG.GROWTH[k]) * lv))
+	var focus := sub_focus_stat(cls)
+	d[focus] = int(d.get(focus, 0)) + int(roundf(float(QuestRPG.FOCUS_EXTRA.get(focus, 1.0)) * lv))
 	return d
 
 func ensure_hero_data() -> void:
@@ -958,23 +964,51 @@ func raid_xp_award(n_red: int, win: bool) -> int:
 	var base := 80 if n_red == 3 else (110 if n_red == 2 else 150)
 	return base if win else int(roundf(float(base) * 0.25))
 
+## Adds EXP to the keeper's equipped class (full) and subclass (SUB_SHARE). Returns class levels gained.
+var last_sub_ups: Array = []
 func grant_hero_xp(name: String, amount: int) -> int:
-	ensure_hero_data()
-	if amount <= 0 or not HERO_PROG.has(name):
+	if amount <= 0 or not CHAR.has(name):
 		return 0
-	var p: Dictionary = HERO_PROG[name]
-	if int(p.level) >= LEVEL_CAP:
-		p.xp = 0
-		return 0
-	p.xp = int(p.xp) + amount
-	var gained := 0
-	while int(p.level) < LEVEL_CAP and int(p.xp) >= xp_to_next(int(p.level)):
-		p.xp = int(p.xp) - xp_to_next(int(p.level))
-		p.level = int(p.level) + 1
-		gained += 1
-	if int(p.level) >= LEVEL_CAP:
-		p.xp = 0
-	return gained
+	var cls: String = str(CHAR[name].cls)
+	var sub: String = str(CHAR[name].sub)
+	if not CLASS_XP.has(name): CLASS_XP[name] = {}
+	if not SUB_XP.has(name): SUB_XP[name] = {}
+	var cap: int = QuestRPG.xp_floor(LEVEL_CAP)
+	var before := class_level(name, cls)
+	CLASS_XP[name][cls] = mini(cap, int(CLASS_XP[name].get(cls, 0)) + amount)
+	var sb := sub_level(name, sub)
+	SUB_XP[name][sub] = mini(cap, int(SUB_XP[name].get(sub, 0)) + int(roundf(amount * QuestRPG.SUB_SHARE)))
+	if sub_level(name, sub) > sb: last_sub_ups.append("%s %s Lv.%d" % [name, sub, sub_level(name, sub)])
+	return class_level(name, cls) - before
+
+## Kingdom save (user://kingdom.cfg) holds class and subclass EXP so New Game starts them over.
+const KINGDOM_SAVE := "user://kingdom.cfg"
+func save_class_xp() -> void:
+	var cf := ConfigFile.new()
+	cf.load(KINGDOM_SAVE)
+	for name in CLASS_XP:
+		var parts: Array = []
+		for c in CLASS_XP[name]: parts.append("%s:%d" % [c, int(CLASS_XP[name][c])])
+		cf.set_value("class_xp", name, ",".join(parts))
+	for name in SUB_XP:
+		var parts2: Array = []
+		for c in SUB_XP[name]: parts2.append("%s:%d" % [c, int(SUB_XP[name][c])])
+		cf.set_value("sub_xp", name, ",".join(parts2))
+	cf.save(KINGDOM_SAVE)
+
+func load_class_xp() -> void:
+	CLASS_XP = {}; SUB_XP = {}
+	var cf := ConfigFile.new()
+	if cf.load(KINGDOM_SAVE) != OK: return
+	for sec in ["class_xp", "sub_xp"]:
+		if not cf.has_section(sec): continue
+		for name in cf.get_section_keys(sec):
+			var d := {}
+			for kv in str(cf.get_value(sec, name, "")).split(",", false):
+				var pp: PackedStringArray = kv.split(":")
+				if pp.size() == 2 and QuestRPG.CLASSES.has(pp[0]): d[pp[0]] = maxi(0, int(pp[1]))
+			if sec == "class_xp": CLASS_XP[name] = d
+			else: SUB_XP[name] = d
 
 func item_bonus_text(iid: String) -> String:
 	if not ITEM_DEFS.has(iid):
@@ -1146,6 +1180,7 @@ class Act:
 	var ability := ""
 
 class Unit:
+	var tier := "regular" # foe tier: regular | elite | boss (EXP and "boss or elite" rules)
 	var tnext := 0.0 # timeline: when this unit acts next (side-view turn order)
 	var letter := "" # enemy tag A, B, C
 	var id := ""
@@ -1277,7 +1312,7 @@ func new_battle(n: int = 0) -> void:
 	if enc_on:
 		red = build_encounter_roster()
 		n = red.size()
-		emult = WORLD.enemy_mult(int(encounter.get("level", 1)))
+		emult = encounter.get("mult", {}) if encounter.has("mult") else WORLD.enemy_mult(int(encounter.get("level", 1)))
 	else:
 		last_raid = n
 		red = build_red_roster(n)
@@ -1307,6 +1342,12 @@ func new_battle(n: int = 0) -> void:
 				u.K = hero_K(u.name, kind)
 			else:
 				var tier := "regular" if (enc_on or n == 3) else ("elite" if n == 2 else "boss")
+				if enc_on and i == 0 and bool(encounter.get("elite", false)): tier = "elite"
+				u.tier = tier
+				if enc_on and tier == "elite":
+					# a wild elite: tougher than its raid cousins' regular foes, still beatable at region level
+					u.maxhp = int(u.maxhp * 2.0); u.hp = u.maxhp; u.shown_hp = u.maxhp
+					u.atk = int(u.atk * 1.3); u.scale *= 1.15
 				var fk := foe_for(kind, tier)
 				u.K = art_K(kind, "f_" + fk, float(FOE_H.get(fk, 80.0)))
 				u.name = str(AfRoster.FOES[fk].name)
@@ -1329,6 +1370,13 @@ func new_battle(n: int = 0) -> void:
 ## Raids follow the party's level on the same curve as wild fights (encounters.json "scaling"),
 ## normalised at RAID_REF_LV: parties at or below it see the original raid numbers.
 var RAID_REF_LV := 15
+var last_xp_gains := {}
+func raid_party_level() -> float:
+	var names := party_names()
+	var tot := 0
+	for nm in names: tot += hero_level(nm)
+	return float(tot) / maxf(1.0, float(names.size()))
+
 func raid_level_mult() -> Dictionary:
 	if WORLD == null:
 		return {}
@@ -3207,7 +3255,7 @@ func save_cfg() -> void:
 			sq.append(str(rr[0]) + ":" + str(rr[1]))
 		cf.set_value("ab_seq", name, ",".join(sq))
 	cf.set_value("rs", "auto", AUTO)
-	cf.set_value("rs", "rpg_v", 1)
+	cf.set_value("rs", "rpg_v", 2)
 	cf.set_value("party", "squad", ",".join(SQUAD))
 	cf.set_value("inv", "bag", ",".join(INV))
 	if WORLD != null:
@@ -3217,11 +3265,13 @@ func save_cfg() -> void:
 			cf.set_value("world", "pos", "%d|%d" % [int(ow_x), int(ow_y)])
 			cf.set_value("world", "layout", int(WORLD.data.get("tile_layout", 1)))
 	cf.save("user://airrons_quest.cfg")
+	save_class_xp()
 
 func load_cfg() -> void:
 	ensure_hero_data()
 	var cf := ConfigFile.new()
 	var loaded: bool = cf.load("user://airrons_quest.cfg") == OK
+	load_class_xp()
 	if not loaded:
 		INV = STARTER_BAG.duplicate()
 		return
@@ -3232,19 +3282,17 @@ func load_cfg() -> void:
 		if typeof(raw) == TYPE_STRING and raw != "":
 			var parts: PackedStringArray = raw.split("|")
 			# Class is changeable (Build screen); only RPG classes load.
-			if parts.size() >= 2 and RPG_POOL_IDS.has(parts[0]) and int(cf.get_value("rs", "rpg_v", 0)) >= 1:
+			if parts.size() >= 2 and RPG_POOL_IDS.has(parts[0]) and int(cf.get_value("rs", "rpg_v", 0)) >= 2:
 				CHAR[name].cls = parts[0]
 			var sub := parts[1] if parts.size() >= 2 else (parts[0] if parts.size() == 1 else "")
-			if SUB_DEFS.has(sub):
+			if SUB_DEFS.has(sub) and sub != str(CHAR[name].cls):
 				CHAR[name].sub = sub
 		var prog = cf.get_value("progress", name, "")
 		if typeof(prog) == TYPE_STRING and prog != "":
 			var pp: PackedStringArray = prog.split("|")
 			var lv := int(pp[0]) if pp.size() >= 1 else 1
 			var xp := int(pp[1]) if pp.size() >= 2 else 0
-			HERO_PROG[name] = {"level": clampi(lv, 1, LEVEL_CAP), "xp": maxi(0, xp)}
-			if hero_level(name) >= LEVEL_CAP:
-				HERO_PROG[name].xp = 0
+			HERO_PROG[name] = {"level": clampi(lv, 1, LEVEL_CAP), "xp": maxi(0, xp)} # legacy; levels now come from CLASS_XP
 		var eqr = cf.get_value("equip", name, "")
 		if typeof(eqr) == TYPE_STRING and eqr != "":
 			var ep: PackedStringArray = eqr.split("|")
@@ -3542,7 +3590,10 @@ func cycle_sub(dir: int) -> void:
 	var i := SUB_IDS.find(CHAR[name].sub)
 	if i < 0:
 		i = 0
-	CHAR[name].sub = SUB_IDS[(i + dir + SUB_IDS.size()) % SUB_IDS.size()]
+	var nxt: String = SUB_IDS[(i + dir + SUB_IDS.size()) % SUB_IDS.size()]
+	if nxt == str(CHAR[name].cls): nxt = SUB_IDS[(i + 2 * dir + 2 * SUB_IDS.size()) % SUB_IDS.size()]
+	CHAR[name].sub = nxt
+	AB_SEQ.erase(name)
 	validate_ab_equip(name)
 	char_delta_t = 900.0
 	save_cfg()
@@ -4879,27 +4930,34 @@ func show_results() -> void:
 	if r == "draw" and encounter.is_empty():
 		xp_full = raid_xp_award(G.n_red, false)
 	stash_party_mp()
+	# EXP (docs/BALANCE.md): every beaten foe pays TIER_XP[tier] * (0.75 + 0.25 * foe level);
+	# a loss or a flee pays LOSS_SHARE of that; each party keeper's class gets it (scaled by level gap), the subclass half.
+	var foe_lv: int = int(encounter.get("level", 1)) if not encounter.is_empty() else maxi(1, int(roundf(raid_party_level())))
+	var pot := 0.0
+	for ru in red:
+		if ru.dead: pot += QuestRPG.foe_xp(str(ru.tier), foe_lv)
+	if not win: pot *= QuestRPG.LOSS_SHARE
 	var ups: Array = []
-	# Fighters get full XP; bench gets half on a win, none on a loss or draw.
+	last_sub_ups = []
+	var gains: Array = []
 	for name in party_names():
-		var g := grant_hero_xp(name, xp_full)
-		if g > 0:
-			ups.append(name + " Lv." + str(hero_level(name)))
-	if win:
-		for name in bench_names():
-			var half := int(roundf(float(xp_full) * 0.5))
-			var g2 := grant_hero_xp(name, half)
-			if g2 > 0:
-				ups.append(name + " Lv." + str(hero_level(name)))
+		var amt := int(roundf(pot * QuestRPG.level_factor(hero_level(name), foe_lv)))
+		gains.append(amt)
+		if grant_hero_xp(name, amt) > 0:
+			ups.append("%s %s Lv.%d" % [name, str(CHAR[name].cls), hero_level(name)])
+	last_xp_gains = {}
+	var pn := party_names()
+	for i in pn.size(): last_xp_gains[pn[i]] = gains[i]
 	save_cfg()
-	var xp_line := [["XP: ", N], ["+%d" % xp_full, B], [" each fighter", N]]
-	if win and bench_names().size() > 0:
-		xp_line += [[" · bench +%d" % int(roundf(float(xp_full) * 0.5)), N]]
+	var lo_g: int = gains.min() if gains.size() > 0 else 0
+	var hi_g: int = gains.max() if gains.size() > 0 else 0
+	var xp_line := [["EXP: ", N], [("+%d" % hi_g) if lo_g == hi_g else ("+%d to +%d" % [lo_g, hi_g]), B], [" each keeper's class · subclass half", N]]
 	var up_line := []
 	if ups.size() > 0:
-		up_line = [["Level up: ", N], [", ".join(ups), B]]
+		up_line = [["Level up! ", Color("#ead266")], [", ".join(ups), B]]
 	else:
-		up_line = [["No level ups this fight.", N]]
+		up_line = [["No class level ups this fight.", N]]
+	var sub_line := [["Subclass up: ", N], [", ".join(last_sub_ups), B]] if last_sub_ups.size() > 0 else []
 	var lines_out := [
 		[["Turns: ", N], [str(G.turn), B], [" · Mode: ", N], [raid_name, RR]],
 		[["Standing: ", N], ["%d/%d" % [b_alive, party_names().size()], B], [" · ", N], ["%d/%d" % [r_alive, G.n_red], RR]],
@@ -4908,6 +4966,7 @@ func show_results() -> void:
 		xp_line,
 		up_line,
 	]
+	if not sub_line.is_empty(): lines_out.append(sub_line)
 	res = {
 		"result": r, "n_red": G.n_red if encounter.is_empty() else 0,
 		"title": "VICTORY" if r == "win" else ("DEFEAT" if r == "lose" else "DRAW"),

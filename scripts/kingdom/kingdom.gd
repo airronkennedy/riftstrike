@@ -166,6 +166,7 @@ func _load_save() -> void:
 
 func save_game() -> void:
 	var cf := ConfigFile.new()
+	cf.load(SAVE_PATH) # keep other sections (class / subclass EXP from game.gd)
 	cf.set_value("kingdom", "gold", gold)
 	cf.set_value("kingdom", "hp", party_hp)
 	cf.set_value("kingdom", "hp_max", party_hp_max)
