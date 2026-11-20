@@ -288,6 +288,8 @@ func load_map(id: String, at: Variant = null) -> void:
 	danger_row.visible = bool(map.encounters)
 	minimap.rebuild()
 	_refresh_hud()
+	var story := get_node_or_null("/root/Story") # story NPCs, quest markers (scripts/story/story.gd)
+	if story: story.on_map_loaded(self)
 
 
 func _add_prop(p: Dictionary) -> void:
@@ -699,6 +701,9 @@ func use(u: Dictionary) -> void:
 			if u.get("kind", "") == "npc" and u.has("node"):
 				hero = (u.node as KingdomView.Actor).hero
 			_open_dialog(str(u.name), str(u.text), hero)
+		"story": # story NPCs and spots (scripts/story/story.gd)
+			var story := get_node_or_null("/root/Story")
+			if story: story.use(self, u)
 
 
 func warp_to(id: String, at: Variant) -> void:
@@ -758,7 +763,8 @@ func _dialog_advance() -> void:
 
 
 func _modal_open() -> bool:
-	return shop.visible or inn.visible or menu.visible or dialog.visible
+	var story := get_node_or_null("/root/Story")
+	return shop.visible or inn.visible or menu.visible or dialog.visible or (story != null and story.ui_open())
 
 
 func _close(p: Control) -> void:
