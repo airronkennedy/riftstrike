@@ -54,7 +54,7 @@ func check_data() -> void:
 		for f in bt.get("foe_ids", []): if str(f) != "" and not preload("res://scripts/af_roster.gd").FOES.has(str(f)): bad.append("foe " + str(f))
 		for tr in bt.tiers: if not preload("res://scripts/quest_rpg.gd").FOE_TIER.has(str(tr)): bad.append("tier " + str(tr))
 		ok(bt.kinds.size() == bt.tiers.size(), "fight %s: kinds and tiers line up" % b)
-	var acts := ["set", "clear", "recruit", "loyal", "battle", "gold", "item", "heal", "hurt", "act", "tip", "toast", "dungeon", "exit_dungeon", "ending", "boss", "sparks", "crates", "calm"]
+	var acts := ["set", "clear", "recruit", "loyal", "battle", "gold", "item", "heal", "hurt", "act", "tip", "toast", "dungeon", "exit_dungeon", "ending", "boss", "sparks", "crates", "calm", "lesson", "rally"]
 	var items: Dictionary = SD.ITEMS.duplicate()
 	for i in ["warden_mail", "brook_pendant"]: items[i] = true
 	for id in D:
@@ -73,8 +73,23 @@ func check_data() -> void:
 			if op == "battle" and not SD.BATTLES.has(str(a).get_slice(":", 1)): bad.append("battle " + str(a))
 			if op == "item" and not items.has(str(a).get_slice(":", 1)): bad.append("item " + str(a))
 			if op == "act" and not SD.ACTS.has(str(a).get_slice(":", 1)): bad.append("act " + str(a))
+			if op == "lesson" and not preload("res://scripts/story/story_ui.gd").LESSONS.has(str(a).get_slice(":", 1)): bad.append("lesson " + str(a))
+			if op == "tip" and not preload("res://scripts/story/story_ui.gd").TIPS.has(str(a).get_slice(":", 1)): bad.append("tip " + str(a))
 	for id in ["f1_enter", "f1_skip", "f2_enter", "f2_bind", "final_confront", "sovereign_intro"]: refs.append(id)
-	for r in refs: if not D.has(r): bad.append("dialog " + r)
+	for r in refs:
+		if r.begins_with("chat:"):
+			if not DL.CHATTER.has(r.substr(5)): bad.append("chatter " + r)
+		elif not D.has(r): bad.append("dialog " + r)
+	for sid in DL.CHATTER:
+		if not SD.CAST.has(sid) and not SD.CAST.has("folk_" + sid): bad.append("chatter speaker " + sid)
+		# every act has something to say (I, II, III, IV, epilogue)
+		for act in [["s_prologue"], ["s_prologue", "s_king", "s_maera"], ["s_prologue", "s_king", "s_maera", "s_return"],
+				["s_prologue", "s_king", "s_maera", "s_return", "s_kindling"], ["s_prologue", "s_king", "s_maera", "s_return", "s_kindling", "s_ending"]]:
+			st.flags = {}
+			for f in act: st.flags[f] = true
+			st.started = true
+			if st.chatter(sid).is_empty(): bad.append("chatter %s silent at %s" % [sid, act[-1]])
+	st.flags = {}
 	for c in SD.CAST:
 		var art: String = str(SD.CAST[c].art)
 		if art == "": continue
@@ -136,6 +151,15 @@ func _find(sid: String):
 	for u in k.usables:
 		if str(u.get("sid", "")) == sid: return u
 	return null
+
+func _journal_text() -> String:
+	var out := ""
+	var stack: Array = [st.ui.j_body]
+	while not stack.is_empty():
+		var n = stack.pop_back()
+		if n is Label: out += (n as Label).text + "\n"
+		stack.append_array(n.get_children())
+	return out
 
 # ------------------------------------------------------------------ 3. the walk
 func settle() -> void:
@@ -205,8 +229,16 @@ func walk(tag: String, pol: Dictionary) -> void:
 	ok(st.get_flag("sq_book_bet") == (tag == "A"), "%s: Drosk bet as chosen" % tag)
 	await talk("town", "pell")
 	ok(st.get_flag("sq_fire_on"), "%s: Pell's side quest on" % tag)
+	if tag == "A": # lose the first Warden fight once: the journal says how to try again
+		st.stub_win = false
+		await talk("overworld", "grieve")
+		ok(not st.get_flag("got_grieve") and str(st.objective().get("hint", "")).contains("fight again"), "A: lost Grieve's fight -> journal says talk to him again")
+		st.stub_win = true
 	await talk("overworld", "grieve")
 	ok(st.get_flag("got_grieve") and st.recruited().has("grieve"), "%s: Grieve recruited, spark 1" % tag)
+	var seen: Array = st.vars.get("tips", [])
+	ok(seen.has("lesson_order") and seen.has("lesson_spark"), "%s: Attack Order + Sparks lessons shown before the first Warden fight" % tag)
+	ok(not st.party_mult().is_empty() and float(st.party_mult().hp) < 1.0, "%s: foes scaled for a party of two" % tag)
 	ok(st.max_foes() == 2, "%s: two keepers = up to 2 wild foes" % tag)
 	ok(st.get_flag("loyal_grieve") == (tag == "A"), "%s: Grieve loyalty follows choice 2" % tag)
 	if tag == "B": await talk("castle", "selka")
@@ -225,9 +257,15 @@ func walk(tag: String, pol: Dictionary) -> void:
 	await talk("overworld", "ilsabet")
 	ok(st.get_flag("got_ilsabet") and st.sparks() == 4, "%s: four sparks" % tag)
 	ok(st.recruited().size() == 5, "%s: party of five" % tag)
+	ok(st.get_flag("hook_four"), "%s: the four-sparks hook into Act III played" % tag)
+	ok(st.party_mult().is_empty(), "%s: full party fights unscaled foes" % tag)
 	ok(obj() == "s_return", "%s: objective: bring the sparks home" % tag)
 	await talk("castle", "orlan")
 	ok(obj() == "s_kindling", "%s: objective: Kindling Night" % tag)
+	ok(st.vars.get("tips", []).has("lesson_boss"), "%s: boss lesson (set your Attack Order) before the Matron" % tag)
+	st.ui.open_journal(); await wait(5)
+	ok(_journal_text().contains("Suggest order"), "%s: journal tells you to set the Attack Order before the boss" % tag)
+	st.ui.close_journal(); await wait(5)
 	await talk("town", "orlan_plaza")
 	ok(st.get_flag("s_kindling"), "%s: mini-boss won" % tag)
 	var enc: Dictionary = st.encounter_for("miniboss_matron", 1)
@@ -237,6 +275,7 @@ func walk(tag: String, pol: Dictionary) -> void:
 		await talk("town", "drosk")
 		ok(st.get_flag("sq_book_paid"), "A: Drosk pays out")
 	ok(obj() == "s_bastion", "%s: objective: the Sunken Bastion" % tag)
+	ok(st.vars.get("tips", []).has("lesson_final"), "%s: second Attack Order lesson before the Bastion bosses" % tag)
 	for i in 4:
 		if st.get_flag("boss2_won"): break
 		await talk("overworld", "ruin")

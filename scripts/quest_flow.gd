@@ -27,6 +27,7 @@ const REGION_BATTLES := {
 var pending_region := "" # set while a kingdom battle is starting or running
 var return_scene := "" # scene to go back to after the fight (the dungeon sets this; default: the kingdom)
 var in_kingdom_battle := false
+var pending_screen := "" # "build": main.tscn opens Build (Attack Order) and Back returns to the kingdom (Story journal)
 
 func _ready() -> void:
 	var e := get_node_or_null("/root/Encounters")
@@ -52,7 +53,7 @@ func encounter_for(region_id: String, level: int = -1) -> Dictionary:
 	if level < 1: level = QuestRPG.foe_level(1.0)
 	var elite: bool = randf() < float(r.get("elite", 0.0))
 	return {"area": str(r.area), "kinds": kinds, "level": level, "foes": r.foes, "region": region_id, "elite": elite,
-		"auto": true}
+		"auto": true, "foe_mult": story.party_mult() if story != null else {}}
 
 func has_save() -> bool:
 	return FileAccess.file_exists(KINGDOM_SAVE)

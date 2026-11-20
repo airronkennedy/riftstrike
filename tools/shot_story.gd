@@ -111,6 +111,37 @@ func _run() -> void:
 		"final_boss":
 			await battle("boss_sovereign", act2 + ["s_kindling", "s_bastion", "bastion_f1", "bastion_f2", "boss1_won", "c5_spare"], all5)
 			await shot()
+		"lesson_order", "lesson_spark", "lesson_boss":
+			flags(act1 if o.beat != "lesson_boss" else act2, ["bramwell", "grieve"] if o.beat != "lesson_boss" else all5)
+			await kingdom("overworld" if o.beat != "lesson_boss" else "castle", Vector2(10.6, 15.6) if o.beat != "lesson_boss" else Vector2(9, 6))
+			st.ui.lesson(o.beat.substr(7))
+			await wait(1400)
+			await shot()
+		"bark", "bark_late":
+			flags([] if o.beat == "bark" else act2 + ["s_kindling"], ["bramwell"] if o.beat == "bark" else all5)
+			await kingdom("town", Vector2(17.6, 11.9))
+			await wait(1500)
+			await shot()
+		"banner":
+			flags(act1)
+			change_scene_to_file("res://scenes/kingdom.tscn")
+			await wait(400)
+			k = current_scene
+			k.load_map("town", Vector2(13, 13))
+			await wait(500)
+			await shot()
+		"four_sparks":
+			flags(act2.filter(func(f): return f != "s_return"), all5)
+			await kingdom("overworld", Vector2(20, 12))
+			st.start_dialog("four_sparks")
+			await full_line()
+			await shot()
+		"journal_boss":
+			flags(act2, all5)
+			await kingdom("castle", Vector2(9, 6))
+			st.ui.open_journal()
+			await wait(700)
+			await shot()
 		"epilogue":
 			flags(act2 + ["s_kindling", "s_bastion", "bastion_f1", "bastion_f2", "boss1_won", "boss2_won", "c5_spare", "end_hearth"], all5)
 			await kingdom("town", Vector2(12, 9.4))

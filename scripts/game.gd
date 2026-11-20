@@ -1390,6 +1390,11 @@ func new_battle(n: int = 0) -> void:
 					u.speed = maxi(1, int(roundf(u.speed * QuestRPG.foe_scale("speed", tier, fl))))
 					u.mana_regen = int(roundf(u.mana_regen * QuestRPG.foe_scale("mana", tier, fl)))
 					u.scale *= float(QuestRPG.FOE_SIZE.get(tier, 1.0))
+					# Story hook: encounter.foe_mult {hp, atk} scales foes for a small story party (Story.party_mult).
+					var fm: Dictionary = encounter.get("foe_mult", {})
+					if not fm.is_empty():
+						u.maxhp = maxi(30, int(roundf(u.maxhp * float(fm.get("hp", 1.0))))); u.hp = u.maxhp; u.shown_hp = u.maxhp
+						u.atk = maxi(1, int(roundf(u.atk * float(fm.get("atk", 1.0)))))
 				elif enc_on and tier == "elite":
 					u.maxhp = int(u.maxhp * 2.0); u.hp = u.maxhp; u.shown_hp = u.maxhp
 					u.atk = int(u.atk * 1.3); u.scale *= 1.15
@@ -3641,6 +3646,13 @@ func resume_overworld() -> void:
 
 
 func menu_back() -> void:
+	if menu_return == "kingdom":
+		menu_return = ""
+		var qf := get_node_or_null("/root/QuestFlow")
+		if qf != null:
+			save_cfg()
+			qf.open_kingdom()
+			return
 	if menu_return == "overworld":
 		resume_overworld()
 	else:
@@ -5514,6 +5526,11 @@ func _ready() -> void:
 		start_boss_battle(str(bs.pending), true)
 	elif qf != null and qf.in_kingdom_battle and qf.pending_region != "":
 		start_kingdom_battle(qf.pending_region)
+	elif qf != null and str(qf.get("pending_screen")) == "build": # Story journal: "Party & Attack Order"
+		qf.pending_screen = ""
+		new_battle(); phase = "title"
+		open_build()
+		menu_return = "kingdom"
 	if params.get("auto", "") == "1":
 		AUTO = true; start_fight(int(params.get("enemies", str(last_raid))))
 	if params.has("shot") and not OS.has_feature("web"): _autotest()

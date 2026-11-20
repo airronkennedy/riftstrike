@@ -25,6 +25,22 @@ class StoryActor extends Node2D:
 		foe = a.begins_with("foe:")
 		var path := ("res://assets/af/foes/foe-%s.png" % a.substr(4)) if foe else ("res://assets/af/heroes/%s.png" % a)
 		_tex = load(path) if ResourceLoader.exists(path) else null
+		if _tex != null:
+			var img := _tex.get_image()
+			if img != null:
+				if img.is_compressed(): img.decompress()
+				_used = img.get_used_rect()
+	var _used := Rect2i()
+	## Top-centre of the visible sprite (not the image box), so the "!" sits right over the head.
+	func head() -> Vector2:
+		var h := 96.0 if foe else 78.0
+		if _tex == null: return Vector2(0, -50)
+		var sc := h / float(_tex.get_height())
+		var w := float(_tex.get_width()) * sc
+		if _used.size.x <= 0: return Vector2(0, -h + 6.0)
+		var cx := (float(_used.position.x) + float(_used.size.x) / 2.0) * sc - w / 2.0
+		if facing < 0: cx = -cx
+		return Vector2(cx, -h + 6.0 + float(_used.position.y) * sc)
 	func _process(_d: float) -> void:
 		queue_redraw()
 	func _draw() -> void:
@@ -109,9 +125,14 @@ func _draw() -> void:
 		var m: String = story.marker_for(u)
 		if m == "": continue
 		var p: Vector2 = u.pos
-		var top := -118.0 if str(u.get("kind", "")) == "npc" else -70.0
-		if u.has("node") and is_instance_valid(u.node) and u.node is StoryActor and u.node.foe: top = -136.0
-		_bubble(p + Vector2(0, top - absf(sin(t * 3.2 + p.x * 0.01)) * 6.0), m)
+		var off := Vector2(0, -118.0 if str(u.get("kind", "")) == "npc" else -70.0)
+		if u.has("node") and is_instance_valid(u.node):
+			if u.node is StoryActor:
+				off = (u.node as StoryActor).head() + Vector2(0, -30.0)
+			elif "hero" in u.node and "facing" in u.node: # a town NPC (KingdomView.Actor) the story took over
+				off = _actor_head(str(u.node.hero), float(u.node.facing)) + Vector2(0, -30.0)
+		_bubble(p + off + Vector2(0, -absf(sin(t * 3.2 + p.x * 0.01)) * 6.0), m)
+	_draw_bark(t)
 	# Objective beacon on this map
 	var o: Dictionary = story.objective()
 	var tp: Array = o.get("target_pos", [])
@@ -123,6 +144,68 @@ func _draw() -> void:
 		for i in 3:
 			var a := float(i) / 3.0 * TAU + t * 1.4
 			draw_circle(c + Vector2(cos(a), sin(a) * 0.45) * 40.0, 3.0, Color(AfTheme.GOLD, 0.8))
+
+
+## Ambient chatter: the nearest townsperson within BARK_RANGE says their current line (StoryDialog.CHATTER) in a
+## small speech bubble. Lines change with the act and rotate every BARK_SECS.
+const BARK_RANGE := 4.2 # tiles
+const BARK_SECS := 6.5
+const StoryDialog = preload("res://scripts/story/story_dialog.gd")
+var _bark_font: Font
+func _draw_bark(t: float) -> void:
+	if story.ui_open() or story.current_battle != "": return
+	var best = null
+	var bd := BARK_RANGE * float(k.TILE)
+	for u in k.usables:
+		var sid := str(u.get("sid", ""))
+		if sid == "" or not StoryDialog.CHATTER.has(sid): continue
+		if not u.has("node") or not is_instance_valid(u.node): continue
+		var d: float = (u.pos as Vector2).distance_to(k.player_pos)
+		if d < bd: bd = d; best = u
+	if best == null: return
+	var lines: Array = story.chatter(str(best.sid))
+	if lines.is_empty(): return
+	var tt: float = k.t_now
+	var idx := int(floor(tt / BARK_SECS + float(absi(hash(str(best.sid))) % 7))) % lines.size()
+	var text: String = str(lines[idx])
+	var a := clampf((BARK_RANGE * float(k.TILE) - bd) / 90.0, 0.0, 1.0)
+	if _bark_font == null: _bark_font = load("res://fonts/rajdhani-600.woff2") if ResourceLoader.exists("res://fonts/rajdhani-600.woff2") else load("res://fonts/rajdhani-700.woff2")
+	var fs := 17
+	var maxw := 250.0
+	var sz := _bark_font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, maxw, fs)
+	var off := Vector2(0, -110)
+	if best.node is StoryActor: off = (best.node as StoryActor).head() + Vector2(0, -16)
+	elif "hero" in best.node: off = _actor_head(str(best.node.hero), float(best.node.facing)) + Vector2(0, -16)
+	if story.marker_for(best) != "": off.y -= 46.0
+	if "near" in k and k.near is Dictionary and k.near == best: off.y -= 34.0 # clear the "Talk <name>" prompt card
+	var tip: Vector2 = (best.pos as Vector2) + off
+	var r := Rect2(tip.x - sz.x / 2.0 - 12.0, tip.y - sz.y - 18.0, sz.x + 24.0, sz.y + 12.0)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(AfTheme.SHEET, 0.9 * a)
+	sb.border_color = Color(AfTheme.GOLD, 0.55 * a)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	draw_style_box(sb, r)
+	draw_colored_polygon(PackedVector2Array([tip + Vector2(-7, -6.5), tip + Vector2(7, -6.5), tip + Vector2(0, 2)]), Color(AfTheme.SHEET, 0.9 * a))
+	draw_multiline_string(_bark_font, Vector2(r.position.x + 12.0, r.position.y + 6.0 + _bark_font.get_ascent(fs)), text, HORIZONTAL_ALIGNMENT_CENTER, sz.x, fs, -1, Color(AfTheme.INK, a))
+
+
+var _head_cache := {}
+func _actor_head(hero: String, facing: float) -> Vector2:
+	if not _head_cache.has(hero):
+		var tx: Texture2D = KingdomView.hero_tex(hero)
+		var v := Vector2(0, -72.0)
+		if tx != null:
+			var img := tx.get_image()
+			if img != null:
+				if img.is_compressed(): img.decompress()
+				var r := img.get_used_rect()
+				var sc := 78.0 / float(tx.get_height())
+				var w := float(tx.get_width()) * sc
+				v = Vector2((float(r.position.x) + float(r.size.x) / 2.0) * sc - w / 2.0, -78.0 + 6.0 + float(r.position.y) * sc)
+		_head_cache[hero] = v
+	var hv: Vector2 = _head_cache[hero]
+	return Vector2(hv.x * (-1.0 if facing < 0 else 1.0), hv.y)
 
 
 ## A "!" / "?" marker bubble: gold for the story, pale blue for side quests ("s").

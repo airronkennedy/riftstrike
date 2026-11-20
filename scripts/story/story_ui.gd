@@ -12,7 +12,8 @@ const TYPE_CPS := 52.0
 const TIPS := {
 	"journal": ["Your journal", "The Quests button (or J) opens your journal. The tracker at the top left always shows what to do next, and the gold arrow points the way."],
 	"danger": ["Danger outside the walls", "Out on Cinderreach the Danger meter fills as you walk. When it's full, a battle starts. Wild fights get bigger as your party grows."],
-	"order": ["Your first Warden", "Open Build from the Menu to set each keeper's Attack Order. When hits from different keepers land together, they spark for extra damage."],
+	"order": ["Attack Order", "A new keeper joined. Quests > Attack Order opens Build: tap Suggest order to fit them in, so everyone's hits land on the same foe together and Spark."],
+	"home": ["All four sparks", "The Lantern is full. Take it home to King Orlan in Castle Emberhold. The gold arrow shows the way."],
 	"talk": ["Talking", "Walk up to anyone with a ! or ? and tap them (or press E). Tap to skip the text, tap again to continue."],
 }
 
@@ -62,7 +63,9 @@ var _toast_t := 0.0
 var _tip_t := 0.0
 var _pulse := 0.0
 var fast := false
-var _dlg_tw: Tween # tests: cards and typewriter finish at once
+var _dlg_tw: Tween
+var want_build := false # a boss lesson's "Open Attack Order" was tapped (Story opens Build after the card)
+var j_build: Button # tests: cards and typewriter finish at once
 
 
 func _ready() -> void:
@@ -196,6 +199,14 @@ func _build() -> void:
 	var jt := _label("Journal", "HeaderLabel", 26)
 	jt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	jh.add_child(jt)
+	var jb := Button.new()
+	jb.text = "Attack Order"
+	jb.tooltip_text = "Party & Attack Order (Build)"
+	jb.custom_minimum_size = Vector2(132, 44)
+	jb.pressed.connect(func(): close_journal(); story.open_build())
+	AfTheme.add_press_juice(jb, _rm)
+	jh.add_child(jb)
+	j_build = jb
 	var jc := Button.new()
 	jc.text = "Close"
 	jc.custom_minimum_size = Vector2(96, 44)
@@ -346,7 +357,7 @@ func _layout() -> void:
 	journal.size = Vector2(jw, minf(h - 2 * m, 540.0))
 	journal.position = (Vector2(w, h) - journal.size) / 2.0
 	toast_panel.size = Vector2.ZERO
-	toast_panel.position = Vector2((w - toast_panel.size.x) / 2.0, 70.0 if not portrait else 150.0)
+	toast_panel.position = Vector2((w - toast_panel.size.x) / 2.0, _toast_y(portrait))
 	var tpw := minf(w - 2 * m, 380.0)
 	tip_panel.custom_minimum_size = Vector2(tpw, 0)
 	tip_panel.size = Vector2(tpw, 0)
@@ -378,7 +389,31 @@ func close_all() -> void:
 
 
 # ================================================================ dialog
+## The kingdom's map-title banner fades out as soon as a story dialog, card or the journal opens, so the two
+## never stack on top of each other (the banner is purely decorative; the location card keeps the name).
+func _hush_banner() -> void:
+	var k = story.kingdom if story else null
+	if k == null or not is_instance_valid(k) or k.get("banner") == null: return
+	var b: Control = k.banner
+	if b.modulate.a <= 0.01: return
+	if k.get("_banner_tw") != null and k._banner_tw.is_valid(): k._banner_tw.kill()
+	var tw := b.create_tween()
+	tw.tween_property(b, "modulate:a", 0.0, 0.18)
+
+
+## Toasts sit just under the map banner while it's showing, never on top of it.
+func _toast_y(portrait: bool) -> float:
+	var y := 70.0 if not portrait else 150.0
+	var k = story.kingdom if story else null
+	if k != null and is_instance_valid(k) and k.get("banner") != null and (k.banner as Control).modulate.a > 0.05:
+		var b: Control = k.banner
+		var ks: float = k.ui.scale.x if k.get("ui") != null else 1.0
+		y = maxf(y, (b.global_position.y + b.size.y * ks) / s + 10.0)
+	return y
+
+
 func show_lines(lines: Array, cb: Callable) -> void:
+	_hush_banner()
 	_lines = lines
 	_line_i = 0
 	_lines_cb = cb
@@ -601,6 +636,8 @@ func _draw_arrow() -> void:
 func open_journal() -> void:
 	if is_open() and not journal.visible: return
 	_fill_journal()
+	j_build.visible = story.kingdom != null and is_instance_valid(story.kingdom)
+	_hush_banner()
 	AfTheme.pop_in(journal, _rm())
 
 
@@ -665,7 +702,11 @@ func _fill_main() -> void:
 		if done: _row(str(st.title), "", "done")
 		elif is_cur:
 			var rec := int(st.get("rec", 0))
-			_row(str(st.title), str(st.text) + ("\n" + str(st.hint) if str(st.hint) != "" else "") + ("\nRecommended level %d" % rec if rec > 0 else ""), "current")
+			var hint := str(o.get("hint", ""))
+			var lv := ("Recommended level %d. Story fights start at full HP." % rec) if rec > 0 else ""
+			if str(st.id).begins_with("got_") and story.recruited().size() >= 2: lv += "\nBefore a Warden fight: Attack Order button above, then Suggest order."
+			if st.get("boss", false): lv += "\nBoss ahead: set your Attack Order first (Attack Order button above, then Suggest order)."
+			_row(str(st.title), str(st.text) + ("\n" + hint if hint != "" else "") + ("\n" + lv if lv != "" else ""), "current")
 		elif str(st.act) == "II" and str(o.get("act", "")) == "II":
 			_row(str(st.title), str(st.text) + " (any order)", "locked")
 		if is_cur and str(st.act) != "II": reached = false
@@ -712,6 +753,7 @@ func toast(t: String) -> void:
 func _show_next_toast() -> void:
 	toast_label.text = str(_toasts.pop_front())
 	_toast_t = 2.6
+	_layout()
 	AfTheme.pop_in(toast_panel, _rm())
 
 
@@ -736,6 +778,7 @@ func _card_clear() -> void:
 
 
 func _overlay_in(alpha: float) -> void:
+	_hush_banner()
 	overlay.visible = true
 	var tw := overlay.create_tween()
 	tw.tween_property(overlay, "color:a", alpha, 0.25)
@@ -817,6 +860,120 @@ func fanfare(id: String) -> void:
 		img.scale = Vector2(0.6, 0.6)
 		img.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(img, "scale", Vector2.ONE, 0.45)
 	await _hold(2.8)
+	AfTheme.pop_out(card, _rm())
+	_overlay_out()
+	await get_tree().create_timer(0.3).timeout
+	card.visible = false
+	_blocking = false
+
+
+## Battle lessons before the first Warden fight (shown once each, tap to continue).
+const LESSONS := {
+	"order": ["How battles work  ·  1 of 2", "Attack Order",
+		"Every turn your party attacks one after another, in the Attack Order: first slot first, the rest a beat behind.\nSet it up from Quests > Attack Order (Build), or just tap Suggest order there and it lines the party up for you. Fast hitters early, heavy hitters right after."],
+	"boss": ["Boss ahead  ·  Kindling Night", "Set your Attack Order",
+		"Bosses hit hard and punish a messy order. Before you meet the king on the plaza, open Quests > Attack Order and tap Suggest order (or line up fast hitters first yourself).\nNow that all five keepers are with you, every slot matters."],
+	"final": ["Boss ahead  ·  The Sunken Bastion", "Check your Attack Order again",
+		"The Bastion ends in two boss fights back to back, and only the Lantern's rally heals you between them. Your party has grown since the plaza: open Quests > Attack Order and tap Suggest order before you go down."],
+	"spark": ["How battles work  ·  2 of 2", "Sparks",
+		"When hits from two different keepers land on the same foe at almost the same moment, they Spark: +50% damage and more BB gauge.\nTap a foe as the turn starts to focus everyone on it, or let the party pick the weakest one.\n(The Lantern's sparks are different: those are the four Wardfires you're bringing home.)"],
+}
+
+## Little diagrams for the lessons: the party's Attack Order, and two hits landing together.
+class LessonArt extends Control:
+	var kind := "order"
+	var party: Array = []
+	var _tex := {}
+	var t0 := 0
+	func _process(_d: float) -> void: queue_redraw()
+	func _draw() -> void:
+		var f: Font = load("res://fonts/rajdhani-700.woff2")
+		var tt := (Time.get_ticks_msec() - t0) * 0.001
+		if kind == "order":
+			var n := maxi(1, party.size())
+			var gap := minf(120.0, size.x / float(n))
+			var x0 := size.x / 2.0 - gap * float(n - 1) / 2.0
+			for i in n:
+				var id: String = str(party[i])
+				if not _tex.has(id): _tex[id] = load("res://assets/af/heroes/%s.png" % id)
+				var tx: Texture2D = _tex[id]
+				var c := Vector2(x0 + gap * i, 62)
+				var hop := maxf(0.0, sin(tt * 3.0 - i * 0.9)) * 8.0
+				if tx:
+					var h := 96.0
+					var w := h * float(tx.get_width()) / float(tx.get_height())
+					draw_texture_rect(tx, Rect2(c.x - w / 2.0, c.y - h / 2.0 - hop, w, h), false)
+				draw_circle(c + Vector2(-30, 40), 13, AfTheme.EMBER)
+				var s := str(i + 1)
+				var sz := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
+				draw_string(f, c + Vector2(-30 - sz.x / 2.0, 46), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, AfTheme.INK)
+				if i < n - 1:
+					var a := c + Vector2(gap * 0.38, 0)
+					draw_line(a, a + Vector2(gap * 0.24, 0), AfTheme.GOLD, 3.0)
+					draw_colored_polygon(PackedVector2Array([a + Vector2(gap * 0.24 + 8, 0), a + Vector2(gap * 0.24, -6), a + Vector2(gap * 0.24, 6)]), AfTheme.GOLD)
+		else:
+			var foe := Vector2(size.x / 2.0, 62)
+			var cyc := fmod(tt, 2.2) / 2.2
+			draw_circle(foe, 30, Color(AfTheme.CORAL, 0.25))
+			draw_circle(foe, 18, AfTheme.CORAL)
+			for side in [-1.0, 1.0]:
+				var from := foe + Vector2(side * size.x * 0.36, -22)
+				var k := clampf(cyc / 0.45, 0.0, 1.0)
+				var p: Vector2 = from.lerp(foe, k)
+				draw_line(from, p, Color(AfTheme.GOLD, 0.5), 3.0)
+				draw_circle(p, 6, AfTheme.GOLD)
+			if cyc > 0.45 and cyc < 0.85:
+				var a := 1.0 - (cyc - 0.45) / 0.4
+				for r in 3: draw_arc(foe, 26.0 + r * 10.0 + (cyc - 0.45) * 60.0, 0, TAU, 32, Color(1, 0.9, 0.5, a * 0.8), 3.0)
+				var s := "SPARK!  x1.5"
+				var sz := f.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, 26)
+				draw_string(f, foe + Vector2(-sz.x / 2.0, -40), s, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(AfTheme.GOLD, a))
+
+
+func lesson(id: String) -> void:
+	if not LESSONS.has(id): return
+	var seen: Array = story.vars.get("tips", [])
+	if seen.has("lesson_" + id): return
+	seen.append("lesson_" + id)
+	story.vars["tips"] = seen
+	story.save_state()
+	var L: Array = LESSONS[id]
+	_blocking = true
+	_overlay_in(0.7)
+	_card_clear()
+	var top := _label(str(L[0]).to_upper(), "MutedLabel", 15)
+	top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	top.add_theme_color_override("font_color", AfTheme.EMBER_LIGHT)
+	card_box.add_child(top)
+	var art := LessonArt.new()
+	art.kind = "spark" if id == "spark" else "order"
+	art.party = story.recruited()
+	art.t0 = Time.get_ticks_msec()
+	art.custom_minimum_size = Vector2(0, 130)
+	card_box.add_child(art)
+	var title := _label(str(L[1]), "HeaderLabel", 32)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card_box.add_child(title)
+	var body := _label(str(L[2]), "", 18)
+	body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card_box.add_child(body)
+	want_build = false
+	var to_build: bool = id in ["boss", "final"] and story.kingdom != null and is_instance_valid(story.kingdom)
+	if to_build: # boss lessons: one tap straight into Build, where Suggest order lives
+		var bb := Button.new()
+		bb.text = "Open Attack Order"
+		bb.custom_minimum_size = Vector2(220, 46)
+		bb.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		bb.pressed.connect(func(): want_build = true; _tap = true)
+		AfTheme.add_press_juice(bb, _rm)
+		card_box.add_child(bb)
+	var cont := _label("Tap anywhere else for later" if to_build else "Tap to continue", "MutedLabel", 14)
+	cont.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	card_box.add_child(cont)
+	card.reset_size()
+	AfTheme.pop_in(card, _rm())
+	await _hold(40.0, 1.2)
 	AfTheme.pop_out(card, _rm())
 	_overlay_out()
 	await get_tree().create_timer(0.3).timeout
