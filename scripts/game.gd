@@ -792,6 +792,13 @@ const WorldMapUI = preload("res://scripts/world_map_ui.gd")
 const StatsUI = preload("res://scripts/stats_ui.gd")
 const CompendiumUI = preload("res://scripts/compendium.gd")
 const BuildUI = preload("res://scripts/build_ui.gd")
+const BattleHUD = preload("res://scripts/battle_hud.gd")
+var HUD = null
+var mouse_pos := Vector2(-999, -999)
+var mouse_moved := false
+# screen transitions: fade + slide on every screen change
+var ui_key := ""
+var ui_in := 1.0
 var COMP = null
 var BUILD = null
 var WORLD = null
@@ -815,7 +822,7 @@ var OW_PROPS := []
 var OW_DECO := []
 var OW_SHEEP := []
 # 5-fighter landscape slots: three front, two back.
-var BLUE_SLOTS_5 := [[360, 210], [375, 330], [360, 450], [215, 250], [215, 410]]
+var BLUE_SLOTS_5 := [[370, 250], [385, 345], [370, 440], [235, 295], [235, 395], [250, 200], [120, 345], [120, 440]] # front row, back row (up to 8)
 var GOB_CLASS := {
 	"torch": {"cls": "Skirmisher", "sub": "Emberblade", "atk": 72, "def": 36, "armor": 8, "crit": 8, "mana": 6, "speed": 14},
 	"tnt": {"cls": "Bomber", "sub": "Demolitionist", "atk": 84, "def": 22, "armor": 4, "crit": 10, "mana": 4, "speed": 12},
@@ -1087,12 +1094,12 @@ func char_stats(name: String, kind: String, team: String, n_red: int) -> Diction
 var BOSS_HP_M := 5.4 # was 4.2: the boss now acts twice a turn and is meant to be the hardest raid
 var BOSS_ATK_M := 1.45 # was 1.35
 func def_mit(d: float) -> float: return 100.0 / (100.0 + maxf(0.0, d))
-func uS(u) -> float: return US * (u.scale if u else 1.0)
+func uS(u) -> float: return US * (1.22 if (G != null and G.ctb) else 1.0) * (u.scale if u else 1.0)
 # landscape design coords, front (melee) slots first. Slot 1 = single boss (missing in game.js).
 var RED_SLOTS := {
-	1: [[740, 330]],
-	2: [[680, 280], [760, 395]],
-	3: [[670, 260], [670, 400], [800, 330]],
+	1: [[760, 360]],
+	2: [[700, 290], [790, 410]],
+	3: [[690, 270], [690, 430], [820, 350]],
 }
 var USE_NECRO := true
 func build_red_roster(n: int) -> Array:
@@ -1136,6 +1143,8 @@ class Act:
 	var ability := ""
 
 class Unit:
+	var tnext := 0.0 # timeline: when this unit acts next (side-view turn order)
+	var letter := "" # enemy tag A, B, C
 	var id := ""
 	var team := ""
 	var kind := ""
@@ -1215,6 +1224,12 @@ class Battle:
 	var end_t := 0.0
 	var result := ""
 	var ab_focus = null
+	var ctb := false # true: side-view battle with one unit per turn on a speed timeline
+	var active = null # unit whose turn it is
+	var clock := 0.0
+	var cmd := "" # manual command menu state: "" | "abilities" | "items" | "target"
+	var pending := {} # {"type": "attack"|"ability", "id": ability id}
+	var items := {"potion": 3, "ether": 2}
 
 # ---------------------------------------------------------------- state
 var G: Battle = null
@@ -1269,6 +1284,8 @@ func new_battle(n: int = 0) -> void:
 		for i in roster.size():
 			var r: Array = roster[i]
 			var p := mp(r[2], r[3])
+			# Side view: enemies on the left facing right, the party on the right facing left.
+			if not PORT: p.x = LW - p.x + (-96.0 if team == "blue" else 30.0)
 			var st: Dictionary = char_stats(r[1], r[0], team, 3 if enc_on else n)
 			if team == "red" and not emult.is_empty():
 				st.hp = maxi(40, int(roundf(float(st.hp) * float(emult.hp))))
@@ -1293,7 +1310,7 @@ func new_battle(n: int = 0) -> void:
 			if team == "blue" and CHAR.has(u.name):
 				u.ab_class = equipped_class_ab(u.name); u.ab_sub = equipped_sub_ab(u.name)
 			u.gauge = clampf(float(HERO_MP.get(u.name, 0.0)), 0.0, AB_MP) if team == "blue" else rand(0, 30)
-			u.facing = 1 if team == "blue" else -1; u.at = rand(0, 1000)
+			u.facing = home_facing(u); u.at = rand(0, 1000)
 			units.append(u)
 	battle_area = str(pick(AREAS))
 	var BOSS_AREA := {"The Matron of Cinders": "coalvein-deeps", "Matron of Cinders": "coalvein-deeps", "The Drowned Cardinal": "saltglass-fen",
@@ -1326,7 +1343,7 @@ func alive(team: String) -> Array:
 	return G.units.filter(func(u): return u.team == team and not u.dead)
 func enemy_of(u) -> String: return "red" if u.team == "blue" else "blue"
 func surge_mult() -> float: return 1.0 + (G.turn - 3) * 0.35 if G.turn > 3 else 1.0
-func home_facing(u) -> int: return 1 if u.team == "blue" else -1
+func home_facing(u) -> int: return (-1 if u.team == "blue" else 1) if not PORT else (1 if u.team == "blue" else -1)
 
 func pick_atk(u, tgt) -> Array:
 	var K: Dictionary = u.K
@@ -1830,8 +1847,135 @@ func controller(dt: float) -> void:
 		if busy(): return
 		G.queue = []; G.cur = null
 		if alive("red").is_empty() or alive("blue").is_empty(): return
-		if G.side == "blue": begin_enemy_turn()
+		if G.ctb: next_turn()
+		elif G.side == "blue": begin_enemy_turn()
 		else: begin_player_turn()
+
+# ---------------------------------------------------------------- side-view timeline (one unit per turn)
+const TL_ROUND := 8.0 # timeline units per "turn" (surge, mods and banners count turns)
+func ct_step(u) -> float:
+	var s: float = 100.0 / maxf(4.0, float(u.speed))
+	# A raid boss is one unit against five: it acts twice as often so the fight has real pressure.
+	if u.team == "red" and G.n_red == 1 and encounter.is_empty(): s *= 0.5
+	return s
+
+func begin_timeline() -> void:
+	G.ctb = true; G.turn = 1; G.clock = 0.0; G.items = {"potion": 3, "ether": 2}
+	var li := 0
+	for u in G.units:
+		u.tnext = ct_step(u) * rand(0.15, 0.9)
+		if u.team == "red":
+			u.letter = "ABCDEFGH".substr(li, 1); li += 1
+	banner = {"text": "", "sub": "", "t": 0.0, "life": 1000.0, "color": "blue"}
+	next_turn()
+
+## The next n turns, soonest first (alive units only), without changing anything.
+func timeline_preview(n: int) -> Array:
+	var tn := {}
+	var al: Array = G.units.filter(func(x): return not x.dead)
+	for u in al: tn[u] = u.tnext
+	var out: Array = []
+	if al.is_empty(): return out
+	for i in n:
+		var best = null
+		for u in al:
+			if best == null or float(tn[u]) < float(tn[best]) or (float(tn[u]) == float(tn[best]) and u.speed > best.speed): best = u
+		out.append(best)
+		tn[best] = float(tn[best]) + ct_step(best)
+	return out
+
+func tick_unit_mods(u) -> void:
+	for i in range(u.buffs.size() - 1, -1, -1):
+		var b: Dictionary = u.buffs[i]
+		b.turns = int(b.turns) - 1
+		if int(b.turns) <= 0:
+			u.set(str(b.stat), int(u.get(str(b.stat))) - int(b.d))
+			u.buffs.remove_at(i)
+
+func next_turn() -> void:
+	if alive("red").is_empty() or alive("blue").is_empty(): return
+	var nx: Array = timeline_preview(1)
+	if nx.is_empty(): return
+	var u = nx[0]
+	G.clock = u.tnext
+	u.tnext += ct_step(u)
+	G.turn = int(G.clock / TL_ROUND) + 1
+	G.active = u; G.side = u.team; G.queue = []; G.qi = 0; G.cur = null; G.ab_focus = null
+	G.cmd = ""; G.pending = {}
+	for bu in G.units: bu.ab_queued = ""
+	tick_unit_mods(u)
+	if u.mana_regen > 0: gain_mp(u, u.mana_regen)
+	u.pop = 160.0
+	if u.team == "red":
+		G.queue = [u]
+		plan_actions(G.queue)
+		G.mode = "enemyIntro"; G.gap = 320
+	else:
+		G.mode = "select"
+		cmd_hover = 0
+		sfx.tone(587, 0.05, "triangle", 0.03)
+
+## Manual turn: the active hero acts on a chosen target (attack or a queued ability).
+func manual_execute(target) -> void:
+	var u = G.active
+	if u == null or G.mode != "select" or phase != "battle": return
+	G.queue = [u]
+	plan_actions(G.queue)
+	if target != null and u.plan != null and not target.dead and target.team != u.team: u.plan.target = target
+	G.cmd = ""
+	G.mode = "resolve"; G.side = "blue"; G.qi = 0; G.gap = LAUNCH_FIRST; G.cur = null
+	sfx.fight()
+
+## Ends the active hero's turn without an attack (Defend, Items).
+func end_turn_quiet(delay: float = 420.0) -> void:
+	G.queue = []; G.cmd = ""
+	G.mode = "resolve"; G.qi = 0; G.gap = delay; G.cur = null
+
+func cmd_attack() -> void:
+	if G.mode != "select" or AUTO: return
+	G.cmd = "target"; G.pending = {"type": "attack"}
+	sfx.tone(660, 0.04, "triangle", 0.03)
+
+func cmd_ability(id: String) -> void:
+	var u = G.active
+	if u == null or not ABILITY_DEFS.has(id) or u.gauge < AB_MP: return
+	u.ab_queued = id
+	var kind: String = str(ABILITY_DEFS[id].kind)
+	if kind == "damage_single":
+		G.cmd = "target"; G.pending = {"type": "ability", "id": id}
+	else:
+		manual_execute(null)
+
+func cmd_defend() -> void:
+	var u = G.active
+	if u == null or G.mode != "select": return
+	add_mod(u, "def", 40, 1); add_mod(u, "armor", 10, 1)
+	gain_mp(u, 30)
+	add_text(u.x, u.y - u.K.head * uS(u) - 30, "DEFEND", "#9fe3ff", 17, 900, true)
+	fx.append({"type": "aura", "unit": u, "t": 0.0, "life": 800.0, "color": Color("#7fd8ff")})
+	sfx.tone(392, 0.08, "triangle", 0.04)
+	end_turn_quiet()
+
+func cmd_item(which: String) -> void:
+	var u = G.active
+	if u == null or G.mode != "select" or int(G.items.get(which, 0)) <= 0: return
+	G.items[which] = int(G.items[which]) - 1
+	if which == "potion":
+		heal_unit(lowest_ally(u), 0.35)
+	else:
+		gain_mp(u, 50)
+		add_text(u.x, u.y - u.K.head * uS(u) - 30, "+50 MP", "#7fb8ff", 17, 900, true)
+	sfx.tone(784, 0.06, "triangle", 0.03)
+	end_turn_quiet()
+
+func cmd_target(t) -> void:
+	if t == null or t.dead or t.team == "blue" or G.mode != "select" or AUTO: return
+	if G.pending.get("type", "") == "ability" and G.active != null:
+		G.active.ab_queued = str(G.pending.id)
+	manual_execute(t)
+
+var cmd_hover := 0
+var tips_on := true
 
 func toggle_queue(u) -> void:
 	if G == null or G.mode != "select" or u.dead or u.team != "blue" or phase != "battle": return
@@ -1847,7 +1991,7 @@ func toggle_queue(u) -> void:
 ## AUTO: queue every living hero; a full MP bar fires the first ability in that hero's sequence whose rule passes, otherwise a normal attack.
 func auto_queue_turn() -> void:
 	G.queue = []
-	for u in alive("blue"):
+	for u in ([G.active] if (G.ctb and G.active != null) else alive("blue")):
 		G.queue.append(u)
 		u.ab_queued = ""
 		if u.gauge >= AB_MP:
@@ -1964,7 +2108,7 @@ func add_mod(u, stat: String, amt: int, turns: int) -> void:
 		return
 	# Mods tick at the start of the target side's turn. A debuff cast on the other side would lose a
 	# tick before its target ever acts, so "2T" on a foe only covered one of its turns; count it from their next turn.
-	if G != null and u.team != G.side:
+	if G != null and not G.ctb and u.team != G.side:
 		turns += 1
 	for i in range(u.buffs.size() - 1, -1, -1):
 		var b: Dictionary = u.buffs[i]
@@ -2626,6 +2770,17 @@ var VWc := 1024.0
 var VHc := 576.0
 var TS := 1.0
 var SAFE_T := 0.0
+var SAFE_R := 0.0
+var SAFE_B := 0.0
+var SAFE_L := 0.0
+## iPhone notch / home bar insets from CSS env(safe-area-inset-*) (a hidden #safe probe in the web shell).
+func read_safe_area() -> void:
+	if not OS.has_feature("web"): return
+	var r = JavaScriptBridge.eval("(function(){var d=document.getElementById('safe');if(!d)return '0,0,0,0';var s=getComputedStyle(d);return [s.paddingTop,s.paddingRight,s.paddingBottom,s.paddingLeft].map(function(v){return parseFloat(v)||0}).join(',')})()", true)
+	if typeof(r) != TYPE_STRING: return
+	var p: PackedStringArray = str(r).split(",")
+	if p.size() == 4:
+		SAFE_T = float(p[0]); SAFE_R = float(p[1]); SAFE_B = minf(float(p[2]), 24.0); SAFE_L = float(p[3])
 var _last_vp := Vector2.ZERO
 var terrain_built := false
 
@@ -2663,14 +2818,16 @@ func layout() -> void:
 	if params.has("dpr"): dpr = float(params.dpr)
 	var vw := vp.x / dpr
 	var vh := vp.y / dpr
-	var port := vh > vw * 1.05
+	var port := false # landscape-first side view everywhere (phones in portrait get a rotate prompt)
 	if port != PORT:
 		set_orientation(port)
 		if terrain_built:
 			remap_units(port); build_terrain()
 	VWc = vw; VHc = vh
-	var topR := 52.0 + SAFE_T if PORT else (30.0 if vh < 520 else 0.0)
-	var botR := 96.0 if PORT else (58.0 if vh < 520 else 66.0)
+	read_safe_area()
+	# Side-view battle HUD: turn-order timeline on top, party status cards along the bottom.
+	var topR := (58.0 if vh < 430 else 70.0) + SAFE_T
+	var botR := (78.0 if vh < 430 else 96.0) + SAFE_B
 	vscale = minf(vw / VIEW.w, (vh - topR - botR) / VIEW.h)
 	OX = (vw - VIEW.w * vscale) / 2 - VIEW.x * vscale
 	OY = topR + (vh - topR - botR - VIEW.h * vscale) / 2 - VIEW.y * vscale
@@ -2763,22 +2920,49 @@ var UI_BAD_L := Color("#fbdcd8")
 var UI_LOCK := Color("#a39d90")
 
 ## Rounded rectangle (StyleBoxFlat) honoring the current transform and alpha.
+## Airron's Fall frame: a chamfered plate (top-left and bottom-right corners cut), a soft top-lit gradient,
+## a gold hairline, and on large panels an inner rule plus corner filigree. Every screen draws through this,
+## so all of Airron's Quest shares the Airron's Fall look.
+const AF_GOLD := Color("#d9ad62")
+const AF_GOLD_HI := Color("#f4d796")
+func af_chamfer(r: Rect2, c: float) -> PackedVector2Array:
+	if c < 0.75:
+		return PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
+	return PackedVector2Array([Vector2(r.position.x + c, r.position.y), Vector2(r.end.x, r.position.y), Vector2(r.end.x, r.end.y - c),
+		Vector2(r.end.x - c, r.end.y), Vector2(r.position.x, r.end.y), Vector2(r.position.x, r.position.y + c)])
+
 func rbox(r: Rect2, rad: float, fill: Color, border: Color = Color(0, 0, 0, 0), bw: float = 0.0, shadow: float = 0.0) -> void:
 	if r.size.x <= 0.5 or r.size.y <= 0.5:
 		return
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = ca(fill)
-	sb.set_corner_radius_all(int(roundf(clampf(rad, 0.0, minf(r.size.x, r.size.y) / 2.0))))
-	sb.corner_detail = 12
-	sb.anti_aliasing = true
-	if bw > 0.0:
-		sb.border_color = ca(border)
-		sb.set_border_width_all(int(roundf(bw)))
+	var c: float = clampf(rad * 0.55, 0.0, minf(r.size.x, r.size.y) * 0.3)
 	if shadow > 0.0:
-		sb.shadow_color = ca(Color(0.03, 0.1, 0.11, 0.22))
-		sb.shadow_size = int(roundf(shadow))
-		sb.shadow_offset = Vector2(0, roundf(shadow * 0.4))
-	draw_style_box(sb, r)
+		draw_colored_polygon(af_chamfer(Rect2(r.position + Vector2(0, shadow * 0.45), r.size).grow(shadow * 0.25), c), ca(Color(0, 0, 0, 0.32)))
+	var pts := af_chamfer(r, c)
+	var top: Color = fill.lightened(0.07); var bot: Color = fill.darkened(0.18)
+	var cols := PackedColorArray()
+	for q in pts:
+		cols.append(ca(top.lerp(bot, (q.y - r.position.y) / r.size.y)))
+	draw_polygon(pts, cols)
+	# warm light from the top edge
+	if r.size.y > 40.0 and fill.a > 0.5:
+		var glow := Rect2(r.position.x + c, r.position.y + 1.0, r.size.x - c * 2.0, minf(18.0, r.size.y * 0.25))
+		draw_rect(glow, ca(Color(1.0, 0.6, 0.28, 0.05)))
+	if bw > 0.0 and border.a > 0.0:
+		var bc := border
+		if border.r > 0.9 and border.g > 0.9 and border.b > 0.9:
+			bc = Color(AF_GOLD.r, AF_GOLD.g, AF_GOLD.b, border.a * 0.75)
+		var loop := pts.duplicate(); loop.append(pts[0])
+		draw_polyline(loop, ca(bc), maxf(1.0, bw * 0.75), true)
+		if r.size.x >= 180.0 and r.size.y >= 110.0:
+			var inner := af_chamfer(r.grow(-5.0), maxf(0.0, c - 2.0)); inner.append(inner[0])
+			draw_polyline(inner, ca(Color(AF_GOLD.r, AF_GOLD.g, AF_GOLD.b, 0.16 * bc.a / maxf(0.01, bc.a))), 1.0, true)
+			# corner filigree on the square corners + gold studs
+			var k := minf(30.0, r.size.y * 0.2)
+			var tr := Vector2(r.end.x - 3.0, r.position.y + 3.0); var bl := Vector2(r.position.x + 3.0, r.end.y - 3.0)
+			draw_polyline(PackedVector2Array([tr + Vector2(-k, 0), tr + Vector2(-6, 0), tr + Vector2(0, 6), tr + Vector2(0, k)]), ca(Color(AF_GOLD.r, AF_GOLD.g, AF_GOLD.b, 0.8)), 1.2, true)
+			draw_polyline(PackedVector2Array([bl + Vector2(k, 0), bl + Vector2(6, 0), bl + Vector2(0, -6), bl + Vector2(0, -k)]), ca(Color(AF_GOLD.r, AF_GOLD.g, AF_GOLD.b, 0.8)), 1.2, true)
+			for st in [tr + Vector2(-k - 4, 0), bl + Vector2(k + 4, 0)]:
+				draw_colored_polygon(PackedVector2Array([st + Vector2(0, -3), st + Vector2(3, 0), st + Vector2(0, 3), st + Vector2(-3, 0)]), ca(AF_GOLD_HI))
 
 func pill_colors(kind: String) -> Array:
 	if kind == "soft": return [UI_CARD, UI_LINE, UI_INK]
@@ -2886,17 +3070,20 @@ func menu_sheet(back_id: String, title: String, helper: String, back_cb: Callabl
 		tabs_w = minf(320.0, maxf(220.0, float(tabs.size()) * 130.0))
 	var tabs_in_header: bool = tabs.size() > 0 and not narrow
 	var right: float = inner.end.x - (tabs_w + 14.0 if tabs_in_header else 0.0)
-	var tfs: float = fit_size(title, 22.0 if short else 27.0, right - tx, 14.0)
+	title = title.to_upper()
+	_font_override = FONT_TITLE
+	var tfs: float = fit_size(title, 20.0 if short else 24.0, right - tx, 13.0)
+	_font_override = null
 	var wrap_lines: Array = []
 	if helper != "" and text_w(helper, 11.0) > right - tx:
 		wrap_lines = wrap_words(helper, 12.0, inner.size.x - 8.0)
 		helper = ""
 	if helper != "":
-		text(title, tx, inner.position.y + bh * 0.3, tfs, UI_INK, "left")
+		_font_override = FONT_TITLE; text(title, tx, inner.position.y + bh * 0.3, tfs, UI_INK, "left"); _font_override = null
 		var hfs: float = fit_size(helper, 11.0 if short else 13.0, right - tx, 9.0)
 		text(helper, tx, inner.position.y + bh * 0.3 + tfs * 0.5 + hfs * 0.85, hfs, UI_MUTED, "left")
 	else:
-		text(title, tx, inner.position.y + bh * 0.5, tfs, UI_INK, "left")
+		_font_override = FONT_TITLE; text(title, tx, inner.position.y + bh * 0.5, tfs, UI_INK, "left"); _font_override = null
 	var top: float = inner.position.y + bh + (8.0 if short else 14.0)
 	for wl in wrap_lines:
 		text(str(wl), inner.position.x + 4.0, top + 6.0, 12.0, UI_MUTED, "left")
@@ -3248,7 +3435,7 @@ func start_encounter(e: Dictionary) -> void:
 	phase = "battle"
 	paused = false
 	screen = ""
-	begin_player_turn()
+	begin_timeline()
 	banner.text = "WILD ENCOUNTER"
 	banner.sub = WORLD.area_name(str(e.get("area", ""))) + "  ·  Lv." + str(int(e.get("level", 1)))
 	banner.color = "yellow"
@@ -4025,6 +4212,7 @@ func draw_title() -> void:
 		var ks := maxf(VWc / kw, VHc / kh)
 		img(ka, 0, 0, kw, kh, (VWc - kw * ks) / 2.0, (VHc - kh * ks) / 2.0, kw * ks, kh * ks)
 	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.07, 0.05, 0.04, 0.45))
+	if HUD != null: HUD.draw_embers(self, 1.0)
 	var short := VHc <= 430
 	var vw := VWc
 	var L := clampf3(32, VHc * 0.09, 64) if short else clampf3(46, vw * 0.135, 108)
@@ -4172,7 +4360,7 @@ func draw_results() -> void:
 	rbox(Rect2(cx - tw2 / 2.0, y, tw2, title_h - 6), (title_h - 6) / 2.0, tcol, Color(0, 0, 0, 0), 0.0, 4.0)
 	text(res.title, cx, y + (title_h - 6) / 2.0, title_fs, Color.WHITE)
 	y += title_h + (2 if short else 6)
-	text(res.sub, cx, y + sub_fs * 0.62, sub_fs, Color("#4a2d16"))
+	text(res.sub, cx, y + sub_fs * 0.62, sub_fs, Color("#d9ad62"))
 	y += sub_fs * 1.25 + (4 if short else 8)
 	for ln in lines:
 		var x: float = cx - ln[1] / 2
@@ -4520,13 +4708,16 @@ func _draw() -> void:
 		STATS.draw(self, VWc, VHc)
 		return
 	draw_rect(Rect2(0, 0, VWc, VHc), Color("#1a1612"))
+	var side_view: bool = G != null and G.ctb and screen != "title"
+	if side_view: HUD.draw_backdrop(self)
 	set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
 	save()
 	if shake_t > 0:
 		tr_((randf() - 0.5) * shake_mag * 2 * (shake_t / 240.0), (randf() - 0.5) * shake_mag * 2 * (shake_t / 240.0))
-	draw_terrain()
+	if not side_view: draw_terrain()
 	var list := []
-	for p in props: list.append([p.y, 0, p])
+	if not side_view:
+		for p in props: list.append([p.y, 0, p])
 	if G != null:
 		for u in G.units:
 			if not u.gone: list.append([u.y - 1000 if u.dead else u.y, 1, u])
@@ -4543,7 +4734,9 @@ func _draw() -> void:
 	for e in fx:
 		if e.type != "sprite": draw_fx(e)
 	for p in projectiles: draw_projectile(p)
-	if G != null and phase != "title":
+	if side_view:
+		for u in G.units: HUD.unit_overlay(self, u)
+	elif G != null and phase != "title":
 		for u in G.units: draw_bars(u)
 		for u in G.units: draw_badge(u)
 	for t in texts: draw_text_fx(t)
@@ -4553,7 +4746,13 @@ func _draw() -> void:
 		var fk: float = screen_flash.t / screen_flash.life
 		var fcol: Color = screen_flash.color
 		draw_rect(Rect2(0, 0, VWc, VHc), Color(fcol.r, fcol.g, fcol.b, 0.32 * (1.0 - fk)))
-	draw_hud(); draw_banner(); draw_cast_banner()
+	if side_view and screen == "": HUD.draw(self)
+	elif not side_view: draw_hud()
+	draw_banner(); draw_cast_banner()
+	var slide := ui_in < 1.0 and screen != ""
+	if slide:
+		var e := 1.0 - pow(1.0 - ui_in, 3.0)
+		save(); _alpha = e; tr_(0, (1.0 - e) * 12.0)
 	if screen == "title": draw_title()
 	elif screen == "chars": draw_chars()
 	elif screen == "inv": draw_inv()
@@ -4561,7 +4760,10 @@ func _draw() -> void:
 	elif screen == "compendium": COMP.draw(self, VWc, VHc)
 	elif screen == "build": BUILD.draw(self, VWc, VHc)
 	elif screen == "results": draw_results()
-	elif phase == "battle" or phase == "ending": draw_battle_ui()
+	elif (phase == "battle" or phase == "ending") and not side_view: draw_battle_ui()
+	if slide: restore()
+	if ui_in < 1.0:
+		draw_rect(Rect2(0, 0, VWc, VHc), ca(Color(0.02, 0.015, 0.01, 0.55 * (1.0 - ui_in) * (1.0 - ui_in))))
 
 # ---------------------------------------------------------------- screens
 func to_title() -> void:
@@ -4572,7 +4774,7 @@ func to_title() -> void:
 
 func start_fight(n: int) -> void:
 	new_battle(n); phase = "battle"; paused = false; screen = ""
-	begin_player_turn()
+	begin_timeline()
 	if G.n_red == 1:
 		banner.text = "BOSS FIGHT!"; banner.sub = "5v1 — a boss of the Ash"
 	elif G.n_red == 2:
@@ -4598,9 +4800,9 @@ func show_results() -> void:
 	for u in blue: bd += u.dmg
 	for u in red: rd += u.dmg
 	var role: String = (mvp.cls + " / " + mvp.sub) if mvp.cls != "" else mvp.K.label
-	var N := Color("#3a2412")
-	var B := Color("#1c4f8a")
-	var RR := Color("#9e2c2c")
+	var N := Color("#ece3cf")
+	var B := Color("#7fb8ff")
+	var RR := Color("#e2725f")
 	var win: bool = r == "win"
 	var xp_full := raid_xp_award(G.n_red, win) if r != "draw" else raid_xp_award(G.n_red, false)
 	if not encounter.is_empty():
@@ -4658,7 +4860,7 @@ func toggle_mute() -> void:
 		MUSIC.stream_paused = muted
 	save_cfg()
 func toggle_speed() -> void:
-	speed = 2 if speed == 1 else 1
+	speed = 1 + speed % 3
 
 # ---------------------------------------------------------------- input
 var last_touch := -10000
@@ -4682,7 +4884,9 @@ func _input(event: InputEvent) -> void:
 		else: on_release(event.position / dpr)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		on_key(event.physical_keycode)
-	elif (event is InputEventScreenDrag or event is InputEventMouseMotion) and drag_on:
+	if event is InputEventMouseMotion:
+		mouse_pos = event.position / dpr; mouse_moved = true
+	if (event is InputEventScreenDrag or event is InputEventMouseMotion) and drag_on:
 		var mp2: Vector2 = event.position / dpr
 		if mp2.distance_to(drag_from) > 8.0:
 			drag_moved = true
@@ -4737,6 +4941,19 @@ func canvas_tap(cx: float, cy: float) -> void:
 	if G == null or phase != "battle" or G.mode != "select" or paused: return
 	var wx := (cx - OX) / vscale
 	var wy := (cy - OY) / vscale
+	if G.ctb:
+		if AUTO or G.active == null or G.active.team != "blue": return
+		var bt = null
+		var bd2 := 1e9
+		for e in alive("red"):
+			var hh: float = e.K.head * uS(e)
+			var dx2: float = wx - e.x
+			var dy2: float = wy - (e.y - hh * 0.5)
+			var d2 := sqrt(dx2 * dx2 + dy2 * dy2 * 0.5)
+			if d2 < maxf(70.0, hh * 0.8) and d2 < bd2:
+				bd2 = d2; bt = e
+		if bt != null: cmd_target(bt)
+		return
 	var best = null
 	var bd := 1e9
 	var rad := maxf(38, 24 / vscale)
@@ -4764,6 +4981,8 @@ func on_key(k: int) -> void:
 		return
 	if screen == "build":
 		BUILD.key(self, k)
+		return
+	if screen == "" and G != null and G.ctb and HUD.key(self, k):
 		return
 	if screen == "chars" or screen == "inv" or screen == "party" or screen == "overworld":
 		if k == KEY_ESCAPE or k == KEY_P:
@@ -4821,6 +5040,7 @@ func _ready() -> void:
 	STATS = StatsUI.new()
 	COMP = CompendiumUI.new()
 	BUILD = BuildUI.new()
+	HUD = BattleHUD.new()
 	load_cfg()
 	sfx.muted = muted
 	# Airron's Fall run theme loops under the whole game (web builds start it after the first tap).
@@ -4869,6 +5089,11 @@ func _process(delta: float) -> void:
 	if screen == "results": results_t += dt
 	if screen == "chars" or screen == "inv": tick_char_ui(dt)
 	if screen == "overworld": tick_overworld(dt)
+	if G != null and HUD != null: HUD.update(self, dt)
+	var key_now := screen + "|" + (phase if screen == "" else "")
+	if key_now != ui_key:
+		ui_key = key_now; ui_in = 0.0
+	ui_in = minf(1.0, ui_in + dt / 380.0)
 	queue_redraw()
 
 # ---------------------------------------------------------------- headless test hooks (desktop only)
