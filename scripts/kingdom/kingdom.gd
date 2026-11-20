@@ -39,6 +39,9 @@ var party_hp_max := 80
 var bag: Array = []
 var item_defs: Dictionary = {}
 var reduced_motion := false
+## Graphics quality: "high" = tilt-shift blur + bloom + god rays; "low" = those off (default on phones / touch screens).
+var gfx_low := false
+var gfx_btn: Button
 var busy := false
 var t_now := 0.0
 var title_font: Font
@@ -110,6 +113,8 @@ func _ready() -> void:
 	_build_world_nodes()
 	_build_ui()
 	_apply_motion()
+	if not _gfx_saved: gfx_low = is_touch_device()
+	_apply_quality()
 	var e := _enc()
 	if e:
 		e.random_battle_finished.connect(_on_battle_finished)
@@ -161,6 +166,9 @@ func _load_save() -> void:
 		party_hp = int(cf.get_value("kingdom", "hp", party_hp_max))
 		meter = float(cf.get_value("kingdom", "meter", 0.0))
 		reduced_motion = bool(cf.get_value("kingdom", "reduced_motion", false))
+		if cf.has_section_key("kingdom", "gfx_low"):
+			gfx_low = bool(cf.get_value("kingdom", "gfx_low", false))
+			_gfx_saved = true
 		_saved["map"] = str(cf.get_value("kingdom", "map", "town"))
 		var p = cf.get_value("kingdom", "pos", null)
 		if p is Vector2:
@@ -178,11 +186,13 @@ func _load_save() -> void:
 
 func save_game() -> void:
 	var cf := ConfigFile.new()
+	cf.load(SAVE_PATH) # keep other sections (class / subclass EXP from game.gd)
 	cf.set_value("kingdom", "gold", gold)
 	cf.set_value("kingdom", "hp", party_hp)
 	cf.set_value("kingdom", "hp_max", party_hp_max)
 	cf.set_value("kingdom", "meter", meter)
 	cf.set_value("kingdom", "reduced_motion", reduced_motion)
+	if _gfx_saved: cf.set_value("kingdom", "gfx_low", gfx_low)
 	cf.set_value("kingdom", "map", map.get("id", "town"))
 	cf.set_value("kingdom", "pos", player_pos / TILE)
 	cf.save(SAVE_PATH)
@@ -201,7 +211,9 @@ func _parse_params() -> void:
 			args.append_array(Array((q as String).trim_prefix("?").split("&", false)))
 	for a in args:
 		var s: String = str(a).trim_prefix("--")
-		if s.begins_with("calm") or s.begins_with("reduced_motion"):
+		if s.begins_with("gfx="):
+			gfx_low = s.ends_with("low"); _gfx_saved = true
+		elif s.begins_with("calm") or s.begins_with("reduced_motion"):
 			reduced_motion = not s.ends_with("=0")
 		elif s.begins_with("kmap="):
 			_saved["map"] = s.substr(5)
@@ -447,8 +459,8 @@ func _apply_grade() -> void:
 	pm.set_shader_parameter("saturation", float(g.sat))
 	pm.set_shader_parameter("contrast", float(g.con))
 	pm.set_shader_parameter("warmth", float(g.warm))
-	pm.set_shader_parameter("rays", float(g.rays))
-	pm.set_shader_parameter("bloom", float(g.bloom))
+	pm.set_shader_parameter("rays", 0.0 if gfx_low else float(g.rays))
+	pm.set_shader_parameter("bloom", 0.0 if gfx_low else float(g.bloom))
 
 
 func _blend_grade(delta: float) -> void:
@@ -1048,6 +1060,29 @@ func _refresh_hud() -> void:
 	loc_name.text = map.get("name", "")
 
 
+var _gfx_saved := false # true once the player (or ?gfx=) picked a quality; otherwise we follow the device
+
+static func is_touch_device() -> bool:
+	# Phones and tablets only: a Windows laptop with a touch screen still counts as desktop (mouse = fine pointer).
+	if OS.has_feature("mobile") or OS.has_feature("web_ios") or OS.has_feature("web_android"):
+		return true
+	if OS.has_feature("web"):
+		var coarse = JavaScriptBridge.eval("window.matchMedia && matchMedia('(pointer: coarse)').matches && !matchMedia('(any-pointer: fine)').matches", true)
+		return coarse == true
+	return false
+
+func _apply_quality() -> void:
+	var pm := post.material as ShaderMaterial
+	pm.set_shader_parameter("low_quality", gfx_low)
+	pm.set_shader_parameter("tilt", 0.0 if gfx_low else 1.0)
+	if gfx_btn: gfx_btn.text = "Graphics: %s" % ("Low (fast)" if gfx_low else "High")
+	if not grade.is_empty(): _apply_grade()
+
+func set_gfx_low(on: bool) -> void:
+	gfx_low = on; _gfx_saved = true
+	_apply_quality()
+	save_game()
+
 func set_reduced_motion(on: bool) -> void:
 	reduced_motion = on
 	rm_btn.text = "Reduced motion: %s" % ("On" if on else "Off")
@@ -1350,6 +1385,8 @@ func _build_ui() -> void:
 	rm_btn = _button("", func(): set_reduced_motion(not reduced_motion))
 	rm_btn.text = "Reduced motion: %s" % ("On" if reduced_motion else "Off")
 	mv.add_child(rm_btn)
+	gfx_btn = _button("", func(): set_gfx_low(not gfx_low))
+	mv.add_child(gfx_btn)
 	mv.add_child(_button("Back to title", func(): save_game(); get_tree().change_scene_to_file("res://main.tscn")))
 	var cr := Label.new()
 	cr.theme_type_variation = "MutedLabel"

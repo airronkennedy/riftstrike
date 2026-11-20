@@ -8,17 +8,18 @@ const KINGDOM_SCENE := "res://scenes/kingdom.tscn"
 const MAIN_SCENE := "res://main.tscn"
 const KINGDOM_SAVE := "user://kingdom.cfg"
 
-## Region battles: Airron's Fall backdrop, foe art per archetype, archetype mix, level range.
+## Region battles: Airron's Fall backdrop, foe level range, elite chance, foe art per archetype, archetype mix.
+## Levels follow the walk out of town: meadow 1-3, road 2-4, forest 3-6, shore 5-8, highlands 7-10 (docs/BALANCE.md).
 const REGION_BATTLES := {
-	"meadow": {"area": "stillmoss-cloister", "level": [1, 2], "kinds": ["torch", "torch", "tnt"],
+	"meadow": {"area": "stillmoss-cloister", "level": [1, 3], "elite": 0.0, "kinds": ["torch", "torch", "tnt"],
 		"foes": {"torch": ["ashling", "gnat"], "barrel": ["pilgrim"], "tnt": ["moth"]}},
-	"forest": {"area": "gallowbough-orchard", "level": [2, 3], "kinds": ["torch", "barrel", "tnt"],
+	"forest": {"area": "gallowbough-orchard", "level": [3, 6], "elite": 0.08, "kinds": ["torch", "barrel", "tnt"],
 		"foes": {"torch": ["mote", "gnat"], "barrel": ["brute"], "tnt": ["moth", "chanter"]}},
-	"highlands": {"area": "tollstone-quarry", "level": [3, 4], "kinds": ["barrel", "torch", "tnt"],
+	"highlands": {"area": "tollstone-quarry", "level": [7, 10], "elite": 0.25, "kinds": ["barrel", "torch", "tnt"],
 		"foes": {"torch": ["lancer"], "barrel": ["brute", "pilgrim"], "tnt": ["chanter"]}},
-	"shore": {"area": "starwreck-strand", "level": [2, 4], "kinds": ["torch", "tnt", "torch"],
+	"shore": {"area": "starwreck-strand", "level": [5, 8], "elite": 0.15, "kinds": ["torch", "tnt", "torch"],
 		"foes": {"torch": ["mote", "ashling"], "barrel": ["pilgrim"], "tnt": ["moth"]}},
-	"road": {"area": "riven-choir", "level": [1, 3], "kinds": ["torch", "barrel", "torch"],
+	"road": {"area": "riven-choir", "level": [2, 4], "elite": 0.0, "kinds": ["torch", "barrel", "torch"],
 		"foes": {"torch": ["lancer", "ashling"], "barrel": ["brute"], "tnt": ["chanter"]}},
 }
 
@@ -41,7 +42,15 @@ func encounter_for(region_id: String) -> Dictionary:
 	var n := randi_range(2, 3)
 	var kinds: Array = (r.kinds as Array).slice(0, n)
 	var lv: Array = r.level
-	return {"area": str(r.area), "kinds": kinds, "level": randi_range(int(lv[0]), int(lv[1])), "foes": r.foes, "region": region_id}
+	var level := randi_range(int(lv[0]), int(lv[1]))
+	var elite: bool = randf() < float(r.get("elite", 0.0))
+	return {"area": str(r.area), "kinds": kinds, "level": level, "foes": r.foes, "region": region_id, "elite": elite,
+		"mult": foe_mult(level)}
+
+## Foe stat multiplier by level (vs a level-1 regular foe). Keeps pace with class growth (docs/BALANCE.md).
+static func foe_mult(level: int) -> Dictionary:
+	var l := float(level - 1)
+	return {"hp": 0.95 + 0.10 * l, "atk": 0.95 + 0.07 * l, "def": 0.95 + 0.045 * l}
 
 func has_save() -> bool:
 	return FileAccess.file_exists(KINGDOM_SAVE)

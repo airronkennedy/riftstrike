@@ -17,6 +17,8 @@ uniform float aspect = 1.0;
 uniform float rays = 0.0;
 uniform vec3 ray_color = vec3(1.0, 0.85, 0.6);
 uniform float motion = 1.0;
+// Low quality (phones / touch by default, Graphics toggle in the menu): no blur taps, no bloom.
+uniform bool low_quality = false;
 
 const vec2 P[12] = vec2[](vec2(-0.326, -0.406), vec2(-0.840, -0.074), vec2(-0.696, 0.457), vec2(-0.203, 0.621),
 	vec2(0.962, -0.195), vec2(0.473, -0.480), vec2(0.519, 0.767), vec2(0.185, -0.893),
@@ -29,12 +31,15 @@ void fragment() {
 	float d = abs(uv.y - focus_center);
 	float amt = smoothstep(focus_width, focus_width + 0.32, d) * tilt;
 	float r = mix(5.0, 9.0, amt) * max(1.0, 1.0 / (px.y * 900.0));
-	vec3 acc = vec3(0.0);
+	vec3 acc = base * 12.0;
 	vec3 glow = vec3(0.0);
+	if (!low_quality) {
+	acc = vec3(0.0);
 	for (int i = 0; i < 12; i++) {
 		vec3 s = texture(screen_tex, uv + P[i] * px * r).rgb;
 		acc += s;
 		glow += max(s - vec3(bloom_threshold), vec3(0.0));
+	}
 	}
 	acc /= 12.0;
 	glow /= 12.0;

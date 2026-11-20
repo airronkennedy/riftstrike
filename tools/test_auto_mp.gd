@@ -21,9 +21,17 @@ func _run() -> void:
 	# sequence: an "always" rule on a slotted ability is what AUTO fires
 	g.AB_SEQ[nm] = [[sid, "always"], [cid, "always"]]
 	if g.seq_of(nm)[0][0] != sid: fails.append("seq set")
-	if not g.toggle_loadout(nm, sid) or g.loadout_of(nm).find(sid) >= 0: fails.append("loadout remove")
-	g.toggle_loadout(nm, sid)
-	if g.loadout_of(nm).find(sid) < 0: fails.append("loadout re-add")
+	# loadout = unlocked class abilities + unlocked subclass abilities (2 + 2 at full unlock)
+	if g.loadout_of(nm).find(sid) < 0 or str(g.ABILITY_DEFS[sid].src) != "sub": fails.append("sub ability in loadout")
+	var cls0: String = str(g.CHAR[nm].cls)
+	var sub0: String = str(g.CHAR[nm].sub)
+	g.set_sub(nm, cls0)
+	if str(g.CHAR[nm].sub) != sub0: fails.append("sub may not equal class")
+	g.set_class(nm, sub0)
+	if str(g.CHAR[nm].cls) != sub0 or str(g.CHAR[nm].sub) != cls0: fails.append("class/sub swap")
+	g.set_class(nm, cls0)
+	if str(g.CHAR[nm].cls) != cls0 or str(g.CHAR[nm].sub) != sub0: fails.append("swap back")
+	g.AB_SEQ[nm] = [[sid, "always"], [cid, "always"]]
 	g.AB_SEQ[nm] = [[cid, "always"]]
 	# MP carry: set HERO_MP and start a fight
 	for h in g.HERO_NAMES: g.HERO_MP[h] = 37.0
