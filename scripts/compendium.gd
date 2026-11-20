@@ -14,7 +14,7 @@ const KIND_ROLE := {"warrior": "Melee", "archer": "Ranged", "pawn": "Tank"}
 const AB_TAG := {"damage_single": "One foe", "damage_all_enemies": "All foes", "buff_self": "Self buff",
 	"buff_party": "Party buff", "heal_single": "Heal", "heal_party": "Party heal"}
 
-var tab := 0 # 0 = classes, 1 = subclasses
+var tab := 0 # 0 = classes, 1 = subclasses, 2 = keepers (party + locked), 3 = foes
 var cls_i := 0
 var sub_i := 0
 var kit_i := 0
@@ -134,6 +134,8 @@ static func pack_text(d: Dictionary) -> String:
 
 # ------------------------------------------------------------------ navigation
 func _count(g: Object) -> int:
+	if tab >= 2:
+		return 1
 	return class_entries(g).size() if tab == 0 else sub_entries(g).size()
 
 
@@ -181,18 +183,25 @@ func key(g: Object, k: int) -> void:
 	elif k == KEY_DOWN:
 		step_page(1)
 	elif k == KEY_TAB:
-		set_tab(1 - tab)
+		set_tab((tab + 1) % 4)
 	elif k == KEY_1:
 		set_tab(0)
 	elif k == KEY_2:
 		set_tab(1)
+	elif k == KEY_3:
+		set_tab(2)
+	elif k == KEY_4:
+		set_tab(3)
 
 
 # ------------------------------------------------------------------ draw
 func draw(g: Object, vw: float, vh: float) -> void:
 	var short: bool = vh <= 430
-	var area: Rect2 = g.menu_sheet("cmp_back", "Compendium", "Every class and subclass, and what each ability does.",
-		func(): g.menu_back(), ["Classes", "Subclasses"], tab, func(i): set_tab(i), "cmp_tab")
+	var area: Rect2 = g.menu_sheet("cmp_back", "Compendium", "Classes, subclasses, every keeper and every foe of the Ash.",
+		func(): g.menu_back(), ["Classes", "Subclasses", "Keepers", "Foes"], tab, func(i): set_tab(i), "cmp_tab")
+	if tab >= 2:
+		_draw_roster(g, area, short)
+		return
 	var entries: Array = class_entries(g) if tab == 0 else sub_entries(g)
 	if entries.is_empty():
 		return
@@ -332,7 +341,7 @@ func _draw_chip_rows(g: Object, rows: Array, cx: float, cy: float, fsz: float, r
 
 func _draw_empty(g: Object, e: Dictionary, r: Rect2, short: bool) -> void:
 	var box := Rect2(r.position.x, r.position.y, r.size.x, minf(r.size.y, 92.0 if short else 110.0))
-	g.rbox(box, 22.0, Color(1, 1, 1, 0.55), g.UI_LINE, 1.5)
+	g.rbox(box, 22.0, g.UI_CARD, g.UI_LINE, 1.5)
 	var msg: String = "No hero runs %s yet. Class abilities are a unique 10-ability kit per hero, so %s gets its kit when a hero is locked to it." % [str(e.name), str(e.name)]
 	var lines: Array = g.wrap_words(msg, 13.0, box.size.x - 40.0)
 	var ly: float = box.get_center().y - float(lines.size() - 1) * 9.0
@@ -434,3 +443,58 @@ func _ability_card(g: Object, a: Dictionary, cap: bool, r: Rect2, badge: float, 
 		var s: String = str(ln)
 		g.text(s, x, y + lh * 0.5, g.fit_size(s, bfs, tw, 7.0), g.UI_MUTED, "left")
 		y += lh
+
+
+# ------------------------------------------------------------------ keepers / foes grid
+## Every Airron's Fall keeper (party first, then the locked unlockables) or every foe, in a paged card grid.
+func _draw_roster(g: Object, area: Rect2, short: bool) -> void:
+	var items: Array = []
+	if tab == 2:
+		var on: Array = []
+		var off: Array = []
+		for h in g.AF_HEROES:
+			var it := {"img": "h_" + str(h.id), "name": str(h.short), "sub": str(h.archetype), "locked": not bool(h.get("unlocked", false)),
+				"tag": "In party" if bool(h.get("unlocked", false)) else "Locked", "rarity": str(h.rarity)}
+			(on if not it.locked else off).append(it)
+		items = on + off
+	else:
+		for tier in ["regular", "elite", "boss"]:
+			for fk in g.AF_FOE_DEFS:
+				var f: Dictionary = g.AF_FOE_DEFS[fk]
+				if str(f.tier) == tier:
+					items.append({"img": "f_" + str(fk), "name": str(f.name), "sub": {"regular": "Foe", "elite": "Elite", "boss": "Boss"}[tier],
+						"locked": false, "tag": {"regular": "Foe", "elite": "Elite", "boss": "Boss"}[tier], "rarity": tier})
+	var cols: int = clampi(int(area.size.x / 150.0), 3, 8)
+	var gap: float = 8.0
+	var cw: float = (area.size.x - gap * float(cols - 1)) / float(cols)
+	var chh: float = 96.0 if short else 128.0
+	var head: float = 26.0
+	var rows: int = maxi(1, int((area.size.y - head - 44.0 + gap) / (chh + gap)))
+	var per: int = cols * rows
+	pages = maxi(1, int(ceil(float(items.size()) / float(per))))
+	page = clampi(page, 0, pages - 1)
+	var n_on: int = items.filter(func(x): return not x.locked).size()
+	var label: String = ("%d keepers · %d in your party, %d locked (unlock later)" % [items.size(), n_on, items.size() - n_on]) if tab == 2 else ("%d foes · regular, elite and boss" % items.size())
+	g.text(label + "   ·   page %d / %d" % [page + 1, pages], area.position.x + 4.0, area.position.y + 10.0, 12.0 if short else 13.0, g.UI_MUTED, "left")
+	var y0: float = area.position.y + head
+	for i in range(page * per, mini(items.size(), (page + 1) * per)):
+		var j: int = i - page * per
+		var it: Dictionary = items[i]
+		var r := Rect2(area.position.x + float(j % cols) * (cw + gap), y0 + float(j / cols) * (chh + gap), cw, chh)
+		var border: Color = g.UI_GOLD if (str(it.rarity) == "ascendant" or str(it.rarity) == "boss") else g.UI_LINE
+		g.rbox(r, 16.0, g.UI_CARD, border, 1.5)
+		var tex: Texture2D = g.IMG.get(str(it.img))
+		if tex != null:
+			var ih: float = chh - 44.0
+			var sc: float = minf(ih / float(tex.get_height()), (cw - 12.0) / float(tex.get_width()))
+			var sz := Vector2(tex.get_width(), tex.get_height()) * sc
+			var mod: Color = Color(0.35, 0.32, 0.3, 1.0) if it.locked else Color.WHITE
+			g.draw_texture_rect(tex, Rect2(r.get_center().x - sz.x / 2.0, r.position.y + 6.0 + ih - sz.y, sz.x, sz.y), false, g.ca(mod))
+		g.text(str(it.name), r.get_center().x, r.end.y - 28.0, g.fit_size(str(it.name), 14.0, cw - 8.0, 9.0), g.UI_MUTED if it.locked else g.UI_INK)
+		var tc: Color = g.UI_LOCK if it.locked else (g.UI_GOLD if str(it.tag) != "Foe" else g.UI_TEAL_D)
+		g.text(("LOCKED · " if it.locked else "") + str(it.sub), r.get_center().x, r.end.y - 12.0, g.fit_size(str(it.sub), 11.0, cw - 8.0, 8.0), tc)
+	if pages > 1:
+		var bw: float = 120.0
+		var by: float = area.end.y - 38.0
+		g.pill("cmp_rprev", Rect2(area.get_center().x - bw - 6.0, by, bw, 36.0), "Prev", "soft", 15.0, func(): step_page(-1), page == 0)
+		g.pill("cmp_rnext", Rect2(area.get_center().x + 6.0, by, bw, 36.0), "Next", "primary", 15.0, func(): step_page(1), page >= pages - 1)

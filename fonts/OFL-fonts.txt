@@ -1,3 +1,6 @@
+Cormorant Garamond font (cormorant-500-italic.woff2, subset from @fontsource/cormorant-garamond) — SIL Open Font License 1.1
+Copyright 2015 The Cormorant Project Authors (https://github.com/CatharsisFonts/Cormorant). No Reserved Font Name is declared.
+
 Cinzel font (cinzel-500/600/700.woff2, subset from @fontsource/cinzel) — SIL Open Font License 1.1
 No Reserved Font Name is declared.
 

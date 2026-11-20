@@ -1,5 +1,5 @@
 extends Node2D
-## Airron's Quest (formerly RIFTSTRIKE) — auto-battler with a 5-keeper party.
+## Airron's Quest — auto-battler with a 5-keeper party.
 ## Airron's Quest. Art: Airron's Fall (Airron Kennedy's own game art; see docs/ASSET_LICENSES.md).
 ## Everything is drawn immediate-mode in _draw(), mirroring the canvas renderer.
 
@@ -114,21 +114,21 @@ func build_kinds() -> void:
 			"idle": {"r": 0, "n": 6, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(4, 8, 11, 5, 160)], "atkUp": [A(3, 8, 11, 5, 160)], "atkDown": [A(5, 8, 11, 5, 160)],
 			"special": "Piercing Volley"},
-		"pawn": {"img": "pawn", "f": S192, "head": 64.0, "label": "Pawn", "range": 46.0, "ranged": "",
+		"pawn": {"img": "pawn", "f": S192, "head": 64.0, "label": "Squire", "range": 46.0, "ranged": "",
 			"idle": {"r": 0, "n": 6, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(3, 6, 10, 3, 180), A(2, 6, 10, 3, 200)], "special": "Hearth Hammer"},
-		"torch": {"img": "torch", "f": S192, "head": 76.0, "label": "Torch", "range": 52.0, "ranged": "",
+		"torch": {"img": "torch", "f": S192, "head": 76.0, "label": "Skirmisher", "range": 52.0, "ranged": "",
 			"idle": {"r": 0, "n": 7, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(2, 6, 10, 3, 170)], "atkDown": [A(3, 6, 10, 3, 170)], "atkUp": [A(4, 6, 10, 3, 170)],
 			"special": "Cinder Sweep"},
-		"tnt": {"img": "tnt", "f": S192, "head": 66.0, "label": "TNT", "range": 290.0, "ranged": "dynamite",
+		"tnt": {"img": "tnt", "f": S192, "head": 66.0, "label": "Bomber", "range": 290.0, "ranged": "dynamite",
 			"idle": {"r": 0, "n": 6, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(2, 7, 10, 3, 160)], "special": "Big Bang"},
-		"barrel": {"img": "barrel", "f": {"fw": 128.0, "fh": 128.0, "ax": 64.0, "ay": 101.0, "s": 1.0}, "head": 70.0, "label": "Barrel", "range": 48.0, "ranged": "",
+		"barrel": {"img": "barrel", "f": {"fw": 128.0, "fh": 128.0, "ax": 64.0, "ay": 101.0, "s": 1.0}, "head": 70.0, "label": "Bruiser", "range": 48.0, "ranged": "",
 			"idle": {"r": 4, "n": 3, "fps": 5.0}, "run": {"r": 3, "n": 6, "fps": 12.0},
 			"atk": [A(1, 6, 10, 2, 180)], "special": "Powder Keg"},
-		# 6v1 boss only: CreativeKind Necromancer (160x128 frames, faces right). Casts a soul bolt.
-		"necro": {"img": "necro", "f": {"fw": 160.0, "fh": 128.0, "ax": 82.0, "ay": 114.0, "s": 1.7}, "head": 86.0, "label": "Necromancer", "range": 360.0, "ranged": "bolt",
+		# 5v1 boss slot (ranged caster boss). Casts a soul bolt.
+		"necro": {"img": "necro", "f": {"fw": 160.0, "fh": 128.0, "ax": 82.0, "ay": 114.0, "s": 1.7}, "head": 86.0, "label": "Boss", "range": 360.0, "ranged": "bolt",
 			"idle": {"r": 0, "n": 8, "fps": 10.0}, "run": {"r": 1, "n": 8, "fps": 12.0},
 			"atk": [A(2, 13, 14, 8, 200)], "death": {"r": 6, "n": 9}, "special": "Soul Rend"},
 	}
@@ -142,6 +142,7 @@ func is_warrior_kit(kind: String) -> bool:
 const AfRoster = preload("res://scripts/af_roster.gd")
 var AF_HEROES: Array = AfRoster.HEROES
 var AF_FOES: Array = AfRoster.FOES.keys()
+var AF_FOE_DEFS: Dictionary = AfRoster.FOES
 var HERO_ART := {} # party name -> IMG key of the keeper sprite
 var HERO_INFO := {} # party name -> keeper record (title, archetype, rarity, weapon, unlocked)
 var GOB_NAMES := ["Rusk", "Kael", "Sable", "Drenn", "Voss", "Iven"]
@@ -359,6 +360,13 @@ func build_af_roster() -> void:
 			var r2: Array = r.duplicate(true)
 			r2[0] = str(h.id) + "_" + str(r[0])
 			rows.append(r2)
+		# Signature (first) ability takes the keeper's Airron's Fall weapon name, e.g. Greatsword Slash.
+		if rows.size() > 0 and str(h.get("weapon", "")) != "":
+			var wn: Array = []
+			for part in str(h.weapon).split("-"):
+				wn.append(part.capitalize())
+			rows[0][1] = " ".join(wn)
+			rows[0][2] = "%s's signature from Airron's Fall. %s" % [str(h.short), str(rows[0][2])]
 		AB_CLASS_ROWS[nm] = rows
 		var b: Dictionary = tmpl_base[kit].duplicate()
 		if not bool(h.get("unlocked", false)):
@@ -675,7 +683,7 @@ var GOB_CLASS := {
 	"torch": {"cls": "Skirmisher", "sub": "Emberblade", "atk": 72, "def": 36, "armor": 8, "crit": 8, "mana": 6, "speed": 14},
 	"tnt": {"cls": "Bomber", "sub": "Demolitionist", "atk": 84, "def": 22, "armor": 4, "crit": 10, "mana": 4, "speed": 12},
 	"barrel": {"cls": "Bruiser", "sub": "Powderguard", "atk": 58, "def": 52, "armor": 14, "crit": 6, "mana": 5, "speed": 8},
-	"necro": {"cls": "Boss", "sub": "Necromancer", "atk": 72, "def": 40, "armor": 12, "crit": 8, "mana": 10, "speed": 10},
+	"necro": {"cls": "Boss", "sub": "Ash Boss", "atk": 72, "def": 40, "armor": 12, "crit": 8, "mana": 10, "speed": 10},
 }
 var GOB_FLAVOR := {
 	"Rusk": {"atk": 0.98, "def": 1.08}, "Kael": {"atk": 1.10, "def": 0.88}, "Sable": {"atk": 0.92, "def": 1.18},
@@ -2437,11 +2445,11 @@ func draw_hud() -> void:
 		var x := 6.0 if isB else VWc - 6 - w
 		draw3(IMG.ribbonBlue if isB else IMG.ribbonRed, x, top, w, h)
 		var team_name: String
-		if isB: team_name = "SQUAD" if w > 190 else "BLUE"
+		if isB: team_name = "PARTY" if w > 190 else "YOU"
 		elif not encounter.is_empty(): team_name = "WILD"
 		elif G.n_red == 1: team_name = "BOSS"
 		elif G.n_red == 2: team_name = "ELITES" if w > 190 else "RED"
-		else: team_name = "GOBLINS" if w > 190 else "RED"
+		else: team_name = "ASHBORN" if w > 190 else "FOES"
 		outlined(team_name, x + (pad if isB else w - pad), top + h * 0.42, fs, Color.WHITE, "left" if isB else "right")
 		outlined("%d/%d" % [al, us.size()], x + (w - pad if isB else pad), top + h * 0.42, fs, Color.WHITE, "right" if isB else "left")
 		var bx := x + h * 0.6
@@ -2540,7 +2548,7 @@ func add_btn(id: String, r: Rect2, cb: Callable) -> void:
 
 func clampf3(lo: float, v: float, hi: float) -> float: return maxf(lo, minf(v, hi))
 
-## A Tiny Swords 3-slice button like .btn: border caps, text raised by padding-bottom.
+## A 3-slice button like .btn: border caps, text raised by padding-bottom.
 func ui_button(id: String, r: Rect2, label: String, red: bool, fsz: float, cap: float, cb: Callable, off := false, locked := false, pulse := false) -> void:
 	var down := pressed_id == id and not locked
 	var tex: Texture2D
@@ -2639,7 +2647,7 @@ func pill_colors(kind: String) -> Array:
 	if kind == "soft": return [UI_CARD, UI_LINE, UI_INK]
 	if kind == "danger": return [UI_CORAL, UI_CORAL_D, Color.WHITE]
 	if kind == "gold": return [UI_GOLD, UI_GOLD_D, Color("#3d2706")]
-	if kind == "tealsoft": return [UI_TEAL_L, Color("#a9d6d1"), UI_TEAL_D]
+	if kind == "tealsoft": return [UI_TEAL_L, Color("#7a5236"), UI_TEAL_D]
 	return [UI_TEAL, UI_TEAL_D, Color.WHITE]
 
 ## Soft pill button. kind: primary (teal) | soft (white) | danger (coral) | gold | tealsoft.
@@ -2829,7 +2837,7 @@ func stat_rows() -> Array:
 
 ## Two-column rounded stat bars inside a soft card. Returns the height used.
 func draw_stat_block(name: String, st: Dictionary, r: Rect2, short: bool) -> void:
-	rbox(r, 18.0, Color(1, 1, 1, 0.65), UI_LINE, 1.0)
+	rbox(r, 18.0, UI_CARD, UI_LINE, 1.0)
 	var rows: Array = stat_rows()
 	var two: bool = r.size.x > 380.0
 	var pad: float = 12.0
@@ -3243,7 +3251,7 @@ func draw_chars() -> void:
 	var stack: bool = dw < 420.0
 	var half: float = dw if stack else (dw - gap) / 2.0
 	var cr := Rect2(dx, y, half, card_h)
-	rbox(cr, 18.0, Color(1, 1, 1, 0.65), UI_LINE, 1.5)
+	rbox(cr, 18.0, UI_CARD, UI_LINE, 1.5)
 	text("CLASS", cr.position.x + 16.0, cr.position.y + (12.0 if short else 15.0), 11.0, UI_MUTED, "left")
 	chip("Locked", cr.end.x - 10.0, cr.position.y + (13.0 if short else 16.0), 10.0, Color(UI_LOCK.r, UI_LOCK.g, UI_LOCK.b, 0.22), UI_MUTED, "right")
 	text(str(st.cls), cr.position.x + 16.0, cr.position.y + (33.0 if short else 38.0), 18.0 if short else 22.0, UI_INK, "left")
@@ -3267,7 +3275,7 @@ func draw_chars() -> void:
 	y += (card_h * 2.0 + gap if stack else card_h) + gap
 	# Abilities in battle
 	var ar := Rect2(dx, y, dw, 40.0 if short else 50.0)
-	rbox(ar, ar.size.y / 2.0, Color(1, 1, 1, 0.65), UI_LINE, 1.5)
+	rbox(ar, ar.size.y / 2.0, UI_CARD, UI_LINE, 1.5)
 	var cn: String = str(ABILITY_DEFS[equipped_class_ab(name)].name) if ABILITY_DEFS.has(equipped_class_ab(name)) else "—"
 	var sn: String = str(ABILITY_DEFS[equipped_sub_ab(name)].name) if ABILITY_DEFS.has(equipped_sub_ab(name)) else "—"
 	text("IN BATTLE", ar.position.x + 18.0, ar.get_center().y, 11.0, UI_MUTED, "left")
@@ -3471,7 +3479,7 @@ func draw_party() -> void:
 			var rr2 := Rect2(right_x, bench_top + float(j) * (brow + rg), right_w, brow)
 			var sel2: bool = party_sel == PARTY_SIZE + j
 			var swap_hint: bool = party_sel >= 0 and party_sel < PARTY_SIZE
-			rbox(rr2, minf(20.0, brow / 2.0), UI_GOLD_L if sel2 else Color(1, 1, 1, 0.7), UI_GOLD if sel2 else (UI_TEAL if swap_hint else UI_LINE), 2.5 if sel2 or swap_hint else 1.5)
+			rbox(rr2, minf(20.0, brow / 2.0), UI_GOLD_L if sel2 else UI_CARD, UI_GOLD if sel2 else (UI_TEAL if swap_hint else UI_LINE), 2.5 if sel2 or swap_hint else 1.5)
 			var jdx: int = j
 			add_btn("pben_%d" % j, rr2, func(): _party_tap_bench(jdx))
 			draw_hero_sprite(hs2.kind, rr2.position.x + 30.0, rr2.end.y - 3.0, 0.34 if short else 0.44, hn2)
@@ -3716,7 +3724,7 @@ func tick_overworld(dt: float) -> void:
 
 func draw_overworld() -> void:
 	# Water backdrop and a grass island with foam, houses, and a road out to the east.
-	draw_rect(Rect2(0, 0, VWc, VHc), Color("#47aba9"))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color("#1a1612"))
 	var short := VHc <= 430
 	# Fit a readable chunk of town; keep the lead easy to see on a short landscape screen.
 	# Zoomed out vs the first town build (was 460/560 tall, 0.7–1.35) so more of the region shows.
@@ -3883,7 +3891,7 @@ func draw_title() -> void:
 	_font_override = null
 	y += L + 10.0
 	if not short:
-		chip("An Airron's Fall auto-battler", cx, y + 14.0, 15.0, Color(1, 1, 1, 0.88), UI_INK, "center")
+		chip("An Airron's Fall auto-battler", cx, y + 14.0, 15.0, Color(0.1, 0.08, 0.06, 0.85), UI_GOLD, "center")
 		y += tag_h
 	# One soft sheet holding the menus and the quick raids
 	var sr := Rect2(cx - sw / 2.0, y, sw, sheet_h)
@@ -3913,7 +3921,7 @@ func draw_title() -> void:
 	iy += float(menu_rows) * (mbh + gap)
 	section_label("QUICK RAID  ·  pick a fight", ix, iy + lab_h * 0.4, short)
 	iy += lab_h
-	var specs := [["raid3", "6v3 Raid", "tealsoft", 3], ["raid2", "6v2 Elite", "primary", 2], ["raid1", "6v1 Boss", "danger", 1]]
+	var specs := [["raid3", "5v3 Raid", "tealsoft", 3], ["raid2", "5v2 Elite", "primary", 2], ["raid1", "5v1 Boss", "danger", 1]]
 	var bfs: float = 16.0 if short else 20.0
 	if raid_one_row:
 		var rw: float = (iw - gap * 2.0) / 3.0
@@ -4344,7 +4352,7 @@ func _draw() -> void:
 		draw_overworld()
 		STATS.draw(self, VWc, VHc)
 		return
-	draw_rect(Rect2(0, 0, VWc, VHc), Color("#47aba9"))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color("#1a1612"))
 	set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
 	save()
 	if shake_t > 0:
@@ -4398,18 +4406,18 @@ func start_fight(n: int) -> void:
 	new_battle(n); phase = "battle"; paused = false; screen = ""
 	begin_player_turn()
 	if G.n_red == 1:
-		banner.text = "BOSS RIFT!"; banner.sub = "6v1 — one necromancer" if USE_NECRO else "6v1 — one tyrant"
+		banner.text = "BOSS FIGHT!"; banner.sub = "5v1 — a boss of the Ash"
 	elif G.n_red == 2:
-		banner.text = "ELITE RAID"; banner.sub = "6v2 — two elites"
+		banner.text = "ELITE RAID"; banner.sub = "5v2 — two elites"
 	else:
-		banner.text = "GOBLIN RAID"; banner.sub = "6v3 — a short raid"
+		banner.text = "ASH RAID"; banner.sub = "5v3 — a short raid"
 	banner.color = "red" if G.n_red == 1 else "yellow"; banner.life = 1400.0
 
 func show_results() -> void:
 	if phase == "results": return
 	phase = "results"
 	var r := G.result
-	var raid_name := "6v1 Boss" if G.n_red == 1 else ("6v2 Elite" if G.n_red == 2 else "6v3 Raid")
+	var raid_name := "5v1 Boss" if G.n_red == 1 else ("5v2 Elite" if G.n_red == 2 else "5v3 Raid")
 	var blue: Array = G.units.filter(func(u): return u.team == "blue")
 	var red: Array = G.units.filter(func(u): return u.team == "red")
 	var b_alive := blue.filter(func(u): return not u.dead).size()

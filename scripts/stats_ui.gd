@@ -101,7 +101,7 @@ func _draw_compare(g: Object, r: Rect2, short: bool) -> void:
 	for ki in KEYS.size():
 		var k: String = KEYS[ki]
 		var row := Rect2(r.position.x, y, r.size.x, rh)
-		g.rbox(row, rh / 2.0, Color(1, 1, 1, 0.7), g.UI_LINE, 1.0)
+		g.rbox(row, rh / 2.0, g.UI_CARD, g.UI_LINE, 1.0)
 		g.text(LABELS[k], r.position.x + 16.0, y + rh * 0.5, fs * 0.85, g.UI_MUTED, "left")
 		var best := -1
 		var worst := 1 << 30
@@ -160,7 +160,7 @@ func _draw_breakdown(g: Object, r: Rect2, short: bool) -> void:
 	for ki in KEYS.size():
 		var k: String = KEYS[ki]
 		var row := Rect2(r.position.x, y, r.size.x, rh)
-		g.rbox(row, rh / 2.0, Color(1, 1, 1, 0.7), g.UI_LINE, 1.0)
+		g.rbox(row, rh / 2.0, g.UI_CARD, g.UI_LINE, 1.0)
 		g.text(LABELS[k], r.position.x + 16.0, y + rh * 0.5, tfs * 0.85, g.UI_MUTED, "left")
 		var sum := 0
 		for ci in cols.size():

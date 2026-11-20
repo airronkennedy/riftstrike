@@ -45,6 +45,11 @@ for f in ["title-keyart-wide.jpg", "title-keyart-tall.jpg"]:
 for f in ["death-backdrop.jpg", "victory-backdrop.jpg"]:
     shutil.copy(f"{SRC}/screens/{f}", out("ui", f))
 shutil.copy(f"{PUB}/assets/run-theme.mp3", out("audio", "run-theme.mp3"))
+shutil.copy(f"{PUB}/favicon.svg", out("ui", "favicon.svg"))
+# Every Airron's Fall font goes into fonts/ (the game draws with Cinzel 700 and Rajdhani 600/700).
+for f in sorted(os.listdir(f"{SRC}/fonts")):
+    if f.endswith(".woff2"):
+        shutil.copy(f"{SRC}/fonts/{f}", os.path.join(ROOT, "fonts", f))
 
 # ------------------------------------------------------------------ silhouettes (selection outline + hit flash)
 def silhouettes(src_png, key):
