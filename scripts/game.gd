@@ -2923,7 +2923,7 @@ func draw_projectile(p) -> void:
 func draw_text_fx(t: Dictionary) -> void:
 	var k: float = t.t / t.life
 	var still: bool = t.get("still", false)
-	var y: float = t.y - (0.0 if still else 34 * (1 - pow(1 - k, 2)))
+	var y: float = t.y - (0.0 if still else float(t.get("rise", 34.0)) * (1 - pow(1 - k, 2)))
 	var sc: float
 	if still: sc = 1.35 - k / 0.1 * 0.35 if k < 0.1 else 1.0
 	elif t.pop: sc = 1.7 - k / 0.12 * 0.7 if k < 0.12 else 1.0

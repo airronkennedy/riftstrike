@@ -20,7 +20,7 @@ var rng := RandomNumberGenerator.new()
 
 func start(g, side: String, order: Array, delays: Dictionary, focus) -> void:
 	last_spark_t = -1e9
-	team = side; clock = 0.0; strikes = []; projs = []; hist = {}; hits = 0; sparks = 0; dmg = 0; last_spark_pop = {}; chain = {}; spark_txt = {}
+	team = side; clock = 0.0; strikes = []; projs = []; hist = {}; hits = 0; sparks = 0; dmg = 0; last_spark_pop = {}; chain = {}; spark_txt = {}; hit_nums = {}
 	rng.randomize()
 	var slot := 0
 	for u in order:
@@ -288,6 +288,52 @@ func _chain(g, t, d: int, top: float, sp: bool) -> void:
 	tx.color = Color("#d8ff7a") if sp else Color("#ffd36a")
 	chain[t.id] = {"sum": sum, "txt": tx}
 
+## Per-hit numbers without bunching: hits on one target that land close together merge into one
+## number ("54 ×3"); the rest go into alternating left/right lanes that stack upward, with a cap on
+## live numbers per target (oldest retired first). Phone portrait merges harder and keeps fewer.
+var hit_nums := {}
+const NUM_MERGE_MS := 70.0
+const NUM_MERGE_MS_PORTRAIT := 130.0
+func _hit_number(g, t, d: int, hy: float, sp: bool, crit: bool) -> void:
+	var portrait: bool = g.VHc > g.VWc
+	var merge_ms: float = NUM_MERGE_MS_PORTRAIT if portrait else NUM_MERGE_MS
+	var cap: int = 3 if portrait else 5
+	var col := Color("#d8ff7a") if sp else (Color("#ff9a4a") if crit else Color("#fff4e0"))
+	var st: Dictionary = hit_nums.get(t.id, {"live": [], "slot": 0})
+	var live: Array = st.live.filter(func(x): return g.texts.find(x.tx) >= 0)
+	if not live.is_empty():
+		var last: Dictionary = live[-1]
+		if clock - float(last.born) < merge_ms * 2.0 and clock - float(last.at) < merge_ms and int(last.n) < 4:
+			last.sum += d; last.n += 1; last.at = clock
+			last.tx.s = str(last.sum) + " ×" + str(last.n) + ("!" if crit else "")
+			last.tx.t = minf(float(last.tx.t), 60.0)
+			if sp: last.tx.color = col
+			last.tx.size = minf(18.0, float(last.tx.size) + 0.6)
+			st.live = live; hit_nums[t.id] = st
+			return
+	while live.size() >= cap:
+		var old: Dictionary = live.pop_front()
+		old.tx.t = maxf(float(old.tx.t), float(old.tx.life) - 90.0)
+	var slot: int = int(st.slot)
+	var side: float = 1.0 if slot % 2 == 0 else -1.0
+	var lane: int = int(slot / 2) % 3
+	if portrait:
+		# portrait: the screen edge is close, so stack on the inward side only
+		side = 1.0 if t.x < g.LW * 0.5 else -1.0
+		lane = slot % 3
+	var dx: float = side * (34.0 + 12.0 * lane)
+	var dy: float = -lane * 14.0 + rng.randf_range(-3.0, 3.0)
+	if portrait:
+		# below the chained total, on the body, drifting up only a little
+		dx = side * (40.0 + 6.0 * lane)
+		dy = 22.0 + lane * 15.0
+	var sz: int = 14 if (sp or crit) else 11
+	g.add_text(t.x + dx, hy + dy, str(d) + ("!" if crit else ""), col.to_html(false), sz, 440, crit)
+	var tx: Dictionary = g.texts[-1]
+	if portrait: tx.rise = 14.0
+	live.append({"tx": tx, "sum": d, "n": 1, "at": clock, "born": clock})
+	st.live = live; st.slot = slot + 1; hit_nums[t.id] = st
+
 func _apply(g, u, t, d: int, sp: bool, crit: bool, s: Dictionary, last: bool) -> void:
 	t.hp = maxi(0, t.hp - d)
 	u.dmg += d
@@ -307,10 +353,7 @@ func _apply(g, u, t, d: int, sp: bool, crit: bool, s: Dictionary, last: bool) ->
 	t.kx = (1.0 if t.x >= u.x else -1.0) * (10.0 if sp else 5.0)
 	var hy: float = t.y - t.K.head * g.uS(t) * 0.55
 	var top: float = t.y - t.K.head * g.uS(t) - 18.0
-	# per-hit number: small, zig-zagging out from the hit point and rising (chained numbers)
-	var zig: float = (1.0 if (int(s.next) % 2) == 0 else -1.0) * rng.randf_range(22.0, 50.0)
-	var col := "#d8ff7a" if sp else ("#ff9a4a" if crit else "#fff4e0")
-	g.add_text(t.x + zig, hy + rng.randf_range(-18.0, 8.0), str(d) + ("!" if crit else ""), col, 14 if sp else (14 if crit else 11), 440, crit)
+	_hit_number(g, t, d, hy, sp, crit)
 	_chain(g, t, d, top, sp)
 	if str(s.f.style) == "melee" and not s.support:
 		g.fx.append({"type": "slash", "x": t.x + rng.randf_range(-10, 10), "y": hy + rng.randf_range(-14, 14), "t": 0.0, "life": 200.0, "dir": u.facing if int(s.next) % 2 == 0 else -u.facing})
