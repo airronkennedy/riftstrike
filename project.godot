@@ -3,13 +3,13 @@ config_version=5
 
 [application]
 
-config/name="Riftstrike"
-config/description="RIFTSTRIKE — turn-based 6vN rift brawl. Godot port of the canvas web game."
+config/name="Airron's Quest"
+config/description="Airron's Quest — an Airron's Fall auto-battler."
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
-boot_splash/bg_color=Color(0.113725, 0.231373, 0.227451, 1)
+boot_splash/bg_color=Color(0.141, 0.122, 0.098, 1)
 boot_splash/show_image=false
-config/icon="res://assets/deco/03.png"
+config/icon="res://assets/af/ui/icon-192.png"
 run/low_processor_mode=false
 
 [display]
@@ -30,5 +30,5 @@ pointing/emulate_touch_from_mouse=false
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/canvas_textures/default_texture_filter=0
-environment/defaults/default_clear_color=Color(0.278431, 0.670588, 0.662745, 1)
+environment/defaults/default_clear_color=Color(0.141, 0.122, 0.098, 1)
 2d/snap/snap_2d_transforms_to_pixel=false

@@ -1,6 +1,6 @@
 extends Node2D
-## RIFTSTRIKE — turn-based 6vN brawl. Godot port of the canvas game (game.js), kept 1:1.
-## Art: Tiny Swords by Pixel Frog (original release, free for commercial use; see docs/ASSET_LICENSES.md). Boss: Necromancer by CreativeKind.
+## Airron's Quest (formerly RIFTSTRIKE) — auto-battler with a 5-keeper party.
+## Airron's Quest. Art: Airron's Fall (Airron Kennedy's own game art; see docs/ASSET_LICENSES.md).
 ## Everything is drawn immediate-mode in _draw(), mirroring the canvas renderer.
 
 # ---------------------------------------------------------------- world / orientation
@@ -23,48 +23,65 @@ func set_orientation(port: bool) -> void:
 	VIEW = {"x": 40.0, "y": 40.0, "w": 496.0, "h": 950.0} if port else {"x": 40.0, "y": 40.0, "w": 944.0, "h": 500.0}
 
 # ---------------------------------------------------------------- assets
+# All art is Airron's Fall art (Airron Kennedy's own game) under assets/af/, built by tools/build_af_assets.py.
+# Keys keep their old names so the drawing code is unchanged; the atlases keep the old layouts.
 var SRC := {
-	"warrior": "units/Warrior_Blue.png", "archer": "units/Archer_Blue.png", "pawn": "units/Pawn_Blue.png",
-	"torch": "units/Torch_Red.png", "tnt": "units/TNT_Red.png", "barrel": "units/Barrel_Red.png",
-	"necro": "necromancer/Necromancer.png",
-	"paladin": "heroes/christian-paladin.png",
-	"dead": "units/Dead.png", "dynamite": "fx/Dynamite.png", "arrow": "fx/Arrow.png",
-	"explosion": "fx/Explosions.png", "fire": "fx/Fire.png",
-	"flat": "terrain/Tilemap_Flat.png", "foam": "terrain/Foam.png",
-	"rocks1": "terrain/Rocks_01.png", "rocks3": "terrain/Rocks_03.png", "tree": "terrain/Tree.png",
-	"tower": "terrain/Tower_Blue.png", "ghouse": "terrain/Goblin_House.png", "sheep": "terrain/HappySheep_Idle.png",
-	# Overworld buildings and terrain for Acts II-V (Tiny Swords, original release; see docs/ASSET_LICENSES.md).
-	"tower_red": "buildings/Tower_Red.png", "tower_yellow": "buildings/Tower_Yellow.png", "tower_purple": "buildings/Tower_Purple.png",
-	"tower_ruin": "buildings/Tower_Destroyed.png", "ghouse_ruin": "buildings/Goblin_House_Destroyed.png",
-	"house_blue": "buildings/House_Blue.png", "house_red": "buildings/House_Red.png", "house_yellow": "buildings/House_Yellow.png",
-	"house_purple": "buildings/House_Purple.png", "house_ruin": "buildings/House_Destroyed.png",
-	"castle_blue": "buildings/Castle_Blue.png", "castle_red": "buildings/Castle_Red.png", "castle_yellow": "buildings/Castle_Yellow.png",
-	"castle_purple": "buildings/Castle_Purple.png", "castle_ruin": "buildings/Castle_Destroyed.png",
-	"wtower": "buildings/Wood_Tower_Red.png", "goldmine": "buildings/GoldMine_Active.png",
-	"elev": "terrain/Tilemap_Elevation.png", "bridge": "terrain/Bridge_All.png",
-	"rocks2": "terrain/Rocks_02.png", "rocks4": "terrain/Rocks_04.png",
-	"ribbonBlue": "ui/Ribbon_Blue_3Slides.png", "ribbonRed": "ui/Ribbon_Red_3Slides.png", "ribbonYellow": "ui/Ribbon_Yellow_3Slides.png",
-	"btnBlue": "ui/Button_Blue_3Slides.png", "btnBlueP": "ui/Button_Blue_3Slides_Pressed.png",
-	"btnRed": "ui/Button_Red_3Slides.png", "btnRedP": "ui/Button_Red_3Slides_Pressed.png",
-	"sq": "ui/Button_Blue.png", "sqP": "ui/Button_Blue_Pressed.png", "carved": "ui/Carved_9Slides.png", "sound": "ui/Regular_03.png",
+	"dead": "af/gen/fx_burst.png", "dynamite": "af/gen/fx_flask.png", "arrow": "af/gen/fx_bolt.png",
+	"explosion": "af/gen/fx_burst.png", "fire": "af/gen/fx_flame.png",
+	"flat": "af/gen/tilemap_flat.png", "foam": "af/gen/coast_glow.png",
+	"rocks1": "af/gen/rocks_1.png", "rocks3": "af/gen/rocks_3.png", "tree": "af/gen/tree.png",
+	"tower": "af/gen/tower_blue.png", "ghouse": "af/gen/hut.png", "sheep": "af/gen/mote_idle.png",
+	"tower_red": "af/gen/tower_red.png", "tower_yellow": "af/gen/tower_yellow.png", "tower_purple": "af/gen/tower_purple.png",
+	"tower_ruin": "af/gen/tower_ruin.png", "ghouse_ruin": "af/gen/hut_ruin.png",
+	"house_blue": "af/gen/house_blue.png", "house_red": "af/gen/house_red.png", "house_yellow": "af/gen/house_yellow.png",
+	"house_purple": "af/gen/house_purple.png", "house_ruin": "af/gen/house_ruin.png",
+	"castle_blue": "af/gen/castle_blue.png", "castle_red": "af/gen/castle_red.png", "castle_yellow": "af/gen/castle_yellow.png",
+	"castle_purple": "af/gen/castle_purple.png", "castle_ruin": "af/gen/castle_ruin.png",
+	"wtower": "af/gen/watchtower.png", "goldmine": "af/gen/mine.png",
+	"elev": "af/gen/tilemap_elevation.png", "bridge": "af/gen/bridge.png",
+	"rocks2": "af/gen/rocks_2.png", "rocks4": "af/gen/rocks_4.png",
+	"ribbonBlue": "af/gen/ui_ribbon_teal.png", "ribbonRed": "af/gen/ui_ribbon_red.png", "ribbonYellow": "af/gen/ui_ribbon_gold.png",
+	"btnBlue": "af/gen/ui_btn_ember.png", "btnBlueP": "af/gen/ui_btn_ember_p.png",
+	"btnRed": "af/gen/ui_btn_red.png", "btnRedP": "af/gen/ui_btn_red_p.png",
+	"sq": "af/gen/ui_sq.png", "sqP": "af/gen/ui_sq_p.png", "carved": "af/gen/ui_panel_9.png", "sound": "af/gen/ui_sound.png",
+	"chest": "af/props/ember-chest.png", "keyart_wide": "af/ui/title-keyart-wide.jpg", "keyart_tall": "af/ui/title-keyart-tall.jpg",
+	"victory_bg": "af/ui/victory-backdrop.jpg", "death_bg": "af/ui/death-backdrop.jpg",
 }
 var IMG := {}
 var WHITE := {}
 var CYAN := {}
 var FONT: FontFile
-
-const URL_TINY := "https://pixelfrog-assets.itch.io/tiny-swords"
-const URL_NECRO := "https://creativekind.itch.io/necromancer-free"
+var FONT_TITLE: FontFile
+var MUSIC: AudioStreamPlayer
+const GAME_TITLE := "Airron's Quest"
+# Battle grounds: one Airron's Fall area per fight (backdrop + ground tile).
+const AREAS := ["coalvein-deeps", "gallowbough-orchard", "riven-choir", "saltglass-fen", "starwreck-strand",
+	"stillmoss-cloister", "tollstone-quarry", "unlit-throne", "vespergate-sanctum"]
+var battle_area := "tollstone-quarry"
 
 func load_all() -> void:
 	for d in ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18"]:
-		SRC["deco" + d] = "deco/" + d + ".png"
+		SRC["deco" + d] = "af/gen/deco_" + d + ".png"
+	for ar in AREAS:
+		SRC["bg_" + ar] = "af/areas/area-%s-backdrop.png" % ar
+		SRC["gr_" + ar] = "af/areas/area-%s-ground.png" % ar
+	for h in AF_HEROES:
+		SRC["h_" + str(h.id)] = "af/heroes/%s.png" % h.id
+	for f in AF_FOES:
+		SRC["f_" + str(f)] = "af/foes/foe-%s.png" % f
 	for k in SRC:
 		IMG[k] = load("res://assets/" + SRC[k])
-	for k in ["warrior", "archer", "pawn", "torch", "tnt", "barrel", "necro", "paladin"]:
-		WHITE[k] = load("res://assets/sil/%s_white.png" % k)
-		CYAN[k] = load("res://assets/sil/%s_cyan.png" % k)
-	FONT = load("res://fonts/LilitaOne-Regular.ttf")
+	for h in AF_HEROES:
+		WHITE["h_" + str(h.id)] = load("res://assets/af/sil/h_%s_white.png" % h.id)
+		CYAN["h_" + str(h.id)] = load("res://assets/af/sil/h_%s_cyan.png" % h.id)
+	for f in AF_FOES:
+		WHITE["f_" + str(f)] = load("res://assets/af/sil/f_%s_white.png" % f)
+		CYAN["f_" + str(f)] = load("res://assets/af/sil/f_%s_cyan.png" % f)
+	FONT = load("res://fonts/rajdhani-700.woff2")
+	FONT_TITLE = load("res://fonts/cinzel-700.woff2")
+	for fnt in [FONT, FONT_TITLE]:
+		if fnt != null and ThemeDB.fallback_font != null:
+			fnt.fallbacks = [ThemeDB.fallback_font]
 
 # ---------------------------------------------------------------- rng helpers
 func rand(a: float, b: float) -> float: return a + randf() * (b - a)
@@ -120,9 +137,13 @@ func build_kinds() -> void:
 func is_warrior_kit(kind: String) -> bool:
 	return kind == "warrior" or kind == "paladin"
 
-var ROSTER_BLUE := [["warrior", "Airron", 360, 265], ["warrior", "Christian", 360, 395],
-	["pawn", "Lanning", 315, 185], ["pawn", "Rico", 315, 470],
-	["archer", "Weston", 205, 265], ["archer", "Wiesen", 205, 395]]
+# Party characters are Airron's Fall keepers (scripts/af_roster.gd). HERO_NAMES / HERO_BASE / CHAR /
+# AB_CLASS_ROWS below are the six template kits; build_af_roster() turns them into the keeper roster at startup.
+const AfRoster = preload("res://scripts/af_roster.gd")
+var AF_HEROES: Array = AfRoster.HEROES
+var AF_FOES: Array = AfRoster.FOES.keys()
+var HERO_ART := {} # party name -> IMG key of the keeper sprite
+var HERO_INFO := {} # party name -> keeper record (title, archetype, rarity, weapon, unlocked)
 var GOB_NAMES := ["Rusk", "Kael", "Sable", "Drenn", "Voss", "Iven"]
 # Active Play squad. The character catalog can grow past this squad later.
 var HERO_NAMES := ["Airron", "Christian", "Weston", "Wiesen", "Lanning", "Rico"]
@@ -320,6 +341,73 @@ var AB_SUB_ROWS := {
 		["duels_end", "Duel's End", "Ends the duel: huge hit, then Crit up.", "damage_single", {"mult": 6.2, "self_buff": [["crit", 22]], "sturns": 2}],
 	],
 }
+
+## Turn the template kits into the Airron's Fall keeper roster. Unlocked keepers form the squad;
+## locked keepers get full data (stats, class, kit, art) so unlocking one is just flipping "unlocked".
+func build_af_roster() -> void:
+	var tmpl_rows: Dictionary = AB_CLASS_ROWS.duplicate(true)
+	var tmpl_base: Dictionary = HERO_BASE.duplicate(true)
+	AB_CLASS_ROWS = {}; HERO_BASE = {}; CHAR = {}; HERO_NAMES = []; HERO_ART = {}; HERO_INFO = {}
+	var rar := {"rare": 1.0, "legendary": 1.03, "ascendant": 1.06}
+	for h in AF_HEROES:
+		var nm: String = str(h.short)
+		HERO_ART[nm] = "h_" + str(h.id)
+		HERO_INFO[nm] = h
+		var kit: String = str(h.kit)
+		var rows: Array = []
+		for r in tmpl_rows[kit]:
+			var r2: Array = r.duplicate(true)
+			r2[0] = str(h.id) + "_" + str(r[0])
+			rows.append(r2)
+		AB_CLASS_ROWS[nm] = rows
+		var b: Dictionary = tmpl_base[kit].duplicate()
+		if not bool(h.get("unlocked", false)):
+			# Keepers sharing a kit still differ a little (rarity + a stable per-keeper roll).
+			var hv: int = absi(hash(str(h.id)))
+			var i := 0
+			for k in ["hp", "atk", "def", "speed"]:
+				b[k] = int(roundf(float(b[k]) * float(rar.get(str(h.rarity), 1.0)) * (0.95 + float((hv >> (i * 4)) % 11) / 100.0)))
+				i += 1
+		HERO_BASE[nm] = b
+		CHAR[nm] = {"cls": str(h.cls), "sub": str(h.sub), "ability": str(rows[0][0])}
+		if bool(h.get("unlocked", false)):
+			HERO_NAMES.append(nm)
+	SQUAD = HERO_NAMES.duplicate()
+
+## Per-unit look: the base kind's combat kit drawn with one static Airron's Fall sprite.
+const FOE_NATIVE_FACING := {"f_brute": -1}
+func art_K(base_kind: String, art: String, target_h: float) -> Dictionary:
+	var K: Dictionary = KINDS[base_kind].duplicate()
+	if art == "" or not IMG.has(art) or IMG[art] == null:
+		return K
+	var tex: Texture2D = IMG[art]
+	var w := float(tex.get_width())
+	var h := float(tex.get_height())
+	K.img = art
+	K.static = true
+	K.nf = int(FOE_NATIVE_FACING.get(art, 1))
+	K.f = {"fw": w, "fh": h, "ax": w * 0.5, "ay": h * 0.97, "s": target_h / h}
+	K.head = target_h * 0.92
+	K.erase("death")
+	return K
+
+const FOE_H := {"mote": 56.0, "gnat": 46.0, "ashling": 74.0, "brute": 84.0, "chanter": 80.0, "lancer": 82.0, "pilgrim": 80.0,
+	"moth": 70.0, "elite": 100.0, "knell": 100.0, "engine": 96.0, "tithe": 100.0, "leaper": 100.0,
+	"matron": 118.0, "cardinal": 118.0, "regent": 124.0, "sovereign": 124.0}
+const HERO_H := 92.0
+func hero_K(name: String, kind: String) -> Dictionary:
+	return art_K(kind, str(HERO_ART.get(name, "")), HERO_H)
+
+## Pick the Airron's Fall foe for a battle slot: bosses for 6v1, elites for 6v2, regular foes otherwise.
+func foe_for(kind: String, tier: String) -> String:
+	if tier == "boss":
+		var want: String = str(params.get("boss", ""))
+		if AfRoster.FOES.has(want) and str(AfRoster.FOES[want].tier) == "boss":
+			return want
+		return str(pick(AfRoster.FOE_ART.boss))
+	var table: Dictionary = AfRoster.FOE_ART[tier]
+	var k: String = kind if table.has(kind) else "torch"
+	return str(pick(table[k]))
 
 func build_abilities() -> void:
 	ABILITY_DEFS = {}
@@ -1050,11 +1138,24 @@ func new_battle(n: int = 0) -> void:
 			u.armor = st.get("armor", 0); u.crit = st.get("crit", 10)
 			u.mana_regen = st.get("mana", 0); u.speed = st.get("speed", 12)
 			u.cls = st.cls; u.sub = st.sub; u.scale = st.scale
+			if team == "blue":
+				u.K = hero_K(u.name, kind)
+			else:
+				var tier := "regular" if (enc_on or n == 3) else ("elite" if n == 2 else "boss")
+				var fk := foe_for(kind, tier)
+				u.K = art_K(kind, "f_" + fk, float(FOE_H.get(fk, 80.0)))
+				u.name = str(AfRoster.FOES[fk].name)
 			if team == "blue" and CHAR.has(u.name):
 				u.ab_class = equipped_class_ab(u.name); u.ab_sub = equipped_sub_ab(u.name)
 			u.gauge = clampf(float(HERO_MP.get(u.name, 0.0)), 0.0, AB_MP) if team == "blue" else rand(0, 30)
 			u.facing = 1 if team == "blue" else -1; u.at = rand(0, 1000)
 			units.append(u)
+	battle_area = str(pick(AREAS))
+	var BOSS_AREA := {"The Matron of Cinders": "coalvein-deeps", "Matron of Cinders": "coalvein-deeps", "The Drowned Cardinal": "saltglass-fen",
+		"The Unlit Regnant": "unlit-throne", "The Ash Sovereign": "vespergate-sanctum"}
+	for bu in units:
+		if bu.team == "red" and BOSS_AREA.has(bu.name):
+			battle_area = str(BOSS_AREA[bu.name])
 	G = Battle.new()
 	G.units = units
 	G.n_red = n
@@ -1967,25 +2068,40 @@ func build_terrain() -> void:
 		p.x = q.x; p.y = q.y
 
 func draw_terrain() -> void:
-	var ff := int(floorf(now / 110.0)) % 8
-	for r in range(ISL.r0, ISL.r1 + 1):
-		for c in range(ISL.c0, ISL.c1 + 1):
-			if r == ISL.r0 or r == ISL.r1 or c == ISL.c0 or c == ISL.c1:
-				img(IMG.foam, ((ff + c + r) % 8) * 192, 0, 192, 192, c * 64 - 64, r * 64 - 64, 192, 192)
+	# Airron's Fall area: dimmed backdrop over the whole screen, the area's ground tile on the battle field.
+	var bg: Texture2D = IMG.get("bg_" + battle_area, null)
+	var gr: Texture2D = IMG.get("gr_" + battle_area, null)
+	if bg != null:
+		img(bg, 0, 0, bg.get_width(), bg.get_height(), 0, 0, W, H, Color(0.62, 0.58, 0.56))
+	var x0 := float(ISL.c0) * 64.0
+	var y0 := float(ISL.r0) * 64.0
+	var x1 := float(ISL.c1 + 1) * 64.0
+	var y1 := float(ISL.r1 + 1) * 64.0
+	rbox(Rect2(x0 - 6, y0 - 6, x1 - x0 + 12, y1 - y0 + 12), 18.0, Color(0.08, 0.06, 0.05, 0.85))
+	if gr != null:
+		var ts := 128.0
+		var gw := float(gr.get_width())
+		var yy := y0
+		while yy < y1:
+			var th := minf(ts, y1 - yy)
+			var xx := x0
+			while xx < x1:
+				var tw := minf(ts, x1 - xx)
+				img(gr, 0, 0, gw * tw / ts, gw * th / ts, xx, yy, tw, th)
+				xx += ts
+			yy += ts
+	# soft vignette toward the field edge
+	for i in 6:
+		var k := float(i)
+		draw_rect(Rect2(x0 + k * 5, y0 + k * 5, x1 - x0 - k * 10, y1 - y0 - k * 10), ca(Color(0.05, 0.03, 0.02, 0.10)), false, 6.0)
 	for i in ROCKS.size():
-		var k: Array = ROCKS[i]
-		var f := (int(floorf(now / 140.0)) + i * 3) % 8
-		var q := mp(k[1], k[2])
-		img(IMG[k[0]], f * 128, 0, 128, 128, q.x - 64, q.y - 72, 128, 128)
-	for r in range(ISL.r0, ISL.r1 + 1):
-		for c in range(ISL.c0, ISL.c1 + 1):
-			var sx := 0 if c == ISL.c0 else (2 if c == ISL.c1 else 1)
-			var sy := 0 if r == ISL.r0 else (2 if r == ISL.r1 else 1)
-			img(IMG.flat, sx * 64, sy * 64, 64, 64, c * 64, r * 64, 64, 64)
+		var k2: Array = ROCKS[i]
+		var q := mp(k2[1], k2[2])
+		img(IMG[k2[0]], 0, 0, 128, 128, q.x - 64, q.y - 72, 128, 128)
 	for d in DECO:
 		var im: Texture2D = IMG["deco" + d[0]]
-		var q := mp(d[1], d[2])
-		img(im, 0, 0, 64, 64, roundf(q.x - 32), roundf(q.y - 64 + 10), 64, 64)
+		var q2 := mp(d[1], d[2])
+		img(im, 0, 0, 64, 64, roundf(q2.x - 32), roundf(q2.y - 64 + 10), 64, 64)
 
 # ---------------------------------------------------------------- canvas-like drawing helpers
 var _xf := Transform2D.IDENTITY
@@ -2027,17 +2143,20 @@ func fill_ellipse(cx: float, cy: float, rx: float, ry: float, col: Color) -> voi
 func stroke_ellipse(cx: float, cy: float, rx: float, ry: float, col: Color, w: float) -> void:
 	draw_polyline(ellipse_pts(cx, cy, rx, ry), ca(col), w, true)
 
+var _font_override: Font = null
 func text_w(s: String, size: float) -> float:
-	return FONT.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(roundf(size))).x
+	var F: Font = _font_override if _font_override != null else FONT
+	return F.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(roundf(size))).x
 ## Text with canvas semantics: textBaseline=middle, align left/center/right, optional stroke (lineWidth = lw).
 func text(s: String, x: float, y: float, size: float, col: Color, align := "center", lw := 0.0, stroke := Color("#1a0f08")) -> void:
 	var fs := int(roundf(size))
 	if fs < 1: return
+	var F: Font = _font_override if _font_override != null else FONT
 	var w := text_w(s, fs)
 	var ox := x - w / 2.0 if align == "center" else (x - w if align == "right" else x)
-	var by := y + (FONT.get_ascent(fs) - FONT.get_descent(fs)) / 2.0
-	if lw > 0: draw_string_outline(FONT, Vector2(ox, by), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(roundf(lw)), ca(stroke))
-	draw_string(FONT, Vector2(ox, by), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ca(col))
+	var by := y + (F.get_ascent(fs) - F.get_descent(fs)) / 2.0
+	if lw > 0: draw_string_outline(F, Vector2(ox, by), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(roundf(lw)), ca(stroke))
+	draw_string(F, Vector2(ox, by), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ca(col))
 func outlined(s: String, x: float, y: float, size: float, col: Color, align := "center") -> void:
 	text(s, x, y, size, col, align, maxf(3.0, size / 5.0))
 func shadow_text(s: String, x: float, y: float, size: float, col: Color, off := 2.0, sh := Color(0, 0, 0, 0.45), align := "center") -> void:
@@ -2068,6 +2187,8 @@ func css9(tex: Texture2D, x: float, y: float, w: float, h: float, b: float) -> v
 # ---------------------------------------------------------------- unit drawing
 func unit_frame(u) -> Vector2i:
 	var K: Dictionary = u.K
+	if K.get("static", false):
+		return Vector2i(0, 0)
 	if u.act != null and u.act.stage == "atk":
 		var d: Dictionary = u.act.d
 		return Vector2i(mini(d.n - 1, int(floorf(u.act.t * d.fps / 1000.0))), d.r)
@@ -2082,6 +2203,11 @@ func draw_unit(u) -> void:
 		if u.death_t < 140:
 			var fr0 := unit_frame(u)
 			draw_frame(WHITE[K.img], f.fw, f.fh, fr0.x, fr0.y, u.x, u.y, f.ax, f.ay, uS(u) * fsc * (1 + u.death_t / 900.0), u.facing < 0, 1 - u.death_t / 200.0)
+		if K.get("static", false):
+			var al2 := maxf(0.0, 1.0 - u.death_t / 1100.0)
+			if al2 <= 0.0: return
+			draw_frame(IMG[K.img], f.fw, f.fh, 0, 0, u.x, u.y + u.death_t * 0.012, f.ax, f.ay, uS(u) * fsc * (1.0 - u.death_t / 4000.0), (u.facing * int(K.get("nf", 1))) < 0, al2, Color(0.55, 0.38, 0.32))
+			return
 		var dt: float = u.death_t - 60
 		if dt < 0: return
 		var al := maxf(0.0, 1 - (u.death_t - 1300) / 400.0) if u.death_t > 1300 else 1.0
@@ -2118,7 +2244,16 @@ func draw_unit(u) -> void:
 		save(); _alpha = 0.25 + 0.15 * sin(now / 200.0)
 		stroke_ellipse(x, y - 2, 24, 8, Color.WHITE, 2)
 		restore()
-	save(); tr_(roundf(x), roundf(y)); scale_by((-1.0 if u.facing < 0 else 1.0) / sq, sq)
+	if K.get("static", false):
+		# Static Airron's Fall sprites: breathing idle, hop while running, squash on the swing.
+		if u.anim == "run":
+			y -= absf(sin((now + u.at) / 85.0)) * 5.0
+		else:
+			sq *= 1.0 + 0.018 * sin((now + u.at) / 320.0)
+		if u.act != null and u.act.stage == "atk":
+			sq *= 1.06
+	var face: int = u.facing * int(K.get("nf", 1))
+	save(); tr_(roundf(x), roundf(y)); scale_by((-1.0 if face < 0 else 1.0) / sq, sq)
 	var sc := uS(u) * fsc
 	var sw: float = f.fw * sc
 	var sh: float = f.fh * sc
@@ -2462,18 +2597,19 @@ func link_text(prefix: String, link: String, suffix: String, url: String, cx: fl
 
 # ---------------------------------------------------------------- soft menu chrome
 # One rounded, bubbly look for every menu: a cream sheet, white cards, teal pills, gold = selected / equipped.
-var UI_INK := Color("#1d3b41")
-var UI_MUTED := Color("#5e7b7f")
-var UI_SHEET := Color("#f5f0e3")
-var UI_CARD := Color("#ffffff")
-var UI_LINE := Color("#ddd5c2")
-var UI_TEAL := Color("#2a9d97")
-var UI_TEAL_D := Color("#1d7470")
-var UI_TEAL_L := Color("#d3eeeb")
-var UI_GOLD := Color("#f0b03a")
-var UI_GOLD_D := Color("#c4861b")
-var UI_GOLD_L := Color("#fff0c4")
-var UI_CORAL := Color("#e2685b")
+# Airron's Fall palette: warm ash-brown panels, cream text, ember orange primary, gold accent, sea-teal secondary.
+var UI_INK := Color("#ece3cf")
+var UI_MUTED := Color("#a89c88")
+var UI_SHEET := Color("#241f19")
+var UI_CARD := Color("#2f2820")
+var UI_LINE := Color("#4d4033")
+var UI_TEAL := Color("#e8763a")
+var UI_TEAL_D := Color("#f0a066")
+var UI_TEAL_L := Color("#4a3020")
+var UI_GOLD := Color("#ead266")
+var UI_GOLD_D := Color("#c8a94a")
+var UI_GOLD_L := Color("#3d3420")
+var UI_CORAL := Color("#d2463c")
 var UI_CORAL_D := Color("#b54b40")
 var UI_GOOD := Color("#23874d")
 var UI_GOOD_L := Color("#d3f1dd")
@@ -2657,7 +2793,7 @@ func hero_picker(prefix: String, area: Rect2, short: bool, sub_fn: Callable) -> 
 		var r := Rect2(area.position.x, area.position.y + float(i) * (rh + gap2), lw, rh)
 		var sel: bool = i == char_sel
 		rbox(r, minf(18.0, rh / 2.0), UI_GOLD_L if sel else UI_CARD, UI_GOLD if sel else UI_LINE, 2.5 if sel else 1.5, 3.0 if sel else 0.0)
-		draw_hero_sprite(hs.kind, r.position.x + 28.0, r.end.y - 3.0, 0.34 if short else 0.42)
+		draw_hero_sprite(hs.kind, r.position.x + 28.0, r.end.y - 3.0, 0.34 if short else 0.42, hn)
 		var tx: float = r.position.x + 56.0
 		var line: String = str(sub_fn.call(hn, hs))
 		text(hn, tx, r.get_center().y - (7.0 if short else 9.0), 15.0 if short else 17.0, UI_INK, "left")
@@ -2669,7 +2805,7 @@ func hero_picker(prefix: String, area: Rect2, short: bool, sub_fn: Callable) -> 
 ## Detail header: sprite, big name, and soft chips (level, class …).
 func hero_head(name: String, st: Dictionary, x: float, y: float, w: float, short: bool, chips: Array) -> float:
 	var hh: float = 48.0 if short else 66.0
-	draw_hero_sprite(st.kind, x + 30.0, y + hh - 2.0, 0.56 if short else 0.78)
+	draw_hero_sprite(st.kind, x + 30.0, y + hh - 2.0, 0.56 if short else 0.78, name)
 	text(name, x + 74.0, y + hh * 0.32, 22.0 if short else 28.0, UI_INK, "left")
 	var cx: float = x + 74.0
 	var cfs: float = 11.0 if short else 12.0
@@ -2739,12 +2875,12 @@ func save_cfg() -> void:
 		if ow_ready:
 			cf.set_value("world", "pos", "%d|%d" % [int(ow_x), int(ow_y)])
 			cf.set_value("world", "layout", int(WORLD.data.get("tile_layout", 1)))
-	cf.save("user://riftstrike.cfg")
+	cf.save("user://airrons_quest.cfg")
 
 func load_cfg() -> void:
 	ensure_hero_data()
 	var cf := ConfigFile.new()
-	var loaded: bool = cf.load("user://riftstrike.cfg") == OK
+	var loaded: bool = cf.load("user://airrons_quest.cfg") == OK
 	if not loaded:
 		INV = STARTER_BAG.duplicate()
 		return
@@ -3004,7 +3140,7 @@ func apply_loadout_preview(name: String) -> void:
 			continue
 		var kind: String = st.kind
 		u.kind = kind
-		u.K = KINDS[kind]
+		u.K = hero_K(name, kind)
 		u.hp = st.hp
 		u.maxhp = st.hp
 		u.shown_hp = st.hp
@@ -3082,8 +3218,11 @@ func draw_stat_bar(x: float, y: float, w: float, h: float, label: String, value:
 		dc.a = clampf(char_delta_t / 400.0, 0.0, 1.0)
 		text(ds, bx + bw + 10.0 + text_w(shown, 14.0) + 5.0, cy, 13.0, dc, "left")
 
-func draw_hero_sprite(kind: String, x: float, y: float, scl: float) -> void:
-	var K: Dictionary = KINDS[kind]
+func draw_hero_sprite(kind: String, x: float, y: float, scl: float, name: String = "") -> void:
+	var K: Dictionary = hero_K(name, kind) if name != "" else KINDS[kind]
+	if K.get("static", false):
+		draw_frame(IMG[K.img], K.f.fw, K.f.fh, 0, 0, x, y, K.f.ax, K.f.ay, float(K.f.s) * scl, false)
+		return
 	var idle: Dictionary = K.idle
 	var fr := int(floorf(now * idle.fps / 1000.0)) % int(idle.n)
 	draw_frame(IMG[K.img], K.f.fw, K.f.fh, fr, idle.r, x, y, K.f.ax, K.f.ay, float(K.f.s) * scl, false)
@@ -3310,7 +3449,7 @@ func draw_party() -> void:
 		else:
 			draw_circle(Vector2(rr.position.x + 26.0, bcy), 12.0, ca(UI_TEAL_L))
 			text(str(i + 1), rr.position.x + 26.0, bcy, 13.0, UI_TEAL_D)
-		draw_hero_sprite(hs.kind, rr.position.x + 80.0, rr.end.y - 3.0, 0.34 if short else 0.44)
+		draw_hero_sprite(hs.kind, rr.position.x + 80.0, rr.end.y - 3.0, 0.34 if short else 0.44, hn)
 		var tx: float = rr.position.x + 108.0
 		text(hn, tx, bcy - (7.0 if short else 9.0), 15.0 if short else 18.0, UI_INK, "left")
 		var line: String = "Lv." + str(int(hs.level)) + "  " + str(hs.cls) + " · " + str(hs.sub)
@@ -3335,7 +3474,7 @@ func draw_party() -> void:
 			rbox(rr2, minf(20.0, brow / 2.0), UI_GOLD_L if sel2 else Color(1, 1, 1, 0.7), UI_GOLD if sel2 else (UI_TEAL if swap_hint else UI_LINE), 2.5 if sel2 or swap_hint else 1.5)
 			var jdx: int = j
 			add_btn("pben_%d" % j, rr2, func(): _party_tap_bench(jdx))
-			draw_hero_sprite(hs2.kind, rr2.position.x + 30.0, rr2.end.y - 3.0, 0.34 if short else 0.44)
+			draw_hero_sprite(hs2.kind, rr2.position.x + 30.0, rr2.end.y - 3.0, 0.34 if short else 0.44, hn2)
 			var tx2: float = rr2.position.x + 60.0
 			text(hn2, tx2, rr2.get_center().y - (7.0 if short else 9.0), 15.0 if short else 18.0, UI_INK, "left")
 			var l2: String = "Lv." + str(int(hs2.level)) + "  " + str(hs2.cls)
@@ -3695,17 +3834,23 @@ func _draw_ow_lead() -> void:
 	var kind: String = st.kind
 	if not KINDS.has(kind):
 		kind = "warrior"
-	var K: Dictionary = KINDS[kind]
-	var anim: Dictionary = K.run if ow_anim == "run" else K.idle
-	var fr := int(floorf(ow_at * float(anim.fps) / 1000.0)) % int(anim.n)
+	var K: Dictionary = hero_K(name, kind)
+	var hop: float = absf(sin(ow_at / 85.0)) * 5.0 if ow_anim == "run" else 0.0
 	var scl: float = float(K.f.s) * 0.95
-	draw_frame(IMG[K.img], K.f.fw, K.f.fh, fr, anim.r, ow_x, ow_y, K.f.ax, K.f.ay, scl, ow_facing < 0)
+	draw_frame(IMG[K.img], K.f.fw, K.f.fh, 0, 0, ow_x, ow_y - hop, K.f.ax, K.f.ay, scl, ow_facing < 0)
 	# Soft name tag so the lead stays readable
 	text(name, ow_x, ow_y - K.head * scl - 8, 11, Color("#d6f1ff"), "center", 3, Color(0, 0, 0, 0.75))
 
 
 func draw_title() -> void:
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(10 / 255.0, 25 / 255.0, 28 / 255.0, 0.5))
+	# Airron's Fall key art behind the title (cover-fit), darkened for the menus.
+	var ka: Texture2D = IMG.get("keyart_tall" if VHc > VWc else "keyart_wide", null)
+	if ka != null:
+		var kw := float(ka.get_width())
+		var kh := float(ka.get_height())
+		var ks := maxf(VWc / kw, VHc / kh)
+		img(ka, 0, 0, kw, kh, (VWc - kw * ks) / 2.0, (VHc - kh * ks) / 2.0, kw * ks, kh * ks)
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.07, 0.05, 0.04, 0.45))
 	var short := VHc <= 430
 	var vw := VWc
 	var L := clampf3(32, VHc * 0.09, 64) if short else clampf3(46, vw * 0.135, 108)
@@ -3729,14 +3874,16 @@ func draw_title() -> void:
 	# logo with layered text-shadow and bob
 	var bob := -3.0 + 3.0 * cos(now / 2400.0 * TAU)
 	var ly := y + L / 2 + bob
-	var logo := "RIFTSTRIKE"
-	text(logo, cx, ly + L * 0.12 + L * 0.06, L, Color(0, 0, 0, 0.45))
-	text(logo, cx, ly + L * 0.09, L, Color("#4a2a14"), "center", L * 0.06, Color("#4a2a14"))
-	text(logo, cx, ly + L * 0.05, L, Color("#b5641f"), "center", L * 0.06, Color("#2b1a10"))
-	text(logo, cx, ly, L, Color("#ffe27a"), "center", L * 0.06, Color("#2b1a10"))
+	var logo := GAME_TITLE.to_upper()
+	_font_override = FONT_TITLE
+	L = minf(L, (vw - 24.0) / maxf(1.0, text_w(logo, 1.0) * 1.08))
+	text(logo, cx, ly + L * 0.08, L, Color(0, 0, 0, 0.55))
+	text(logo, cx, ly + L * 0.04, L, Color("#8a3a12"), "center", L * 0.05, Color("#1a0f08"))
+	text(logo, cx, ly, L, Color("#ead266"), "center", L * 0.05, Color("#1a0f08"))
+	_font_override = null
 	y += L + 10.0
 	if not short:
-		chip("Turn-based rift brawl", cx, y + 14.0, 15.0, Color(1, 1, 1, 0.88), UI_INK, "center")
+		chip("An Airron's Fall auto-battler", cx, y + 14.0, 15.0, Color(1, 1, 1, 0.88), UI_INK, "center")
 		y += tag_h
 	# One soft sheet holding the menus and the quick raids
 	var sr := Rect2(cx - sw / 2.0, y, sw, sheet_h)
@@ -3744,7 +3891,7 @@ func draw_title() -> void:
 	var iy: float = sr.position.y + pad
 	var ix: float = sr.position.x + pad
 	var iw: float = sw - pad * 2.0
-	section_label("AIRRON'S SQUAD", ix, iy + lab_h * 0.4, short)
+	section_label("YOUR PARTY", ix, iy + lab_h * 0.4, short)
 	iy += lab_h
 	var menus := [
 		["chars", "Characters", "soft", func(): open_chars()],
@@ -3788,11 +3935,7 @@ func draw_title() -> void:
 		text(hint, cx, y + hint_fs * 0.6, fit_size(hint, hint_fs, vw - 24.0, 10.0), Color("#e9fff9"), "center", 3, Color(0, 0, 0, 0.7))
 	var cfs := 12.0 if short else 14.0
 	var cy := VHc - (4.0 if short else 10.0) - cfs
-	if USE_NECRO:
-		link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, cy - cfs * 1.6, cfs, Color.WHITE, Color("#ffe27a"), true, "cr1")
-		link_text("Boss: ", "Necromancer by CreativeKind", "", URL_NECRO, cx, cy, cfs, Color.WHITE, Color("#ffe27a"), true, "cr2")
-	else:
-		link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, cy, cfs, Color.WHITE, Color("#ffe27a"), true, "cr1")
+	text("Work in progress", cx, cy, cfs, Color("#ead266"), "center", 3, Color(0, 0, 0, 0.7))
 
 func fmt_n(n: int) -> String:
 	var s := str(absi(n))
@@ -3874,9 +4017,6 @@ func draw_results() -> void:
 		pill("menu", Rect2(cx - tw / 2, y, tw, btn_h), "Title", "soft", 22, func(): results_title())
 		y += btn_h
 	y += (4 if short else 10) + 8
-	link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, y, 12, UI_MUTED, UI_TEAL_D, false, "cr1")
-	if cred_lines == 2:
-		link_text("Boss: ", "Necromancer by CreativeKind", "", URL_NECRO, cx, y + 16, 12, UI_MUTED, UI_TEAL_D, false, "cr2")
 	restore()
 
 func sq_button(id: String, r: Rect2, label: String, cb: Callable, icon := false, off := false, paused_icon := false) -> void:
@@ -4338,6 +4478,8 @@ func toggle_pause() -> void:
 func toggle_mute() -> void:
 	muted = not muted
 	sfx.muted = muted
+	if MUSIC != null:
+		MUSIC.stream_paused = muted
 	save_cfg()
 func toggle_speed() -> void:
 	speed = 2 if speed == 1 else 1
@@ -4488,6 +4630,7 @@ func on_key(k: int) -> void:
 # ---------------------------------------------------------------- loop
 func _ready() -> void:
 	randomize()
+	build_af_roster()
 	build_abilities()
 	sfx = preload("res://scripts/sfx.gd").new()
 	add_child(sfx)
@@ -4499,6 +4642,17 @@ func _ready() -> void:
 	COMP = CompendiumUI.new()
 	load_cfg()
 	sfx.muted = muted
+	# Airron's Fall run theme loops under the whole game (web builds start it after the first tap).
+	var mus = load("res://assets/af/audio/run-theme.mp3")
+	if mus is AudioStreamMP3:
+		mus.loop = true
+		MUSIC = AudioStreamPlayer.new()
+		MUSIC.stream = mus
+		MUSIC.volume_db = -9.0
+		add_child(MUSIC)
+		if not params.has("shot"):
+			MUSIC.play()
+		MUSIC.stream_paused = muted
 	if OS.has_feature("web"):
 		var q = JavaScriptBridge.eval("location.search", true)
 		if q is String:

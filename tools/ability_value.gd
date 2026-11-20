@@ -36,14 +36,14 @@ func _run() -> void:
 			var pp := kv.split(":")
 			g.set(pp[0], float(pp[1]))
 	var n := int(args.get("n", "40")); var lv := int(args.get("lv", "99")); var mode := int(args.get("mode", "2"))
-	var heroes: Array = str(args.get("heroes", "Airron,Christian,Weston,Wiesen,Lanning")).split(",")
-	g.SQUAD = ["Airron", "Christian", "Weston", "Wiesen", "Lanning", "Rico"]
+	var heroes: Array = str(args.get("heroes", "Bramwell,Grieve,Halvard,Corvin,Ilsabet")).split(",")
+	g.SQUAD = g.HERO_NAMES.duplicate()
 	var jobs: Array = []
 	for h in heroes:
 		for id in g.AB_CLASS_LIST[h]: jobs.append([h, id, ""])
 	if args.has("subs"):
 		for sub in str(args.subs).split(","):
-			for id in g.AB_SUB_LIST[sub]: jobs.append([str(args.get("carrier", "Christian")), id, sub])
+			for id in g.AB_SUB_LIST[sub]: jobs.append([str(args.get("carrier", "Halvard")), id, sub])
 	# baseline: nobody casts on the tested hero (basic attacks only)
 	jobs.push_front([heroes[0], "", ""])
 	for j in jobs:
@@ -60,5 +60,5 @@ func _run() -> void:
 			w += r[0]; hp += r[1]; t += r[2]
 		var kind: String = str(g.ABILITY_DEFS[j[1]].kind) if j[1] != "" else "-"
 		print("AV %-9s %-18s %-18s win %2d/%d hp %.3f turns %.2f" % [j[0], j[1] if j[1] != "" else "(basic only)", kind, w, n, hp / n, t / n])
-	g.CHAR["Christian"].sub = "Vanguard"
+	g.CHAR["Halvard"].sub = "Vanguard"
 	quit()

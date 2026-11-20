@@ -53,7 +53,7 @@ func _run() -> void:
 	lead_u.gauge = 64.0
 	g.run_battle()
 	if absf(float(g.HERO_MP[nm]) - 64.0) > 0.01: fails.append("run carry " + str(g.HERO_MP[nm]))
-	var cf := ConfigFile.new(); cf.load("user://riftstrike.cfg")
+	var cf := ConfigFile.new(); cf.load("user://airrons_quest.cfg")
 	if int(cf.get_value("mp", nm, -1)) != 64: fails.append("saved mp " + str(cf.get_value("mp", nm, -1)))
 	g.start_fight(2)
 	for u in g.G.units:
