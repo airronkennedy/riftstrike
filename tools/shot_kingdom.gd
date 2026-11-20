@@ -2,12 +2,12 @@ extends SceneTree
 ## Kingdom screenshot:
 ##   xvfb-run godot --path . --resolution 390x844 --script res://tools/shot_kingdom.gd -- --map=town --x=9 --y=9.6 --out=/tmp/k.png
 ## Options: --touch=1 (phone UI + a held floating joystick), --mapscreen=1 (open the M map), --gfx=high|phone|low,
-## --wait=1.6 (seconds before the grab).
+## --wait=1.6 (seconds before the grab), --dialog=ID (open a story dialog, scripts/story/story_dialog.gd).
 func _init() -> void:
 	_run.call_deferred()
 
 func _run() -> void:
-	var o := {"map": "town", "x": "12", "y": "15", "out": "/tmp/kingdom.png", "touch": "0", "mapscreen": "0", "gfx": "", "wait": "1.6"}
+	var o := {"map": "town", "x": "12", "y": "15", "out": "/tmp/kingdom.png", "touch": "0", "mapscreen": "0", "gfx": "", "wait": "1.6", "dialog": ""}
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--") and a.contains("="):
 			o[a.substr(2).get_slice("=", 0)] = a.get_slice("=", 1)
@@ -32,6 +32,10 @@ func _run() -> void:
 		d.index = 0; d.position = p + Vector2(26, -20)
 		k._input(d)
 		k.touch.vec = Vector2.ZERO # keep the knob pushed on screen but hold the hero still for the shot
+	if o.dialog != "" and root.has_node("Story"):
+		var st = root.get_node("Story")
+		st.pending_dialog = ""
+		st.start_dialog(o.dialog)
 	if o.mapscreen == "1":
 		k.toggle_big_map()
 	await create_timer(float(o.wait)).timeout

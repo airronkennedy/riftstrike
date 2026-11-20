@@ -136,14 +136,53 @@ func _run() -> void:
 	var uc: Vector2 = k.use_btn.get_global_rect().get_center()
 	k._input(_touch(1, uc, true))
 	k._input(_touch(1, uc, false))
-	ok(k.dialog.visible and k.touch.active(), "scene: Use pressed with finger 2 while finger 1 holds the stick")
+	ok(_talking(k) and k.touch.active(), "scene: Use pressed with finger 2 while finger 1 holds the stick")
 	k._input(_touch(0, sp, false))
-	k.dialog.visible = false
-	await process_frame
+	await _hush(k)
 	k.tap_at(k.get_canvas_transform() * (npc.pos + Vector2(0, -30)))
-	ok(k.dialog.visible, "scene: quick tap on the person talks to them")
-	k.dialog.visible = false
+	ok(_talking(k), "scene: quick tap on the person talks to them")
+	await _hush(k)
 	ok(not Input.emulate_mouse_from_touch, "no mouse emulation on the field")
+	# Story UI (scripts/story/story_ui.gd): journal button, story dialogs
+	var sui = k._story_ui()
+	if sui == null:
+		ok(false, "story ui present")
+	else:
+		sui.story.pending_dialog = ""
+		sui.close_all()
+		sui.set_hud_visible(true)
+		sui._layout()
+		await process_frame
+		var jc: Vector2 = sui.quests_btn.get_global_rect().get_center()
+		sui.quests_btn.visible = true # headless: the test's current scene counts as "in battle", which hides the story HUD
+		k._input(_touch(3, jc, true))
+		ok(not k.touch.active(), "story: no joystick under the journal button")
+		k._input(_touch(3, jc, false))
+		await process_frame
+		ok(sui.journal.visible, "story: tapping the journal button opens the journal")
+		ok(Input.emulate_mouse_from_touch, "story: journal open -> taps go to its buttons (mouse emulation on)")
+		var bjoy := InputEventJoypadButton.new(); bjoy.button_index = JOY_BUTTON_B; bjoy.pressed = true
+		k._unhandled_input(bjoy)
+		sui.journal.visible = false
+		await process_frame
+		sui.show_lines([["vellin", "One."], ["vellin", "Two."], ["vellin", "Three."], ["vellin", "Four."]], func(): pass)
+		await process_frame
+		k._input(_touch(4, sp, true))
+		ok(not k.touch.active() and Input.emulate_mouse_from_touch, "story: no joystick over an open story dialog; taps reach it")
+		k._input(_touch(4, sp, false))
+		sui.dlg_text.visible_ratio = 1.0
+		k.use_or_advance()
+		ok(sui._line_i == 1, "story: Use advances the story dialog")
+		sui.dlg_text.visible_ratio = 1.0
+		var ajoy := InputEventJoypadButton.new(); ajoy.button_index = JOY_BUTTON_A; ajoy.pressed = true
+		k._unhandled_input(ajoy)
+		ok(sui._line_i == 2, "story: gamepad A advances it")
+		sui.dlg_text.visible_ratio = 1.0
+		var ek := InputEventKey.new(); ek.physical_keycode = KEY_E; ek.pressed = true
+		sui._input(ek)
+		ok(sui._line_i == 3, "story: keyboard E advances it")
+		ok(not k.use_btn.shown, "story: Use button steps aside during the dialog")
+		await _hush(k)
 	print("RESULT: %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(1 if fails else 0)
 
@@ -176,3 +215,14 @@ func _drag(i: int, p: Vector2) -> InputEventScreenDrag:
 	var d := InputEventScreenDrag.new()
 	d.index = i; d.position = p
 	return d
+
+
+func _talking(k) -> bool:
+	return k.dialog.visible or k._story_dialog_open()
+
+func _hush(k) -> void:
+	k.dialog.visible = false
+	var sui = k._story_ui()
+	if sui: sui.close_all(); sui.dlg.visible = false
+	await process_frame
+	await process_frame

@@ -191,8 +191,8 @@ func _load_save() -> void:
 			gfx_level = "low" if bool(cf.get_value("kingdom", "gfx_low", false)) else "high"
 			_gfx_saved = true
 		_saved["map"] = str(cf.get_value("kingdom", "map", "town"))
-		var p = cf.get_value("kingdom", "pos", null) if cf.has_section_key("kingdom", "pos") else null
-		if p is Vector2:
+		var p = cf.get_value("kingdom", "pos", Vector2.INF) # default: a fresh save has no position yet
+		if p is Vector2 and p != Vector2.INF:
 			_saved["pos"] = p
 	bag = []
 	var bf := ConfigFile.new()
@@ -558,9 +558,11 @@ func _process(delta: float) -> void:
 	t_now += delta
 	_layout()
 	var modal := _modal_open() or map_screen.visible
-	if modal and touch.active():
-		_touch_actions(touch.reset())
+	if modal and (touch.active() or not touch.fingers.is_empty()):
+		_touch_actions(touch.reset()) # a panel opened under held fingers: drop them (their releases go to the panel)
 	Input.emulate_mouse_from_touch = modal # menus use normal Control taps; the field uses KingdomTouch
+	if last_pad and _story_dialog_open() and _story_ui().choices_box.get_child_count() > 0 and get_viewport().gui_get_focus_owner() == null:
+		_focus_first(_story_ui().choices_box) # gamepad: story choices are navigable straight away
 	var moved := 0.0
 	if not busy and not _modal_open():
 		moved = _move(delta)
@@ -711,6 +713,8 @@ func _on_battle_finished(_won: bool) -> void:
 
 
 # ================================================================ interact
+var _use_talking := false
+
 func _update_near() -> void:
 	var best: Dictionary = {}
 	var bd := 78.0
@@ -719,9 +723,12 @@ func _update_near() -> void:
 		if d < bd:
 			bd = d
 			best = u
-	if best != near:
+	var talking := dialog.visible or _story_dialog_open()
+	if best != near or talking != _use_talking:
 		near = best
-		use_btn.set_target(near)
+		_use_talking = talking
+		# During a dialog the Use button steps aside (the dialog box sits over it; a tap anywhere, E or A advances).
+		use_btn.set_target({} if talking else near)
 
 
 func use(u: Dictionary) -> void:
@@ -764,8 +771,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo:
 		match e.physical_keycode:
 			KEY_E, KEY_SPACE, KEY_ENTER, KEY_KP_ENTER:
-				if dialog.visible: _dialog_advance()
-				elif not _modal_open(): use(near)
+				use_or_advance()
 				get_viewport().set_input_as_handled()
 			KEY_ESCAPE:
 				if _modal_open():
@@ -783,12 +789,19 @@ func _unhandled_input(e: InputEvent) -> void:
 		last_pad = true
 		match (e as InputEventJoypadButton).button_index:
 			JOY_BUTTON_A:
-				if dialog.visible: _dialog_advance()
-				elif map_screen.visible: toggle_big_map()
-				elif not _modal_open(): use(near)
+				var sui := _story_ui()
+				if map_screen.visible: toggle_big_map()
+				elif _story_dialog_open() or dialog.visible or (sui != null and sui.get("_blocking")) or not _modal_open():
+					var fo := get_viewport().gui_get_focus_owner()
+					if fo != null and sui != null and sui.choices_box.is_ancestor_of(fo):
+						return # a focused story choice takes the press (ui_accept)
+					use_or_advance()
 				else: return # let the focused menu button take it
 			JOY_BUTTON_B:
+				var sui2 := _story_ui()
 				if map_screen.visible: toggle_big_map()
+				elif sui2 != null and sui2.journal.visible: sui2.close_journal()
+				elif _story_dialog_open(): use_or_advance()
 				elif _modal_open():
 					for p in [dialog, shop, inn, menu]:
 						_close(p)
@@ -799,6 +812,10 @@ func _unhandled_input(e: InputEvent) -> void:
 				elif not _modal_open(): _open_menu()
 			JOY_BUTTON_BACK:
 				if not _modal_open(): toggle_big_map()
+			JOY_BUTTON_Y: # journal (story)
+				var sui3 := _story_ui()
+				if sui3 != null and not _modal_open(): sui3.open_journal()
+				elif sui3 != null and sui3.journal.visible: sui3.close_journal()
 			_:
 				return
 		get_viewport().set_input_as_handled()
@@ -841,6 +858,9 @@ func _input(e: InputEvent) -> void:
 	touch_ui = true
 	last_pad = false
 	if _modal_open() or map_screen.visible:
+		if e is InputEventScreenTouch and not e.pressed and touch.fingers.has(e.index):
+			touch.fingers.erase(e.index) # a finger that went down on the field lifts over a panel
+			if touch.stick_finger == e.index: _touch_actions(touch.reset())
 		return # emulated mouse drives the open panel
 	touch.scale = ui.scale.x
 	touch.size = stick_size() * ui.scale.x
@@ -863,22 +883,48 @@ func _touch_actions(acts: Array) -> void:
 				elif not busy: tap_at(a.pos)
 			"ui_down":
 				if a.name == "use": use_btn.press(true)
+				elif a.name == "journal" and _story_ui(): _story_ui().quests_btn.button_pressed = true
 				elif a.name == "menu": menu_btn.button_pressed = true
 			"ui_up":
+				if a.name == "journal" and _story_ui(): _story_ui().quests_btn.button_pressed = false
 				if a.name == "use":
 					use_btn.press(false)
-					if a.inside:
-						if dialog.visible: _dialog_advance()
-						else: use(near)
+					if a.inside: use_or_advance()
 				elif a.name == "menu":
 					menu_btn.button_pressed = false
 					if a.inside: _open_menu()
 				elif a.name == "map" and a.inside:
 					toggle_big_map()
+				elif a.name == "journal" and a.inside and _story_ui():
+					_story_ui().open_journal()
+				elif a.name == "tip" and _story_ui():
+					_story_ui().tip_panel.visible = false
+
+
+func _story_ui() -> Node:
+	var st := get_node_or_null("/root/Story")
+	if st == null: return null
+	var sui = st.get("ui")
+	return sui if sui != null and is_instance_valid(sui) else null
+
+
+## Story dialog (scripts/story/story_ui.gd) is showing a line or choices.
+func _story_dialog_open() -> bool:
+	var sui := _story_ui()
+	return sui != null and (sui.dlg.visible or sui.choices_box.get_child_count() > 0)
 
 
 ## Which HUD button (if any) sits under a screen point. Everything else is play area.
 func _ui_hit(p: Vector2) -> String:
+	var sui := _story_ui()
+	if sui != null:
+		# Story HUD (journal button, objective tracker, tips) lives on its own CanvasLayer: route those taps to it.
+		if sui.quests_btn.visible and sui.quests_btn.get_global_rect().grow(4.0 * ui.scale.x).has_point(p):
+			return "journal"
+		if sui.tracker.visible and sui.tracker.get_global_rect().has_point(p):
+			return "journal"
+		if sui.tip_panel.visible and sui.tip_panel.get_global_rect().has_point(p):
+			return "tip"
 	if use_btn.visible and use_btn.shown and use_btn.get_global_rect().grow(10.0 * ui.scale.x).has_point(p):
 		return "use"
 	if menu_btn.get_global_rect().grow(4.0).has_point(p):
@@ -888,6 +934,22 @@ func _ui_hit(p: Vector2) -> String:
 	if loc_card.get_global_rect().has_point(p):
 		return "hud" # swallow: no stick under the HUD card
 	return ""
+
+
+## Use button / E / gamepad A: advance whichever dialog is open, otherwise use what's in reach.
+func use_or_advance() -> void:
+	var sui := _story_ui()
+	if _story_dialog_open():
+		if sui.choices_box.get_child_count() > 0:
+			_focus_first(sui.choices_box) # pick with the pad / keys 1-4 / a tap
+		else:
+			sui.advance()
+	elif sui != null and sui.get("_blocking"):
+		sui.set("_tap", true) # act cards / fanfare: skip ahead
+	elif dialog.visible:
+		_dialog_advance()
+	elif not _modal_open():
+		use(near)
 
 
 func stick_size() -> float:

@@ -676,7 +676,7 @@ class UseButton extends Control:
 		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
 			press(e.pressed)
 			if not e.pressed and Rect2(Vector2.ZERO, size).has_point(e.position):
-				k.use(k.near)
+				k.use_or_advance()
 			accept_event()
 
 
