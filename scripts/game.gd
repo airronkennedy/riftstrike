@@ -351,6 +351,11 @@ var AB_SUB_ROWS := {
 }
 
 ## Turn the template kits into the Airron's Fall keeper roster. Unlocked keepers form the squad;
+## Main story party gate (scripts/story/story.gd): the hero starts alone and Wardens join as they're recruited.
+func _story_allows(id: String) -> bool:
+	var st: Node = Engine.get_main_loop().root.get_node_or_null("Story") if Engine.get_main_loop() is SceneTree else null
+	return st == null or st.allows_keeper(id)
+
 ## locked keepers get full data (stats, class, kit, art) so unlocking one is just flipping "unlocked".
 func build_af_roster() -> void:
 	var tmpl_rows: Dictionary = AB_CLASS_ROWS.duplicate(true)
@@ -385,7 +390,7 @@ func build_af_roster() -> void:
 				i += 1
 		HERO_BASE[nm] = b
 		CHAR[nm] = {"cls": str(h.cls), "sub": str(h.sub), "ability": str(rows[0][0])}
-		if bool(h.get("unlocked", false)):
+		if bool(h.get("unlocked", false)) and _story_allows(str(h.id)):
 			HERO_NAMES.append(nm)
 	SQUAD = HERO_NAMES.duplicate()
 
@@ -5109,6 +5114,9 @@ func start_kingdom_battle(region: String) -> void:
 	banner.text = "AMBUSH!"
 	banner.sub = str(e.get("region", "")).capitalize() + "  ·  Lv." + str(int(e.get("level", 1)))
 	banner.color = "yellow"; banner.life = 1400.0
+	if str(e.get("banner", "")) != "": # story fights (scripts/story/story_data.gd BATTLES)
+		banner.text = str(e.banner); banner.sub = str(e.get("banner_sub", "")) + "  ·  Lv." + str(int(e.get("level", 1)))
+		banner.color = "red" if bool(e.get("boss", false)) else "yellow"; banner.life = 2000.0
 	sfx.tone(392, 0.09, "square", 0.04)
 
 func kingdom_battle() -> bool:
@@ -5398,6 +5406,8 @@ func on_key(k: int) -> void:
 # ---------------------------------------------------------------- loop
 func _ready() -> void:
 	randomize()
+	var story := get_node_or_null("/root/Story")
+	if story: story.extend_items(ITEM_DEFS) # heirlooms from loyal Wardens
 	build_af_roster()
 	build_abilities()
 	build_rpg()
