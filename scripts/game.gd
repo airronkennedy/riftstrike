@@ -791,7 +791,9 @@ const WorldScript = preload("res://scripts/world.gd")
 const WorldMapUI = preload("res://scripts/world_map_ui.gd")
 const StatsUI = preload("res://scripts/stats_ui.gd")
 const CompendiumUI = preload("res://scripts/compendium.gd")
+const BuildUI = preload("res://scripts/build_ui.gd")
 var COMP = null
+var BUILD = null
 var WORLD = null
 var WMAP = null
 var STATS = null
@@ -2868,7 +2870,7 @@ func section_label(s: String, x: float, y: float, short: bool) -> void:
 ## and optional tabs (right of the title, or under it on narrow screens). Returns the content rect.
 func menu_sheet(back_id: String, title: String, helper: String, back_cb: Callable, tabs: Array = [], tab_cur: int = 0, tab_cb: Callable = Callable(), tab_id: String = "") -> Rect2:
 	var short: bool = VHc <= 430
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.03, 0.1, 0.11, 0.6))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.05, 0.04, 0.03, 0.7))
 	var m: float = 8.0 if short else 14.0
 	var panel := Rect2(m, m, VWc - m * 2.0, VHc - m * 2.0)
 	rbox(panel, 22.0 if short else 28.0, UI_SHEET, Color(1, 1, 1, 0.55), 2.0, 12.0)
@@ -3015,6 +3017,7 @@ func save_cfg() -> void:
 			sq.append(str(rr[0]) + ":" + str(rr[1]))
 		cf.set_value("ab_seq", name, ",".join(sq))
 	cf.set_value("rs", "auto", AUTO)
+	cf.set_value("rs", "rpg_v", 1)
 	cf.set_value("party", "squad", ",".join(SQUAD))
 	cf.set_value("inv", "bag", ",".join(INV))
 	if WORLD != null:
@@ -3039,7 +3042,7 @@ func load_cfg() -> void:
 		if typeof(raw) == TYPE_STRING and raw != "":
 			var parts: PackedStringArray = raw.split("|")
 			# Class is changeable (Build screen); only RPG classes load.
-			if parts.size() >= 2 and RPG_POOL_IDS.has(parts[0]):
+			if parts.size() >= 2 and RPG_POOL_IDS.has(parts[0]) and int(cf.get_value("rs", "rpg_v", 0)) >= 1:
 				CHAR[name].cls = parts[0]
 			var sub := parts[1] if parts.size() >= 2 else (parts[0] if parts.size() == 1 else "")
 			if SUB_DEFS.has(sub):
@@ -3140,6 +3143,12 @@ func open_inv() -> void:
 	screen = "inv"
 	sfx.tone(660, 0.06, "square", 0.035)
 
+func open_build() -> void:
+	char_sel = clampi(char_sel, 0, HERO_NAMES.size() - 1)
+	BUILD.open()
+	screen = "build"
+	sfx.tone(660, 0.06, "square", 0.035)
+
 func open_compendium() -> void:
 	COMP.open()
 	screen = "compendium"
@@ -3211,6 +3220,11 @@ func ow_open_menu_screen(which: String) -> void:
 		new_battle()
 		phase = "title"
 		open_chars()
+		menu_return = "overworld"
+	elif which == "build":
+		new_battle()
+		phase = "title"
+		open_build()
 		menu_return = "overworld"
 	sfx.tone(660, 0.06, "square", 0.035)
 
@@ -3389,7 +3403,7 @@ func draw_hero_sprite(kind: String, x: float, y: float, scl: float, name: String
 
 func draw_chars() -> void:
 	var short: bool = VHc <= 430
-	var area: Rect2 = menu_sheet("chars_back", "Characters", "Pick a hero, then swap their subclass. Class stays locked.", func(): menu_back())
+	var area: Rect2 = menu_sheet("chars_back", "Characters", "Pick a hero, then swap their subclass. Change class in Build.", func(): menu_back())
 	var d: Rect2 = hero_picker("hero_", area, short, func(hn, hs): return "Lv." + str(int(hs.level)) + "  " + str(hs.cls) + " · " + str(hs.sub))
 	var name := selected_hero()
 	var st := compute_hero_stats(name)
@@ -3954,11 +3968,11 @@ func draw_overworld() -> void:
 
 
 func _draw_ow_menu(short: bool) -> void:
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.02, 0.08, 0.09, 0.5))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.05, 0.04, 0.03, 0.55))
 	var items := [
 		["owm_map", "Map", "Where to go next", "map"], ["owm_party", "Party", "Pick your five", "party"],
 		["owm_inv", "Inventory", "Gear and abilities", "inv"], ["owm_stats", "Stats", "Compare heroes", "stats"],
-		["owm_chars", "Characters", "Swap subclasses", "chars"], ["owm_title", "Title", "Main screen", "title"],
+		["owm_build", "Build", "Class, abilities, plan", "build"], ["owm_chars", "Characters", "Swap subclasses", "chars"], ["owm_title", "Title", "Main screen", "title"],
 	]
 	var cols: int = 2 if VWc < 700 else 3
 	var gap: float = 10.0 if short else 14.0
@@ -4020,7 +4034,7 @@ func draw_title() -> void:
 	var rbh: float = 50.0 if short else 62.0
 	var gap: float = 10.0
 	var lab_h: float = 18.0 if short else 24.0
-	var menu_one_row: bool = sw >= 5.0 * 112.0 + 4.0 * gap + pad * 2.0
+	var menu_one_row: bool = sw >= 6.0 * 112.0 + 4.0 * gap + pad * 2.0
 	var menu_rows: int = 1 if menu_one_row else 2
 	var raid_one_row: bool = sw >= 3.0 * 130.0 + 2.0 * gap + pad * 2.0
 	var raid_rows: int = 1 if raid_one_row else 2
@@ -4054,6 +4068,7 @@ func draw_title() -> void:
 	section_label("YOUR PARTY", ix, iy + lab_h * 0.4, short)
 	iy += lab_h
 	var menus := [
+		["build", "Build", "primary", func(): open_build()],
 		["chars", "Characters", "soft", func(): open_chars()],
 		["inv", "Inventory", "soft", func(): open_inv()],
 		["party", "Party", "soft", func(): open_party()],
@@ -4091,7 +4106,7 @@ func draw_title() -> void:
 			pill(sp2[0], r2, sp2[1], sp2[2], bfs, func(): start_fight(n2), false, false, sp2[0] == "raid1")
 	y = sr.end.y + 10.0
 	if not short:
-		var hint: String = "Overworld explores Act I  ·  Raids are quick fights  ·  Hits that land together COMBO"
+		var hint: String = "Build sets class, abilities and the AUTO plan  ·  Raids are quick fights  ·  Overworld explores Act I"
 		text(hint, cx, y + hint_fs * 0.6, fit_size(hint, hint_fs, vw - 24.0, 10.0), Color("#e9fff9"), "center", 3, Color(0, 0, 0, 0.7))
 	var cfs := 12.0 if short else 14.0
 	var cy := VHc - (4.0 if short else 10.0) - cfs
@@ -4241,7 +4256,7 @@ func draw_battle_ui() -> void:
 		hint_base = draw_ability_panel(short_land, by) - 4
 	if G != null and phase == "battle":
 		if AUTO: hint = "Auto-battle on · tap AUTO to take control"
-		elif sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your knights in attack order · or tap AUTO"
+		elif sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your keepers in attack order · or tap AUTO to let your plan run"
 		else: hint = "Your knights are attacking…" if G.side == "blue" else ("The boss is attacking…" if (G.n_red == 1 and encounter.is_empty()) else "Enemies are attacking…")
 	if hint != "":
 		var hfs := 12.0 if short_land else 14.0
@@ -4544,6 +4559,7 @@ func _draw() -> void:
 	elif screen == "inv": draw_inv()
 	elif screen == "party": draw_party()
 	elif screen == "compendium": COMP.draw(self, VWc, VHc)
+	elif screen == "build": BUILD.draw(self, VWc, VHc)
 	elif screen == "results": draw_results()
 	elif phase == "battle" or phase == "ending": draw_battle_ui()
 
@@ -4746,6 +4762,9 @@ func on_key(k: int) -> void:
 	if screen == "compendium":
 		COMP.key(self, k)
 		return
+	if screen == "build":
+		BUILD.key(self, k)
+		return
 	if screen == "chars" or screen == "inv" or screen == "party" or screen == "overworld":
 		if k == KEY_ESCAPE or k == KEY_P:
 			menu_back()
@@ -4801,6 +4820,7 @@ func _ready() -> void:
 	WMAP.setup(WORLD)
 	STATS = StatsUI.new()
 	COMP = CompendiumUI.new()
+	BUILD = BuildUI.new()
 	load_cfg()
 	sfx.muted = muted
 	# Airron's Fall run theme loops under the whole game (web builds start it after the first tap).

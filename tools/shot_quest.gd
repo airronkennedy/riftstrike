@@ -19,6 +19,16 @@ func wait(ms: float) -> void:
 func _run() -> void:
 	await wait(800)
 	await shot("01_title")
+	g.open_build()
+	for t in 3:
+		g.BUILD.tab = t
+		await wait(200)
+		await shot("01%s_build_%s" % ["abc"[t], ["class", "loadout", "sequence"][t]])
+	g.select_hero(4)
+	g.BUILD.tab = 2
+	await wait(200)
+	await shot("01d_build_sequence_cleric")
+	g.menu_back()
 	g.open_compendium()
 	g.COMP.set_tab(2)
 	await wait(250)
