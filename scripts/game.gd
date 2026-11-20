@@ -1,4 +1,10 @@
 extends Node2D
+
+## Side-view party turn hooks (scripts/target_select.gd):
+## party_select_started(turn) when the target-select window opens; party_target_locked(focus) once the focus is final
+## (tapped, or picked by the TargetSelect setting), right before bf_run_party_turn(focus) starts the attack sequence.
+signal party_select_started(turn: int)
+signal party_target_locked(focus)
 ## Airron's Quest — auto-battler with a 5-keeper party.
 ## Airron's Quest. Art: Airron's Fall (Airron Kennedy's own game art; see docs/ASSET_LICENSES.md).
 ## Everything is drawn immediate-mode in _draw(), mirroring the canvas renderer.
@@ -549,7 +555,7 @@ func foe_for(kind: String, tier: String) -> String:
 	var rf: Dictionary = encounter.get("foes", {})
 	if tier == "regular" and rf.has(kind) and not (rf[kind] as Array).is_empty():
 		return str(pick(rf[kind]))
-	var table: Dictionary = AfRoster.FOE_ART[tier]
+	var table: Dictionary = AfRoster.FOE_ART.get(tier, AfRoster.FOE_ART.elite) # miniboss: elite art unless foe_ids says
 	var k: String = kind if table.has(kind) else "torch"
 	return str(pick(table[k]))
 
@@ -1269,11 +1275,9 @@ class Battle:
 	var ctb := false # true: side-view battle layout (team turns with combos, see bf)
 	var active = null # unit whose turn it is
 	var clock := 0.0
-	var cmd := "" # manual command menu state: "" | "abilities" | "items" | "target"
-	var pending := {} # {"type": "attack"|"ability", "id": ability id}
-	var items := {"potion": 3, "ether": 2}
 	var bf := false # Brave Frontier-style team turns (scripts/combo_turn.gd)
-	var focus = null # enemy the whole party focuses (tap in target select)
+	var focus = null # enemy the whole party focuses (tap in target select, else TargetSelect.pick)
+	var focus_tapped := false # true: the player picked focus (kept until it dies); false: re-picked every turn
 	var sel_t := 0.0 # target-select countdown (ms)
 	var turnc = null # ComboTurn running the current team turn
 	var summary := {} # last party turn: hits, sparks, dmg
@@ -1365,6 +1369,10 @@ func new_battle(n: int = 0) -> void:
 			else:
 				var tier := "regular" if (enc_on or n == 3) else ("elite" if n == 2 else "boss")
 				if enc_on and i == 0 and bool(encounter.get("elite", false)): tier = "elite"
+				# Story hook: encounter.tiers[i] sets foe i's tier ("regular" | "elite" | "miniboss" | "boss",
+				# QuestRPG.FOE_TIER) and encounter.foe_ids[i] its AfRoster.FOES art/name; see docs/BALANCE.md.
+				var etiers: Array = encounter.get("tiers", []) if enc_on else []
+				if i < etiers.size() and QuestRPG.FOE_TIER.has(str(etiers[i])): tier = str(etiers[i])
 				u.tier = tier
 				if enc_on and bool(encounter.get("auto", false)):
 					# Auto-levelled foe: base × tier × level growth (QuestRPG.foe_scale, docs/BALANCE.md)
@@ -1374,11 +1382,13 @@ func new_battle(n: int = 0) -> void:
 					u.def = maxi(1, int(roundf(u.def * QuestRPG.foe_scale("def", tier, fl))))
 					u.speed = maxi(1, int(roundf(u.speed * QuestRPG.foe_scale("speed", tier, fl))))
 					u.mana_regen = int(roundf(u.mana_regen * QuestRPG.foe_scale("mana", tier, fl)))
-					if tier == "elite": u.scale *= 1.15
+					u.scale *= float(QuestRPG.FOE_SIZE.get(tier, 1.0))
 				elif enc_on and tier == "elite":
 					u.maxhp = int(u.maxhp * 2.0); u.hp = u.maxhp; u.shown_hp = u.maxhp
 					u.atk = int(u.atk * 1.3); u.scale *= 1.15
 				var fk := foe_for(kind, tier)
+				var eids: Array = encounter.get("foe_ids", []) if enc_on else []
+				if i < eids.size() and AfRoster.FOES.has(str(eids[i])): fk = str(eids[i])
 				u.K = art_K(kind, "f_" + fk, float(FOE_H.get(fk, 80.0)))
 				u.name = str(AfRoster.FOES[fk].name)
 			if team == "blue" and CHAR.has(u.name):
@@ -2057,15 +2067,17 @@ func bf_select() -> void:
 	G.turn += 1; G.side = "blue"; G.active = null
 	tick_mods("blue")
 	apply_mana_regen("blue")
-	if G.focus != null and G.focus.dead: G.focus = null
+	if G.focus != null and (G.focus.dead or not G.focus_tapped): G.focus = null
+	if G.focus == null: G.focus_tapped = false
 	G.mode = "select"; G.sel_t = SELECT_MS
+	party_select_started.emit(G.turn)
 	banner = {"text": "YOUR TURN", "sub": "Tap an enemy to focus · or let the team pick" if not AUTO else "Turn %d" % G.turn, "t": 0.0, "life": 900.0, "color": "blue"}
 	if G.turn == 4: banner.sub = "RIFT SURGE — damage rising!"
 	sfx.tone(523, 0.08, "square", 0.04)
 
 func bf_focus(t) -> void:
 	if G == null or not G.bf or G.mode != "select" or t == null or t.dead or t.team != "red": return
-	G.focus = t
+	G.focus = t; G.focus_tapped = true
 	t.pop = 200.0
 	sfx.tone(880, 0.05, "triangle", 0.03)
 	bf_launch()
@@ -2076,15 +2088,14 @@ func bf_cycle_focus(dir: int) -> void:
 	foes.sort_custom(func(a, b): return a.y < b.y)
 	var i := foes.find(G.focus)
 	G.focus = foes[posmod(i + dir, foes.size())] if i >= 0 else foes[0]
+	G.focus_tapped = true
 	G.sel_t = maxf(G.sel_t, 1200.0)
 	sfx.tone(740, 0.04, "triangle", 0.025)
 
-## Without a focus the party agrees on one target (so their hits can spark): the foe closest to dying.
+## Without a tapped focus the party agrees on one target (so their hits can spark), chosen by the player's
+## Auto target setting outside combat (TargetSelect: Finish Off, Biggest Threat, Elites First, Backline First).
 func bf_auto_target():
-	var best = null
-	for f in alive("red"):
-		if best == null or f.hp < best.hp: best = f
-	return best
+	return TargetSelect.pick(alive("red"))
 
 ## Build "Attack Order": party keeper names, first attacker first (HERO_ORDER filtered + anyone missing).
 func attack_order() -> Array:
@@ -2118,7 +2129,14 @@ func bf_order(team: String) -> Array:
 func bf_launch() -> void:
 	if G.mode != "select" or phase != "battle": return
 	G.mode = "strike"; G.side = "blue"
-	G.turnc.start(self, "blue", bf_order("blue"), HERO_DELAY, G.focus)
+	if G.focus == null or G.focus.dead:
+		G.focus = bf_auto_target(); G.focus_tapped = false
+	party_target_locked.emit(G.focus)
+	bf_run_party_turn(G.focus)
+
+## The party's attack sequence after targeting (combo system, scripts/combo_turn.gd). focus: the locked target.
+func bf_run_party_turn(focus) -> void:
+	G.turnc.start(self, "blue", bf_order("blue"), HERO_DELAY, focus)
 	sfx.fight()
 
 func bf_enemy_turn() -> void:
@@ -2156,7 +2174,6 @@ var res_combo_hits := 0
 var res_combo_sparks := 0
 var res_best_combo := 0
 
-var cmd_hover := 0
 var tips_on := true
 
 func toggle_queue(u) -> void:

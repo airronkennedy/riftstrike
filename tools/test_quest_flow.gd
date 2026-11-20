@@ -8,6 +8,7 @@ func ok(c: bool, m: String) -> void:
 func wait(ms: float) -> void:
 	await create_timer(ms / 1000.0).timeout
 func _init() -> void:
+	preload("res://tools/test_save.gd").fresh() # new-game user data every run
 	_run.call_deferred()
 func _run() -> void:
 	change_scene_to_file("res://main.tscn")

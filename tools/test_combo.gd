@@ -9,6 +9,7 @@ func ok(c: bool, m: String) -> void:
 	print(("ok   " if c else "FAIL ") + m)
 	if not c: fails += 1
 func _init() -> void:
+	preload("res://tools/test_save.gd").fresh() # new-game user data every run
 	_run.call_deferred()
 
 func _run() -> void:

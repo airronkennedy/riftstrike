@@ -34,6 +34,7 @@ var ember_acc := 0.0
 var t := 0.0
 var k := 1.0 # UI scale
 var tips_hover := -1
+var auto_pick = null # target-select preview: the foe the Auto target setting would pick
 
 func _init() -> void:
 	for n in ICONS:
@@ -59,6 +60,7 @@ func update(g, dt_ms: float) -> void:
 	hit_pop = maxf(0.0, hit_pop - dt * 6.0)
 	spark_pop = maxf(0.0, spark_pop - dt * 4.0)
 	sel_in = clampf(sel_in + (dt * 5.0 if selecting(g) else -dt * 7.0), 0.0, 1.0)
+	auto_pick = g.bf_auto_target() if selecting(g) else null
 	for u in G.units:
 		if u.team != "blue": continue
 		var striking: bool = tc != null and tc.running and tc.team == "blue" and absf(u.x - u.hx) > 4.0
@@ -141,6 +143,11 @@ func unit_overlay(g, u) -> void:
 		g.draw_polyline(closed(diamond(Vector2(bx - 12, top + 2), 9)), FOE, 1.2, true)
 		g.text(lt, bx - 12, top + 2, 11, PARCH)
 		var focused: bool = G.focus == u
+		if selecting(g) and G.focus == null and auto_pick == u:
+			# who the team will hit if the countdown runs out (the Auto target setting)
+			var ap = 0.5 + 0.5 * sin(t * 4.0)
+			g.stroke_ellipse(x, u.y - 2, 38 + ap * 4, 12 + ap * 2, Color(0.62, 0.86, 1.0, 0.55 + 0.35 * ap), 2.0)
+			g.text("AUTO", x, top - 12.0, 10, Color(0.72, 0.9, 1.0))
 		if selecting(g) or focused:
 			var p = 0.5 + 0.5 * sin(t * (9.0 if focused else 5.0))
 			var c = GOLD_HI if focused else Color(GOLD_HI.r, GOLD_HI.g, GOLD_HI.b, 0.35 + 0.3 * p)
@@ -252,8 +259,8 @@ func draw_select(g) -> void:
 	g.rbox(r, 14, Color(0.07, 0.058, 0.046, 0.9), Color.WHITE, 1.2, 4)
 	var old: Font = g._font_override
 	g._font_override = g.FONT_TITLE
-	var head = "FOCUS: " + str(G.focus.name).to_upper() if G.focus != null and not G.focus.dead else "TAP AN ENEMY TO FOCUS"
-	g.text(head, r.position.x + 16.0 * k, r.position.y + 17.0 * k, 14.0 * k, GOLD_HI, "left")
+	var head = "FOCUS: " + str(G.focus.name).to_upper() if G.focus != null and not G.focus.dead else "TAP A FOE  ·  AUTO: " + TargetSelect.label().to_upper()
+	g.text(head, r.position.x + 16.0 * k, r.position.y + 17.0 * k, g.fit_size(head, 14.0 * k, w - 120.0 * k, 9.0), GOLD_HI, "left")
 	g._font_override = old
 	var order: Array = g.bf_order("blue")
 	var names: Array = []

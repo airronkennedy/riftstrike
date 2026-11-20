@@ -9,8 +9,8 @@ const KINGDOM_SCENE := "res://scenes/kingdom.tscn"
 const MAIN_SCENE := "res://main.tscn"
 const KINGDOM_SAVE := "user://kingdom.cfg"
 
-## Region battles: Airron's Fall backdrop, foe level range, elite chance, foe art per archetype, archetype mix.
-## Levels follow the walk out of town: meadow 1-3, road 2-4, forest 3-6, shore 5-8, highlands 7-10 (docs/BALANCE.md).
+## Region battles: Airron's Fall backdrop, elite chance, foe art per archetype, archetype mix.
+## Foe levels follow the party (QuestRPG.foe_level: party level ± 1), so regions differ by foe pool and elites (docs/BALANCE.md).
 const REGION_BATTLES := {
 	"meadow": {"area": "stillmoss-cloister", "elite": 0.0, "kinds": ["torch", "torch", "tnt"],
 		"foes": {"torch": ["ashling", "gnat"], "barrel": ["pilgrim"], "tnt": ["moth"]}},
@@ -72,9 +72,8 @@ func finish_battle(won: bool, frac_left: float) -> void:
 	var cf := ConfigFile.new()
 	cf.load(KINGDOM_SAVE)
 	var mx := int(cf.get_value("kingdom", "hp_max", 80))
-	var hp := int(roundf(clampf(frac_left, 0.0, 1.0) * mx))
+	var hp := int(roundf(QuestRPG.hp_after_battle(won, frac_left) * mx))
 	hp = maxi(1, hp)
-	if won: hp = maxi(hp, int(mx * 0.1))
 	cf.set_value("kingdom", "hp", mini(hp, mx))
 	cf.save(KINGDOM_SAVE)
 	var e := get_node_or_null("/root/Encounters")

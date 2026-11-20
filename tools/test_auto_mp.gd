@@ -4,6 +4,7 @@ extends SceneTree
 # godot --headless --path . --script res://tools/test_auto_mp.gd
 var g
 func _init() -> void:
+	preload("res://tools/test_save.gd").fresh() # new-game user data every run
 	var sc: PackedScene = load("res://main.tscn")
 	g = sc.instantiate()
 	root.add_child(g)
