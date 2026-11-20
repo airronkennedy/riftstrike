@@ -123,3 +123,25 @@ battles.
 - `tools/shot_combo.gd` (needs a display, e.g. `xvfb-run`): target select, focus, and a 30 fps fixed-step frame
   sequence of a whole party turn (`frames/`). It saves the best spark frame and the Build Attack Order tab before
   and after Suggest.
+
+## Battle camera and on-screen personality
+Code: `game.gd` `battle_cam_update`, `cam_focus`, `_fit_formation` and `screen_to_world`.
+- **Framing:** the camera fits the fighters' home spots into the screen area between the top prompt and the party
+  cards. Fighters render at up to 2.3× scale, so they read large and close.
+- **Push-in:** during a strike the camera eases toward the attacker, then to the attacker/target midpoint once the
+  hits begin. Zoom is ×1.12, or ×1.22 for a Brave Burst. It adds about +5% for 160 ms after each spark, plus the
+  spark/KO camera punch. When the turn ends it eases back out (smoothing: 4.5/s position, 3.6/s zoom). On victory
+  it pushes in on the party.
+- **Phone portrait:**
+  - The two sides are pulled together (×0.62 horizontally) and spread vertically (×1.3) so the camera can get close.
+  - Party cards become a 3-across grid.
+  - The prompt and summary span the width.
+  - The Attack Order tab stacks the rows above the timeline.
+- **Readability at zoom:** damage text and impact fx (spark, ring, burst, slash, pulse) are counter-scaled by about
+  zoom^-0.55 to -0.6. That keeps them crisp instead of screen-filling. The HITS counter sits on a soft dark plate.
+- **Personality:**
+  - Idle: per-unit breathing and a gentle bob. Wounded units (under 30% HP) breathe slower and sag.
+  - Hurt: a 260 ms flinch with squash, a lean back and a red tint.
+  - Victory: staggered hops. The party hops on a win; foes hop if the party loses.
+  - Brave Burst cut-in: shows the caster's diamond portrait and name.
+- Taps on enemies are converted through the camera (`screen_to_world`).

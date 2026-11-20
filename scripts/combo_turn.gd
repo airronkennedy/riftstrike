@@ -15,9 +15,11 @@ var dmg := 0
 var end_t := 0.0
 var last_spark_pop := {}       # target id -> clock of the last SPARK! pop
 var last_hitstop := -1e9
+var last_spark_t := -1e9 # camera: brief extra push on sparks
 var rng := RandomNumberGenerator.new()
 
 func start(g, side: String, order: Array, delays: Dictionary, focus) -> void:
+	last_spark_t = -1e9
 	team = side; clock = 0.0; strikes = []; projs = []; hist = {}; hits = 0; sparks = 0; dmg = 0; last_spark_pop = {}; chain = {}; spark_txt = {}
 	rng.randomize()
 	var slot := 0
@@ -178,7 +180,7 @@ func _announce(g, s: Dictionary) -> void:
 		u.gauge = 0.0
 		g.fx.append({"type": "aura", "unit": u, "t": 0.0, "life": 900.0, "color": col})
 		g.fx.append({"type": "ring", "x": u.x, "y": u.y - 10, "t": 0.0, "life": 520.0, "color": col})
-		g.cast_banner = {"text": "BRAVE BURST · " + str(ab.name), "sub": u.name + " · " + g.ab_effect_line(s.ab), "t": 0.0, "life": 1500.0, "color": col}
+		g.cast_banner = {"text": str(ab.name), "sub": "BRAVE BURST  ·  " + g.ab_effect_line(s.ab), "who": u.name, "unit": u, "t": 0.0, "life": 1500.0, "color": col}
 		g.screen_flash = {"color": col, "t": 0.0, "life": 220.0}
 		g.sfx.special()
 	elif s.foe_bb:
@@ -299,6 +301,8 @@ func _apply(g, u, t, d: int, sp: bool, crit: bool, s: Dictionary, last: bool) ->
 	g.gain_mp(u, Combo.BB_PER_HIT + (Combo.BB_PER_SPARK if sp else 0.0))
 	g.gain_mp(t, Combo.BB_PER_TAKEN)
 	t.flash = maxf(t.flash, 55.0 if sp else 35.0)
+	t.hurt = 260.0
+	if sp: last_spark_t = clock
 	t.shake = maxf(t.shake, 160.0 if sp else 110.0)
 	t.kx = (1.0 if t.x >= u.x else -1.0) * (10.0 if sp else 5.0)
 	var hy: float = t.y - t.K.head * g.uS(t) * 0.55
