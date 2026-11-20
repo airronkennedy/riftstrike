@@ -50,7 +50,7 @@ func update(g, dt_ms: float) -> void:
 	t += dt
 	var G = g.G
 	if G == null: return
-	k = clampf(g.VHc / 560.0, 0.82, 1.25)
+	k = clampf(minf(g.VHc, g.VWc * 1.25) / 560.0, 0.82, 1.25)
 	var tc = G.turnc
 	if tc != null and tc.team == "blue":
 		if tc.hits > last_hits: hit_pop = 1.0
@@ -195,10 +195,11 @@ func draw_combo(g) -> void:
 	var n: int = tc.hits if live else int(G.summary.get("hits", 0))
 	var age: float = 0.0 if live else float(G.summary.get("t", 99999.0))
 	if n <= 0 or age > 1500.0: return
+	if not live and g.VHc > g.VWc: return # portrait: the summary plate takes over
 	var a = 1.0 if age < 1100.0 else 1.0 - (age - 1100.0) / 400.0
 	var sp: int = tc.sparks if live else int(G.summary.get("sparks", 0))
 	var x: float = g.VWc - g.SAFE_R - 24.0 * k
-	var y: float = g.SAFE_T + 96.0 * k
+	var y: float = g.SAFE_T + (64.0 if g.VHc > g.VWc else 96.0) * k
 	var col = PARCH
 	if n >= 30: col = Color("#b8ff6a")
 	elif n >= 20: col = EMBER
@@ -208,6 +209,9 @@ func draw_combo(g) -> void:
 	var old: Font = g._font_override
 	g._font_override = g.FONT_TITLE
 	g.save(); g._alpha = a
+	# soft dark plate so the counter reads over busy fights
+	for i in 4:
+		g.fill_ellipse(x - 60.0 * k, y + 12.0 * k, (120.0 - i * 18.0) * k, (46.0 - i * 7.0) * k, Color(0.02, 0.015, 0.01, 0.16))
 	g.text(str(n), x - 70.0 * k, y, fs, col, "right", 5.0, Color(0.06, 0.03, 0.02, 0.95))
 	g.text("HITS", x, y + 4.0 * k, 18.0 * k, GOLD_HI, "right", 3.0, Color(0.06, 0.03, 0.02, 0.95))
 	g._font_override = old
@@ -224,7 +228,7 @@ func draw_summary(g) -> void:
 	if age > 1600.0 or int(G.summary.hits) <= 0: return
 	var ain = ease_out(age / 180.0)
 	var a = ain if age < 1250.0 else 1.0 - (age - 1250.0) / 350.0
-	var w = 360.0 * k
+	var w = minf(360.0 * k, g.VWc - 16.0)
 	var h = 54.0 * k
 	var r = Rect2((g.VWc - w) / 2.0, g.SAFE_T + 14.0 * k - (1.0 - ain) * 14.0, w, h)
 	g.save(); g._alpha = a
@@ -240,7 +244,7 @@ func draw_summary(g) -> void:
 ## Target select: tap an enemy to focus the whole party, GO to attack now, or wait for the countdown.
 func draw_select(g) -> void:
 	var G = g.G
-	var w = minf(430.0 * k, g.VWc * 0.6)
+	var w = minf(430.0 * k, g.VWc * 0.6) if g.VWc > g.VHc else g.VWc - 16.0
 	var h = 62.0 * k
 	var e = ease_out(sel_in)
 	var r = Rect2((g.VWc - w) / 2.0, g.SAFE_T + 10.0 * k - (1.0 - e) * 30.0, w, h)
@@ -282,7 +286,22 @@ func draw_cards(g) -> void:
 	var ch = 72.0 * k
 	var y: float = g.VHc - g.SAFE_B - 8.0 * k - ch
 	var x = x1 - cw * party.size() - gap * (party.size() - 1)
+	var port: bool = g.VHc > g.VWc
+	var cols: int = 3 if port else party.size()
+	var row0_y: float = y
+	if port:
+		# phone portrait: 3-up grid across the full width, under the bar
+		x0 = g.SAFE_L + 8.0 * k
+		cw = (x1 - x0 - gap * 2.0) / 3.0
+		ch = 60.0 * k
+		var rows: int = int(ceil(float(party.size()) / 3.0))
+		row0_y = g.VHc - g.SAFE_B - 8.0 * k - float(rows) * ch - float(rows - 1) * gap
+	var idx := 0
 	for u in party:
+		if port:
+			x = x0 + float(idx % cols) * (cw + gap)
+			y = row0_y + float(idx / cols) * (ch + gap)
+		idx += 1
 		var lift: float = float(raise.get(u, 0.0))
 		var r = Rect2(x, y - lift * 12.0 * k, cw, ch)
 		var hot: bool = float(raise.get(u, 0.0)) > 0.5
@@ -342,6 +361,10 @@ func draw_bar(g) -> void:
 	var x: float = g.SAFE_L + 10.0 * k
 	var h = 30.0 * k
 	var y: float = g.VHc - g.SAFE_B - 8.0 * k - h
+	if g.VHc > g.VWc:
+		var n: int = g.G.units.filter(func(q): return q.team == "blue").size()
+		var rows: int = int(ceil(float(n) / 3.0))
+		y = g.VHc - g.SAFE_B - 8.0 * k - float(rows) * 60.0 * k - float(rows - 1) * 6.0 * k - h - 12.0 * k
 	var items = [
 		["spd", ">".repeat(g.speed), "Battle speed", func(): g.toggle_speed()],
 		["auto", "AUTO", "Skip target select", func(): g.toggle_auto()],

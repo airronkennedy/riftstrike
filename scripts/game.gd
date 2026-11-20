@@ -1180,6 +1180,8 @@ class Act:
 	var ability := ""
 
 class Unit:
+	var home0 := Vector2.INF # formation spot before any portrait squeeze
+	var hurt := 0.0 # ms left of the hurt reaction (flinch + red tint)
 	var bsq := 1.0 # combo squash / stretch (1 = none)
 	var trail := [] # recent dash positions for afterimages
 	var tier := "regular" # foe tier: regular | elite | boss (EXP and "boss or elite" rules)
@@ -1294,6 +1296,14 @@ var banner = null
 var now := 0.0
 var hitstop := 0.0
 var cam_punch := 0.0 # combo camera punch (decays)
+# Battle camera (side view): frames the fighters tightly and pushes in on the attacker during hits, sparks and
+# Brave Bursts, then eases back out. world -> screen: p * cam_s + cam_off (logical screen px, before dpr).
+var cam_c := Vector2(512, 300)
+var cam_s := 1.0
+var cam_off := Vector2.ZERO
+var cam_snap := true
+var cam_rect := Rect2() # screen area the fighters are framed into
+
 var HERO_ORDER: Array = [] # Build "Attack Order": keeper names, first attacks first
 var HERO_DELAY := {} # Build: extra ms before a keeper starts (Combo.DELAY_STEP steps)
 const SELECT_MS := 2600.0 # target-select window before the party auto-attacks
@@ -1494,6 +1504,7 @@ func begin_swing(u) -> void:
 
 func update_unit(u, dt: float) -> void:
 	if u.flash > 0: u.flash -= dt
+	if u.hurt > 0: u.hurt = maxf(0.0, u.hurt - dt)
 	if u.shake > 0: u.shake -= dt
 	u.kx *= pow(0.0001, dt / 1000.0)
 	u.shown_hp += (u.hp - u.shown_hp) * minf(1.0, dt / 220.0)
@@ -1923,9 +1934,114 @@ func controller(dt: float) -> void:
 		if G.side == "blue": begin_enemy_turn()
 		else: begin_player_turn()
 
+# ---------------------------------------------------------------- battle camera
+const CAM_MAX := 2.3 # never zoom tighter than this (screen px per world px)
+const CAM_PUSH := 1.12 # zoom on the attacker vs the base framing
+const CAM_PUSH_BB := 1.22
+const CAM_EASE_C := 4.5 # 1/s smoothing
+const CAM_EASE_Z := 3.6
+
+func battle_cam_rect() -> Rect2:
+	var port: bool = VHc > VWc
+	var top: float = SAFE_T + (96.0 if port else 58.0)
+	var bot: float = SAFE_B + (170.0 if port else 92.0)
+	return Rect2(SAFE_L + 8.0, top, VWc - SAFE_L - SAFE_R - 16.0, maxf(120.0, VHc - top - bot))
+
+## The fighters' bounding box (home spots, so dashes don't yank the frame).
+func battle_box() -> Rect2:
+	var lo := Vector2(1e9, 1e9)
+	var hi := Vector2(-1e9, -1e9)
+	for u in G.units:
+		if u.gone or (u.dead and u.death_t > 900.0): continue
+		var h: float = float(u.K.head) * uS(u)
+		lo = lo.min(Vector2(u.hx - 48.0, u.hy - h - 34.0))
+		hi = hi.max(Vector2(u.hx + 48.0, u.hy + 20.0))
+	if lo.x > hi.x: return Rect2(200, 150, 600, 300)
+	return Rect2(lo, hi - lo)
+
+## Where to push in: the unit striking now (and its target), harder for a Brave Burst; the party on victory.
+func cam_focus() -> Dictionary:
+	if phase == "ending" and G.result == "win":
+		var c := Vector2.ZERO
+		var n := 0
+		for u in alive("blue"):
+			c += Vector2(u.x, u.y - float(u.K.head) * uS(u) * 0.5); n += 1
+		if n > 0: return {"pos": c / n, "w": 0.75, "z": 1.16}
+		return {}
+	if not G.bf or G.turnc == null or not G.turnc.running: return {}
+	var tc = G.turnc
+	var best = null
+	for st in tc.strikes:
+		if st.u.dead or float(st.t0) > tc.clock: continue
+		if tc.clock > float(st.last) + Combo.RECOVER * 0.5: continue
+		if best == null or float(st.t0) > float(best.t0): best = st
+	if best == null: return {}
+	var u = best.u
+	var up := Vector2(u.x, u.y - float(u.K.head) * uS(u) * 0.5)
+	var bb: bool = best.ab != "" or best.foe_bb
+	var first: float = float(best.times[0]) if not best.times.is_empty() else float(best.last)
+	var tgt = best.target
+	var pos := up
+	if tgt != null and tgt != u and tc.clock >= first - 120.0:
+		pos = up.lerp(Vector2(tgt.x, tgt.y - float(tgt.K.head) * uS(tgt) * 0.5), 0.5)
+	var z: float = CAM_PUSH_BB if bb else CAM_PUSH
+	if tc.clock - tc.last_spark_t < 160.0: z += 0.05
+	return {"pos": pos, "w": 0.6 if bb else 0.45, "z": z}
+
+func battle_cam_update(dt: float) -> void:
+	if G == null or not G.ctb:
+		cam_snap = true
+		return
+	cam_rect = battle_cam_rect()
+	_fit_formation()
+	var box := battle_box()
+	var fit: float = minf(cam_rect.size.x / box.size.x, cam_rect.size.y / box.size.y)
+	fit = minf(fit, CAM_MAX)
+	var goal_c := box.get_center()
+	var goal_s := fit
+	var f := cam_focus()
+	if not f.is_empty():
+		goal_c = goal_c.lerp(f.pos, float(f.w))
+		goal_s = minf(fit * float(f.z), CAM_MAX * 1.12)
+	if cam_snap:
+		cam_c = goal_c; cam_s = goal_s; cam_snap = false
+	else:
+		cam_c = cam_c.lerp(goal_c, 1.0 - exp(-dt / 1000.0 * CAM_EASE_C))
+		cam_s = lerpf(cam_s, goal_s, 1.0 - exp(-dt / 1000.0 * CAM_EASE_Z))
+	var s_now: float = cam_s * (1.0 + 0.028 * minf(1.5, cam_punch))
+	cam_off = cam_rect.get_center() - cam_c * s_now
+
+## Phone portrait: pull the two sides together and spread them vertically so the camera can get close.
+var _form_key := ""
+func _fit_formation() -> void:
+	var port: bool = cam_rect.size.y > cam_rect.size.x * 1.1
+	var key := ("p" if port else "l") + str(G.units.size())
+	if key == _form_key: return
+	_form_key = key
+	var c := Vector2.ZERO
+	var n := 0
+	for u in G.units:
+		if u.home0 == Vector2.INF: u.home0 = Vector2(u.hx, u.hy)
+		c += u.home0; n += 1
+	if n == 0: return
+	c /= n
+	var sx: float = 0.62 if port else 1.0
+	var sy: float = 1.3 if port else 1.0
+	var busy_now: bool = G.turnc != null and G.turnc.running
+	for u in G.units:
+		u.hx = c.x + (u.home0.x - c.x) * sx
+		u.hy = c.y + (u.home0.y - c.y) * sy
+		if not busy_now: u.x = u.hx; u.y = u.hy
+
+func screen_to_world(p: Vector2) -> Vector2:
+	if G != null and G.ctb:
+		return (p - cam_off) / (cam_s * (1.0 + 0.028 * minf(1.5, cam_punch)))
+	return Vector2((p.x - OX) / vscale, (p.y - OY) / vscale)
+
 func begin_timeline() -> void:
 	# Side-view auto battle with Brave Frontier-style team turns (docs/COMBO.md).
 	G.ctb = true; G.bf = true; G.turn = 0; G.clock = 0.0
+	cam_snap = true; _form_key = ""
 	G.turnc = ComboTurn.new()
 	var li := 0
 	for u in G.units:
@@ -2605,10 +2721,24 @@ func draw_unit(u) -> void:
 		restore()
 	if K.get("static", false):
 		# Static Airron's Fall sprites: breathing idle, hop while running, squash on the swing.
+		var ph: float = float(hash(u.id) % 1000)
+		var hp_frac: float = float(u.hp) / maxf(1.0, float(u.maxhp))
 		if u.anim == "run":
 			y -= absf(sin((now + u.at) / 85.0)) * 5.0
+		elif phase == "ending" and ((G.result == "win" and u.team == "blue") or (G.result == "lose" and u.team == "red")):
+			# victory: staggered hops, a little stretch at the top
+			var vh: float = absf(sin((now + ph * 3.0) / 190.0))
+			y -= vh * 14.0
+			sq *= 1.0 + 0.06 * vh
 		else:
-			sq *= 1.0 + 0.018 * sin((now + u.at) / 320.0)
+			# idle: breathing + a gentle bob; wounded units breathe slower and sag
+			var rate: float = 320.0 if hp_frac > 0.3 else 520.0
+			sq *= 1.0 + (0.024 if hp_frac > 0.3 else 0.034) * sin((now + ph * 7.0) / rate)
+			y -= (1.6 * sin((now + ph * 5.0) / 460.0)) if hp_frac > 0.3 else -2.0
+		if u.hurt > 0.0:
+			var hk: float = u.hurt / 260.0
+			sq *= 1.0 - 0.07 * hk
+			x -= float(u.facing) * 5.0 * hk
 		if u.act != null and u.act.stage == "atk":
 			sq *= 1.06
 	sq *= u.bsq
@@ -2638,6 +2768,8 @@ func draw_unit(u) -> void:
 	draw_texture_rect_region(IMG[K.img], Rect2(ox0, oy0, sw, sh), src, ca(Color.WHITE))
 	if u.flash > 0:
 		draw_texture_rect_region(WHITE[K.img], Rect2(ox0, oy0, sw, sh), src, ca(Color(1, 1, 1, minf(1.0, u.flash / 80.0))))
+	if u.hurt > 0 and u.flash <= 0:
+		draw_texture_rect_region(WHITE[K.img], Rect2(ox0, oy0, sw, sh), src, ca(Color(1.0, 0.25, 0.18, 0.35 * u.hurt / 260.0)))
 	restore()
 
 func queued_num(u) -> int:
@@ -2797,7 +2929,8 @@ func draw_text_fx(t: Dictionary) -> void:
 	elif t.pop: sc = 1.7 - k / 0.12 * 0.7 if k < 0.12 else 1.0
 	else: sc = 1.3 - k / 0.08 * 0.3 if k < 0.08 else 1.0
 	save(); _alpha *= 1 - (k - 0.7) / 0.3 if k > 0.7 else 1.0
-	tr_(t.x, y); scale_by(sc, sc)
+	var tz: float = pow(1.0 / maxf(0.5, cam_s), 0.55) if (G != null and G.ctb and screen == "") else 1.0
+	tr_(t.x, y); scale_by(sc * tz, sc * tz)
 	var fsz := roundf(t.size * TS)
 	text(t.s, 0, 0, fsz, t.color, "center", maxf(3, fsz / 4.5))
 	restore()
@@ -4597,8 +4730,8 @@ func draw_cast_banner() -> void:
 		var life: float = cast_banner.life
 		var inn: float = clampf(bt / 160.0, 0.0, 1.0)
 		var outk: float = clampf((bt - (life - 220.0)) / 220.0, 0.0, 1.0)
-		var bh := 46.0
-		var by: float = SAFE_T + 30.0
+		var bh := 56.0
+		var by: float = SAFE_T + 34.0
 		var open_h: float = bh * (1.0 - pow(1.0 - inn, 3.0)) * (1.0 - outk)
 		if open_h < 1.0: return
 		draw_rect(Rect2(0, by - open_h / 2.0, VWc, open_h), Color(0.04, 0.03, 0.025, 0.82))
@@ -4612,6 +4745,13 @@ func draw_cast_banner() -> void:
 		text(str(cast_banner.text), tx, by - 6, 20.0, col.lightened(0.25), "center", 4, Color(0, 0, 0, 0.9))
 		_font_override = old
 		text(str(cast_banner.sub), tx, by + 14, 11.0, AfTheme.INK, "center", 3, Color(0, 0, 0, 0.9))
+		# caster portrait + name riding in front of the title
+		var cu = cast_banner.get("unit", null)
+		if cu != null and HUD != null:
+			var tw: float = maxf(text_w(str(cast_banner.text), 20.0), text_w(str(cast_banner.sub), 11.0))
+			var pc := Vector2(tx - tw / 2.0 - 46.0, by)
+			HUD.portrait(self, cu, pc, 30.0, col.lightened(0.2), 2.0)
+			text(str(cast_banner.get("who", "")).to_upper(), pc.x, by + 34.0, 10.0, AfTheme.GOLD, "center", 3, Color(0, 0, 0, 0.9))
 		restore()
 		return
 	var fs := 22.0
@@ -4857,13 +4997,14 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, VWc, VHc), Color("#1a1612"))
 	var side_view: bool = G != null and G.ctb and screen != "title"
 	if side_view: HUD.draw_backdrop(self)
-	set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
+	if side_view:
+		var cs: float = cam_s * (1.0 + 0.028 * minf(1.5, cam_punch))
+		set_xf(base * Transform2D(Vector2(cs, 0), Vector2(0, cs), cam_off))
+	else:
+		set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
 	save()
 	if shake_t > 0:
 		tr_((randf() - 0.5) * shake_mag * 2 * (shake_t / 240.0), (randf() - 0.5) * shake_mag * 2 * (shake_t / 240.0))
-	if cam_punch > 0:
-		var pz := 1.0 + 0.022 * minf(1.5, cam_punch)
-		tr_(LW / 2.0, LH * 0.55); scale_by(pz, pz); tr_(-LW / 2.0, -LH * 0.55)
 	if not side_view: draw_terrain()
 	var list := []
 	if not side_view:
@@ -4881,8 +5022,16 @@ func _draw() -> void:
 			draw_frame(IMG[p.img], p.fw, p.fh, fr, 0, p.x, p.y, p.ax, p.ay, p.s, p.get("flip", false))
 		elif o[1] == 1: draw_unit(o[2])
 		else: draw_fx(o[2])
+	var fz: float = pow(1.0 / maxf(0.5, cam_s), 0.6) if side_view else 1.0
 	for e in fx:
-		if e.type != "sprite": draw_fx(e)
+		if e.type == "sprite": continue
+		if fz != 1.0 and e.has("x") and (e.type == "spark" or e.type == "ring" or e.type == "burst" or e.type == "slash" or e.type == "pulse"):
+			# camera zoom makes the fighters big; keep impact fx crisp instead of screen-filling
+			save(); tr_(float(e.x), float(e.y)); scale_by(fz, fz); tr_(-float(e.x), -float(e.y))
+			draw_fx(e)
+			restore()
+		else:
+			draw_fx(e)
 	for p in projectiles: draw_projectile(p)
 	if G != null and G.bf and G.turnc != null:
 		for p in G.turnc.projs: draw_projectile(p)
@@ -5143,8 +5292,9 @@ func on_release(p: Vector2) -> void:
 
 func canvas_tap(cx: float, cy: float) -> void:
 	if G == null or phase != "battle" or G.mode != "select" or paused: return
-	var wx := (cx - OX) / vscale
-	var wy := (cy - OY) / vscale
+	var wp0 := screen_to_world(Vector2(cx, cy))
+	var wx := wp0.x
+	var wy := wp0.y
 	if G.ctb:
 		var bt = null
 		var bd2 := 1e9
@@ -5296,6 +5446,7 @@ func _process(delta: float) -> void:
 	if screen == "chars" or screen == "inv": tick_char_ui(dt)
 	if screen == "overworld": tick_overworld(dt)
 	if G != null and HUD != null: HUD.update(self, dt)
+	if screen == "" or screen == "results": battle_cam_update(dt * float(speed) if not paused else 0.0)
 	var key_now := screen + "|" + (phase if screen == "" else "")
 	if key_now != ui_key:
 		ui_key = key_now; ui_in = 0.0

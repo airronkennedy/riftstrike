@@ -234,27 +234,45 @@ func _draw_order(g: Object, area: Rect2, short: bool) -> void:
 		_rate = Combo.spark_rate(fr, dl, 80)
 	var d := area.grow(-4.0)
 	var help := "Keepers attack top to bottom, %.2fs apart. Hits from two keepers on one foe within %d ms SPARK (+50%% damage). Slow, late-hitting keepers early and fast ones after them line up. Tap two rows to swap them." % [Combo.SLOT_STAGGER / 1000.0, int(Combo.SPARK_WINDOW)]
-	g.text(help, d.position.x + 2.0, d.position.y + 8.0, g.fit_size(help, 12.0, d.size.x, 8.0), g.UI_MUTED, "left")
-	# header: expected spark rate + actions
 	var hy: float = d.position.y + 22.0
+	if d.size.x < 600.0:
+		var lines: Array = g.wrap_words(help, 10.0, d.size.x - 4.0)
+		for li in lines.size():
+			g.text(str(lines[li]), d.position.x + 2.0, d.position.y + 8.0 + li * 12.0, 10.0, g.UI_MUTED, "left")
+		hy = d.position.y + 8.0 + lines.size() * 12.0 + 4.0
+	else:
+		g.text(help, d.position.x + 2.0, d.position.y + 8.0, g.fit_size(help, 12.0, d.size.x, 8.0), g.UI_MUTED, "left")
 	var rate_s := "Expected sparks: %d%% of hits" % int(roundf(_rate * 100.0))
 	var rcol: Color = SPARK_GREEN if _rate >= 0.55 else (g.UI_GOLD if _rate >= 0.35 else g.UI_INK)
 	g.text(rate_s, d.position.x + 2.0, hy + 14.0, 17.0, rcol, "left")
-	var bw := 150.0
-	g.pill("bld_ord_suggest", Rect2(d.end.x - bw * 2.0 - 10.0, hy, bw, 30.0), "Suggest order", "primary", 13.0, func():
+	var stacked: bool = d.size.x < 600.0 # phone portrait: rows on top, timeline below
+	var bw := 150.0 if not stacked else (d.size.x - 10.0) / 2.0
+	var by0: float = hy if not stacked else hy + 26.0
+	g.pill("bld_ord_suggest", Rect2(d.end.x - bw * 2.0 - 10.0, by0, bw, 30.0), "Suggest order", "primary", 13.0, func():
 		var plan: Dictionary = Combo.best_plan(_order_frames(g, order))
 		var o2: Array = []
 		for i in plan.order: o2.append(order[i])
 		for j in o2.size(): g.HERO_DELAY[o2[j]] = float(plan.delays[j])
 		g.set_attack_order(o2); pick_slot = -1
 		g.sfx.tone(988, 0.08, "triangle", 0.035))
-	g.pill("bld_ord_reset", Rect2(d.end.x - bw, hy, bw, 30.0), "Reset delays", "soft", 13.0, func():
+	g.pill("bld_ord_reset", Rect2(d.end.x - bw, by0, bw, 30.0), "Reset delays", "soft", 13.0, func():
 		g.HERO_DELAY = {}; g.save_cfg(); pick_slot = -1)
-	var top: float = hy + 40.0
+	var top: float = by0 + 40.0
 	var n: int = order.size()
 	var rh: float = clampf((d.end.y - top - 30.0) / maxf(1.0, float(n)) - 6.0, 34.0, 76.0)
 	var lw: float = minf(390.0, d.size.x * 0.44) # left column: names + controls
 	var tl := Rect2(d.position.x + lw + 10.0, top, d.size.x - lw - 10.0, float(n) * (rh + 6.0) - 6.0)
+	var lane_step: float = rh + 6.0
+	var lane_y0: float = top
+	var lane_hh: float = rh
+	if stacked:
+		rh = clampf((d.end.y - top) * 0.5 / maxf(1.0, float(n)) - 6.0, 30.0, 52.0)
+		lw = d.size.x
+		var ty: float = top + float(n) * (rh + 6.0) + 10.0
+		tl = Rect2(d.position.x + 4.0, ty, d.size.x - 8.0, maxf(80.0, d.end.y - ty - 36.0))
+		lane_step = tl.size.y / maxf(1.0, float(n))
+		lane_y0 = tl.position.y
+		lane_hh = lane_step - 4.0
 	# timeline scale
 	var tmax := 0.0
 	var wins: Array = []
@@ -277,8 +295,8 @@ func _draw_order(g: Object, area: Rect2, short: bool) -> void:
 			var a0: float = maxf(float(wins[i].first), float(wins[j].first)) - Combo.SPARK_WINDOW * 0.5
 			var a1: float = minf(float(wins[i].last), float(wins[j].last)) + Combo.SPARK_WINDOW * 0.5
 			if a1 <= a0: continue
-			var y0: float = top + float(i) * (rh + 6.0)
-			var y1: float = top + float(j) * (rh + 6.0) + rh
+			var y0: float = lane_y0 + float(i) * lane_step
+			var y1: float = lane_y0 + float(j) * lane_step + lane_hh
 			var band := Rect2(sx.call(a0), y0, maxf(2.0, sx.call(a1) - sx.call(a0)), y1 - y0)
 			g.draw_rect(band, Color(SPARK_GREEN.r, SPARK_GREEN.g, SPARK_GREEN.b, 0.16))
 			g.draw_rect(band, Color(SPARK_GREEN.r, SPARK_GREEN.g, SPARK_GREEN.b, 0.5), false, 1.0)
@@ -316,8 +334,8 @@ func _draw_order(g: Object, area: Rect2, short: bool) -> void:
 			else: _swap(g, pick_slot, ii); pick_slot = -1)
 		# lane: jitter range (faint), core window (solid), hit ticks
 		var w: Dictionary = wins[i]
-		var ly: float = y + rh * 0.5
-		var lh: float = minf(16.0, rh * 0.36)
+		var ly: float = lane_y0 + float(i) * lane_step + lane_hh * 0.5
+		var lh: float = minf(16.0, lane_hh * 0.36)
 		var j0: float = float(w.first) - float(w.jit)
 		var j1: float = float(w.last) + float(w.jit_end)
 		var accent: Color = Color("#e08a3c") if str(f.style) == "melee" else (Color("#58a8e0") if str(f.style) == "ranged" else Color("#b07ae0"))

@@ -24,6 +24,7 @@ func tick(ms: float) -> void:
 		if not g.paused: g.step(s)
 		tot -= s
 	if g.HUD != null and g.G != null: g.HUD.update(g, ms)
+	g.battle_cam_update(ms * float(g.speed) if not g.paused else 0.0)
 	g.ui_in = minf(1.0, g.ui_in + ms / 380.0)
 	g.queue_redraw()
 	await process_frame
@@ -70,6 +71,19 @@ func _run() -> void:
 	await run_for(330)
 	await shot("c4_summary")
 	print("frames ", i, " hits ", g.G.summary.get("hits", 0), " sparks ", g.G.summary.get("sparks", 0))
+	# enemy turn: hurt reactions on the party
+	var guard := 0
+	while not (g.G.side == "red" and g.G.turnc.running) and guard < 200 and g.phase == "battle":
+		await tick(33.0); guard += 1
+	await run_for(800)
+	await shot("c7_enemy_turn")
+	# finish the fight on AUTO for the victory reaction
+	g.AUTO = true
+	guard = 0
+	while g.phase == "battle" and guard < 2000:
+		await tick(33.0); guard += 1
+	await run_for(600)
+	await shot("c8_victory")
 	qf.in_kingdom_battle = false
 	# Build > Attack Order: first as a random order, then after "Suggest order"
 	g.phase = "title"; g.G = null
