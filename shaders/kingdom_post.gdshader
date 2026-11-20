@@ -19,6 +19,8 @@ uniform vec3 ray_color = vec3(1.0, 0.85, 0.6);
 uniform float motion = 1.0;
 // Low quality (phones / touch by default, Graphics toggle in the menu): no blur taps, no bloom.
 uniform bool low_quality = false;
+// Phone quality: fewer blur taps (5 of the 12-tap disc) for a lighter tilt-shift / bloom pass.
+uniform int taps = 12;
 
 const vec2 P[12] = vec2[](vec2(-0.326, -0.406), vec2(-0.840, -0.074), vec2(-0.696, 0.457), vec2(-0.203, 0.621),
 	vec2(0.962, -0.195), vec2(0.473, -0.480), vec2(0.519, 0.767), vec2(0.185, -0.893),
@@ -36,13 +38,16 @@ void fragment() {
 	if (!low_quality) {
 	acc = vec3(0.0);
 	for (int i = 0; i < 12; i++) {
-		vec3 s = texture(screen_tex, uv + P[i] * px * r).rgb;
+		if (i >= taps) { break; }
+		int j = taps < 12 ? (i * 5) % 12 : i; // spread the reduced set around the disc
+		vec3 s = texture(screen_tex, uv + P[j] * px * r).rgb;
 		acc += s;
 		glow += max(s - vec3(bloom_threshold), vec3(0.0));
 	}
 	}
-	acc /= 12.0;
-	glow /= 12.0;
+	float n = low_quality ? 12.0 : float(clamp(taps, 1, 12));
+	acc /= n;
+	glow /= n;
 	vec3 col = mix(base, acc, amt * 0.8);
 	col += glow * bloom * 1.6;
 	if (rays > 0.0) {

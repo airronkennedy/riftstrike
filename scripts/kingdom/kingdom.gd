@@ -1,7 +1,9 @@
 extends Node2D
 ## Emberhold: the starting kingdom town, its castle, one house and the Cinderreach overworld.
-## Walk with WASD / arrows, click or tap to move, or use the on-screen joystick; E / Space / Enter or the big
-## button uses the nearest door, shop, inn, sign or person. Esc opens the menu.
+## Move: WASD / arrows, gamepad left stick / d-pad, click to walk, or touch anywhere on a phone for an Airron's
+## Fall floating joystick (KingdomTouch, real multitouch). Interact: E / Space / Enter, gamepad A, the context
+## Use button (pops in when something is in reach), or a quick tap on the person / door. Esc / B / Start: menu.
+## M / gamepad Back / tap the minimap: full map screen.
 ## Random encounters only happen on the overworld: the danger meter fills by distance walked (scaled per region,
 ## see KingdomMaps.REGIONS) and, when full, calls Encounters.start_random_battle(region_id) (scripts/encounters.gd).
 
@@ -39,8 +41,11 @@ var party_hp_max := 80
 var bag: Array = []
 var item_defs: Dictionary = {}
 var reduced_motion := false
-## Graphics quality: "high" = tilt-shift blur + bloom + god rays; "low" = those off (default on phones / touch screens).
-var gfx_low := false
+## Graphics quality: "high" = full tilt-shift blur + bloom + god rays; "phone" = a lighter pass (5 blur taps,
+## half bloom / rays; the default on touch devices and small screens); "low" = those off.
+const GFX_LEVELS := ["high", "phone", "low"]
+var gfx_level := "high"
+var gfx_low := false # kept for callers of set_gfx_low(); true when gfx_level == "low"
 var gfx_btn: Button
 var busy := false
 var t_now := 0.0
@@ -73,16 +78,23 @@ var particles: CPUParticles2D
 var ui: Control
 var loc_card: PanelContainer
 var loc_name: Label
+var loc_sub: Label
+var hp_text: Label
 var hp_bar: ProgressBar
 var gold_label: Label
 var danger_row: HBoxContainer
 var danger_bar: ProgressBar
 var minimap: KingdomView.Minimap
 var menu_btn: Button
-var joystick: KingdomView.Joystick
-var use_btn: Button
-var hint: PanelContainer
-var hint_label: Label
+var stick: KingdomView.FloatStick
+var touch := KingdomTouch.new()
+var touch_ui := false   # phone / tablet: floating stick, bigger Use button, no key glyphs
+var last_pad := false   # last input came from a gamepad (shows "A" on the Use button)
+var face_dir := Vector2.DOWN
+var use_btn: KingdomView.UseButton
+var map_screen: KingdomView.MapScreen
+var prompt_layer: KingdomView.PromptLayer
+var insets := Vector4.ZERO # safe-area insets in ui units: top, right, bottom, left
 var banner: VBoxContainer
 var banner_title: Label
 var banner_sub: Label
@@ -104,8 +116,13 @@ var _light_tex: GradientTexture2D
 
 
 func _ready() -> void:
+	# Real multitouch: touches are routed by KingdomTouch per finger (stick + Use at once), not turned
+	# into a single emulated mouse. Mouse emulation is only switched on while a menu / shop / dialog is
+	# open, so their regular buttons and lists work with a finger. Restored on exit.
 	_prev_emulate = Input.emulate_mouse_from_touch
-	Input.emulate_mouse_from_touch = true # Controls (buttons, joystick) get taps; restored on exit
+	Input.emulate_mouse_from_touch = false
+	touch_ui = is_touch_device() or DisplayServer.is_touchscreen_available()
+	touch.hit_ui = _ui_hit
 	title_font = load("res://fonts/cinzel-700.woff2")
 	_load_items()
 	_load_save()
@@ -113,7 +130,8 @@ func _ready() -> void:
 	_build_world_nodes()
 	_build_ui()
 	_apply_motion()
-	if not _gfx_saved: gfx_low = is_touch_device()
+	if not _gfx_saved: gfx_level = "phone" if (is_touch_device() or _small_screen()) else "high"
+	_read_insets()
 	_apply_quality()
 	var e := _enc()
 	if e:
@@ -166,12 +184,15 @@ func _load_save() -> void:
 		party_hp = int(cf.get_value("kingdom", "hp", party_hp_max))
 		meter = float(cf.get_value("kingdom", "meter", 0.0))
 		reduced_motion = bool(cf.get_value("kingdom", "reduced_motion", false))
-		if cf.has_section_key("kingdom", "gfx_low"):
-			gfx_low = bool(cf.get_value("kingdom", "gfx_low", false))
+		if cf.has_section_key("kingdom", "gfx"):
+			gfx_level = str(cf.get_value("kingdom", "gfx", "high"))
+			_gfx_saved = true
+		elif cf.has_section_key("kingdom", "gfx_low"):
+			gfx_level = "low" if bool(cf.get_value("kingdom", "gfx_low", false)) else "high"
 			_gfx_saved = true
 		_saved["map"] = str(cf.get_value("kingdom", "map", "town"))
-		var p = cf.get_value("kingdom", "pos", null)
-		if p is Vector2:
+		var p = cf.get_value("kingdom", "pos", Vector2.INF) # default: a fresh save has no position yet
+		if p is Vector2 and p != Vector2.INF:
 			_saved["pos"] = p
 	bag = []
 	var bf := ConfigFile.new()
@@ -192,7 +213,9 @@ func save_game() -> void:
 	cf.set_value("kingdom", "hp_max", party_hp_max)
 	cf.set_value("kingdom", "meter", meter)
 	cf.set_value("kingdom", "reduced_motion", reduced_motion)
-	if _gfx_saved: cf.set_value("kingdom", "gfx_low", gfx_low)
+	if _gfx_saved:
+		cf.set_value("kingdom", "gfx", gfx_level)
+		cf.set_value("kingdom", "gfx_low", gfx_level == "low")
 	cf.set_value("kingdom", "map", map.get("id", "town"))
 	cf.set_value("kingdom", "pos", player_pos / TILE)
 	cf.save(SAVE_PATH)
@@ -212,7 +235,7 @@ func _parse_params() -> void:
 	for a in args:
 		var s: String = str(a).trim_prefix("--")
 		if s.begins_with("gfx="):
-			gfx_low = s.ends_with("low"); _gfx_saved = true
+			gfx_level = s.substr(4) if GFX_LEVELS.has(s.substr(4)) else "high"; _gfx_saved = true
 		elif s.begins_with("calm") or s.begins_with("reduced_motion"):
 			reduced_motion = not s.ends_with("=0")
 		elif s.begins_with("kmap="):
@@ -461,8 +484,9 @@ func _apply_grade() -> void:
 	pm.set_shader_parameter("saturation", float(g.sat))
 	pm.set_shader_parameter("contrast", float(g.con))
 	pm.set_shader_parameter("warmth", float(g.warm))
-	pm.set_shader_parameter("rays", 0.0 if gfx_low else float(g.rays))
-	pm.set_shader_parameter("bloom", 0.0 if gfx_low else float(g.bloom))
+	var fxm := 0.0 if gfx_level == "low" else (0.55 if gfx_level == "phone" else 1.0)
+	pm.set_shader_parameter("rays", float(g.rays) * fxm)
+	pm.set_shader_parameter("bloom", float(g.bloom) * fxm)
 
 
 func _blend_grade(delta: float) -> void:
@@ -533,6 +557,12 @@ func view_rect() -> Rect2:
 func _process(delta: float) -> void:
 	t_now += delta
 	_layout()
+	var modal := _modal_open() or map_screen.visible
+	if modal and (touch.active() or not touch.fingers.is_empty()):
+		_touch_actions(touch.reset()) # a panel opened under held fingers: drop them (their releases go to the panel)
+	Input.emulate_mouse_from_touch = modal # menus use normal Control taps; the field uses KingdomTouch
+	if last_pad and _story_dialog_open() and _story_ui().choices_box.get_child_count() > 0 and get_viewport().gui_get_focus_owner() == null:
+		_focus_first(_story_ui().choices_box) # gamepad: story choices are navigable straight away
 	var moved := 0.0
 	if not busy and not _modal_open():
 		moved = _move(delta)
@@ -546,6 +576,8 @@ func _process(delta: float) -> void:
 		if n is KingdomView.Actor or (n is KingdomView.Prop and n.animated):
 			n.queue_redraw()
 	markers.queue_redraw()
+	prompt_layer.queue_redraw()
+	_hud_tick()
 	fg.queue_redraw()
 	life.queue_redraw()
 	minimap.queue_redraw()
@@ -562,8 +594,23 @@ func _input_dir() -> Vector2:
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): d.y -= 1
 	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): d.y += 1
 	d = d.normalized()
-	if joystick and joystick.vec != Vector2.ZERO:
-		d = joystick.vec
+	# Gamepad: left stick (analog, with a dead zone) or d-pad.
+	var pad := Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
+	if pad.length() > 0.22:
+		d = pad.normalized() * minf(1.0, (pad.length() - 0.22) / 0.7)
+		last_pad = true
+	else:
+		var dp := Vector2.ZERO
+		if Input.is_joy_button_pressed(0, JOY_BUTTON_DPAD_LEFT): dp.x -= 1
+		if Input.is_joy_button_pressed(0, JOY_BUTTON_DPAD_RIGHT): dp.x += 1
+		if Input.is_joy_button_pressed(0, JOY_BUTTON_DPAD_UP): dp.y -= 1
+		if Input.is_joy_button_pressed(0, JOY_BUTTON_DPAD_DOWN): dp.y += 1
+		if dp != Vector2.ZERO:
+			d = dp.normalized()
+			last_pad = true
+	# Floating touch stick (analog: speed follows how far the knob is pushed).
+	if touch.vec != Vector2.ZERO:
+		d = touch.vec
 	return d
 
 
@@ -583,7 +630,10 @@ func _move(delta: float) -> float:
 		dir = to.normalized()
 	if dir == Vector2.ZERO:
 		return 0.0
-	return step_move(dir * SPEED * minf(delta, 0.05))
+	face_dir = dir.normalized()
+	# Analog: a light push walks, full push runs at SPEED (never slower than 35% so it still feels responsive).
+	var spd := SPEED * clampf(dir.length(), 0.35, 1.0)
+	return step_move(dir.normalized() * spd * minf(delta, 0.05))
 
 
 ## Move with wall sliding; returns the distance actually moved. Public for tests.
@@ -663,6 +713,8 @@ func _on_battle_finished(_won: bool) -> void:
 
 
 # ================================================================ interact
+var _use_talking := false
+
 func _update_near() -> void:
 	var best: Dictionary = {}
 	var bd := 78.0
@@ -671,16 +723,12 @@ func _update_near() -> void:
 		if d < bd:
 			bd = d
 			best = u
-	if best != near:
+	var talking := dialog.visible or _story_dialog_open()
+	if best != near or talking != _use_talking:
 		near = best
-		var has := not near.is_empty()
-		use_btn.text = str(near.prompt) if has else "Use"
-		use_btn.disabled = not has
-		if has:
-			hint_label.text = "%s  ·  %s" % [near.prompt, near.name]
-			AfTheme.pop_in(hint, reduced_motion)
-		else:
-			AfTheme.pop_out(hint, reduced_motion)
+		_use_talking = talking
+		# During a dialog the Use button steps aside (the dialog box sits over it; a tap anywhere, E or A advances).
+		use_btn.set_target({} if talking else near)
 
 
 func use(u: Dictionary) -> void:
@@ -723,35 +771,204 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo:
 		match e.physical_keycode:
 			KEY_E, KEY_SPACE, KEY_ENTER, KEY_KP_ENTER:
-				if dialog.visible: _dialog_advance()
-				elif not _modal_open(): use(near)
+				use_or_advance()
 				get_viewport().set_input_as_handled()
 			KEY_ESCAPE:
 				if _modal_open():
 					for p in [dialog, shop, inn, menu]:
 						_close(p)
-				elif minimap.big:
+				elif map_screen.visible:
 					toggle_big_map()
 				else:
-					AfTheme.pop_in(menu, reduced_motion)
+					_open_menu()
 				get_viewport().set_input_as_handled()
 			KEY_M:
-				toggle_big_map()
+				if not _modal_open(): toggle_big_map()
+		last_pad = false
+	elif e is InputEventJoypadButton and e.pressed:
+		last_pad = true
+		match (e as InputEventJoypadButton).button_index:
+			JOY_BUTTON_A:
+				var sui := _story_ui()
+				if map_screen.visible: toggle_big_map()
+				elif _story_dialog_open() or dialog.visible or (sui != null and sui.get("_blocking")) or not _modal_open():
+					var fo := get_viewport().gui_get_focus_owner()
+					if fo != null and sui != null and sui.choices_box.is_ancestor_of(fo):
+						return # a focused story choice takes the press (ui_accept)
+					use_or_advance()
+				else: return # let the focused menu button take it
+			JOY_BUTTON_B:
+				var sui2 := _story_ui()
+				if map_screen.visible: toggle_big_map()
+				elif sui2 != null and sui2.journal.visible: sui2.close_journal()
+				elif _story_dialog_open(): use_or_advance()
+				elif _modal_open():
+					for p in [dialog, shop, inn, menu]:
+						_close(p)
+				else: _open_menu()
+			JOY_BUTTON_START:
+				if map_screen.visible: toggle_big_map()
+				elif menu.visible: _close(menu)
+				elif not _modal_open(): _open_menu()
+			JOY_BUTTON_BACK:
+				if not _modal_open(): toggle_big_map()
+			JOY_BUTTON_Y: # journal (story)
+				var sui3 := _story_ui()
+				if sui3 != null and not _modal_open(): sui3.open_journal()
+				elif sui3 != null and sui3.journal.visible: sui3.close_journal()
+			_:
+				return
+		get_viewport().set_input_as_handled()
 	elif e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		last_pad = false
 		if dialog.visible:
 			_dialog_advance()
 			return
 		if busy or _modal_open():
 			return
-		# Tap / click to move. Tapping a door, person or sign walks there and uses it.
-		var wp: Vector2 = get_canvas_transform().affine_inverse() * (e as InputEventMouseButton).position
-		tap_target = wp
+		tap_at((e as InputEventMouseButton).position)
+
+
+## Tap / click on the field (screen px). Tapping a door, person or sign walks there and uses it;
+## if it is already in reach it is used at once. Public for tests.
+func tap_at(screen_pos: Vector2) -> void:
+	var wp: Vector2 = get_canvas_transform().affine_inverse() * screen_pos
+	tap_target = wp
+	tap_use = {}
+	var best := 56.0
+	for u in usables:
+		var d := (u.pos as Vector2).distance_to(wp)
+		if u.get("kind", "") == "npc":
+			d = minf(d, (u.pos as Vector2 + Vector2(0, -40)).distance_to(wp)) # tap the body, not the feet
+		if d < best:
+			best = d
+			tap_target = u.pos
+			tap_use = u
+	if not tap_use.is_empty() and near == tap_use:
+		tap_target = null
+		var u2 := tap_use
 		tap_use = {}
-		for u in usables:
-			if (u.pos as Vector2).distance_to(wp) < 48.0:
-				tap_target = u.pos
-				tap_use = u
-				break
+		use(u2)
+
+
+# ================================================================ touch (multitouch, no mouse emulation)
+func _input(e: InputEvent) -> void:
+	if not (e is InputEventScreenTouch or e is InputEventScreenDrag):
+		return
+	touch_ui = true
+	last_pad = false
+	if _modal_open() or map_screen.visible:
+		if e is InputEventScreenTouch and not e.pressed and touch.fingers.has(e.index):
+			touch.fingers.erase(e.index) # a finger that went down on the field lifts over a panel
+			if touch.stick_finger == e.index: _touch_actions(touch.reset())
+		return # emulated mouse drives the open panel
+	touch.scale = ui.scale.x
+	touch.size = stick_size() * ui.scale.x
+	_touch_actions(touch.handle(e, t_now))
+	if touch.active():
+		stick.set_knob(touch.knob / ui.scale.x)
+	get_viewport().set_input_as_handled()
+
+
+func _touch_actions(acts: Array) -> void:
+	for a in acts:
+		match str(a.type):
+			"stick_start":
+				tap_target = null
+				stick.show_at((a.pos as Vector2) / ui.scale.x)
+			"stick_end":
+				stick.release()
+			"tap":
+				if dialog.visible: _dialog_advance()
+				elif not busy: tap_at(a.pos)
+			"ui_down":
+				if a.name == "use": use_btn.press(true)
+				elif a.name == "journal" and _story_ui(): _story_ui().quests_btn.button_pressed = true
+				elif a.name == "menu": menu_btn.button_pressed = true
+			"ui_up":
+				if a.name == "journal" and _story_ui(): _story_ui().quests_btn.button_pressed = false
+				if a.name == "use":
+					use_btn.press(false)
+					if a.inside: use_or_advance()
+				elif a.name == "menu":
+					menu_btn.button_pressed = false
+					if a.inside: _open_menu()
+				elif a.name == "map" and a.inside:
+					toggle_big_map()
+				elif a.name == "journal" and a.inside and _story_ui():
+					_story_ui().open_journal()
+				elif a.name == "tip" and _story_ui():
+					_story_ui().tip_panel.visible = false
+
+
+func _story_ui() -> Node:
+	var st := get_node_or_null("/root/Story")
+	if st == null: return null
+	var sui = st.get("ui")
+	return sui if sui != null and is_instance_valid(sui) else null
+
+
+## Story dialog (scripts/story/story_ui.gd) is showing a line or choices.
+func _story_dialog_open() -> bool:
+	var sui := _story_ui()
+	return sui != null and (sui.dlg.visible or sui.choices_box.get_child_count() > 0)
+
+
+## Which HUD button (if any) sits under a screen point. Everything else is play area.
+func _ui_hit(p: Vector2) -> String:
+	var sui := _story_ui()
+	if sui != null:
+		# Story HUD (journal button, objective tracker, tips) lives on its own CanvasLayer: route those taps to it.
+		if sui.quests_btn.visible and sui.quests_btn.get_global_rect().grow(4.0 * ui.scale.x).has_point(p):
+			return "journal"
+		if sui.tracker.visible and sui.tracker.get_global_rect().has_point(p):
+			return "journal"
+		if sui.tip_panel.visible and sui.tip_panel.get_global_rect().has_point(p):
+			return "tip"
+	if use_btn.visible and use_btn.shown and use_btn.get_global_rect().grow(10.0 * ui.scale.x).has_point(p):
+		return "use"
+	if menu_btn.get_global_rect().grow(4.0).has_point(p):
+		return "menu"
+	if minimap.get_global_rect().has_point(p):
+		return "map"
+	if loc_card.get_global_rect().has_point(p):
+		return "hud" # swallow: no stick under the HUD card
+	return ""
+
+
+## Use button / E / gamepad A: advance whichever dialog is open, otherwise use what's in reach.
+func use_or_advance() -> void:
+	var sui := _story_ui()
+	if _story_dialog_open():
+		if sui.choices_box.get_child_count() > 0:
+			_focus_first(sui.choices_box) # pick with the pad / keys 1-4 / a tap
+		else:
+			sui.advance()
+	elif sui != null and sui.get("_blocking"):
+		sui.set("_tap", true) # act cards / fanfare: skip ahead
+	elif dialog.visible:
+		_dialog_advance()
+	elif not _modal_open():
+		use(near)
+
+
+func stick_size() -> float:
+	return 118.0 * (1.15 if minf(ui.size.x, ui.size.y) < 500.0 else 1.0)
+
+
+func _open_menu() -> void:
+	AfTheme.pop_in(menu, reduced_motion)
+	if last_pad or not touch_ui:
+		_focus_first(menu)
+
+
+func _focus_first(n: Node) -> void:
+	if not last_pad:
+		return
+	for c in n.find_children("*", "Button", true, false):
+		if (c as Button).visible and not (c as Button).disabled:
+			(c as Button).call_deferred("grab_focus")
+			return
 
 
 func _dialog_advance() -> void:
@@ -776,6 +993,7 @@ func open_shop() -> void:
 	shop_mode = "buy"
 	_fill_shop()
 	AfTheme.pop_in(shop, reduced_motion)
+	_focus_first(shop)
 
 
 func _fill_shop() -> void:
@@ -869,6 +1087,7 @@ func sell(iid: String) -> bool:
 func open_inn() -> void:
 	inn_text.text = "Rest at the Ember Inn for %d gold?\nRestores the party and saves your journey." % INN_COST
 	AfTheme.pop_in(inn, reduced_motion)
+	_focus_first(inn)
 
 
 func rest_at_inn() -> bool:
@@ -892,8 +1111,21 @@ func rest_at_inn() -> bool:
 
 
 func toggle_big_map() -> void:
-	minimap.big = not minimap.big
-	_layout()
+	if map_screen.visible:
+		if reduced_motion:
+			map_screen.visible = false
+		else:
+			var tw := create_tween()
+			tw.tween_property(map_screen, "modulate:a", 0.0, 0.16)
+			tw.tween_callback(func(): map_screen.visible = false)
+		return
+	if busy:
+		return
+	map_screen.open()
+	map_screen.visible = true
+	map_screen.modulate.a = 1.0 if reduced_motion else 0.0
+	if not reduced_motion:
+		create_tween().tween_property(map_screen, "modulate:a", 1.0, 0.2)
 
 
 # ================================================================ camera / fx
@@ -1009,7 +1241,9 @@ var banner_y := 70.0 # set by _layout (below the HUD on portrait phones)
 func _show_banner(title: String, sub: String, small: bool = false) -> void:
 	_layout()
 	banner_title.text = title
-	banner_title.add_theme_font_size_override("font_size", 26 if small else 36)
+	var portrait := get_viewport_rect().size.y > get_viewport_rect().size.x
+	banner_title.add_theme_font_size_override("font_size", (18 if small else 24) if portrait else (22 if small else 30))
+	banner_sub.add_theme_font_size_override("font_size", 13 if portrait else 15)
 	banner_sub.text = sub
 	banner_sub.visible = sub != ""
 	if _banner_tw:
@@ -1021,7 +1255,7 @@ func _show_banner(title: String, sub: String, small: bool = false) -> void:
 	_banner_tw.tween_property(banner, "modulate:a", 1.0, 0.5)
 	if not reduced_motion:
 		_banner_tw.tween_property(banner, "position:y", banner_y, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	_banner_tw.chain().tween_interval(1.6 if small else 2.2)
+	_banner_tw.chain().tween_interval(1.4 if small else 2.0)
 	_banner_tw.chain().tween_property(banner, "modulate:a", 0.0, 0.8)
 	loc_name.text = map.get("name", "")
 
@@ -1058,9 +1292,24 @@ func _open_dialog(name: String, text: String, hero: String = "") -> void:
 		_type_tw.tween_property(dialog_text, "visible_ratio", 1.0, clampf(body.length() * 0.022, 0.3, 2.0))
 
 
+func _hud_tick() -> void:
+	var sub: String = str(map.get("sub", ""))
+	if bool(map.get("encounters", false)) and cur_region != "" and KingdomMaps.REGIONS.has(cur_region):
+		sub = str(KingdomMaps.REGIONS[cur_region].name)
+	elif cur_zone != "":
+		sub = cur_zone
+	if loc_sub.text != sub:
+		loc_sub.text = sub
+	# Danger meter glows and throbs as an encounter gets close.
+	var hot := clampf((meter - 0.6) / 0.4, 0.0, 1.0)
+	var th := 0.0 if reduced_motion else 0.5 + 0.5 * sin(t_now * 7.0)
+	danger_bar.modulate = Color(1, 1, 1).lerp(Color(1.35, 1.1, 0.9), hot * (0.5 + 0.5 * th))
+
+
 func _refresh_hud() -> void:
 	hp_bar.max_value = party_hp_max
 	hp_bar.value = party_hp
+	hp_text.text = "%d / %d" % [party_hp, party_hp_max]
 	gold_label.text = "%d g" % gold
 	danger_bar.value = meter * 100.0
 	loc_name.text = map.get("name", "")
@@ -1077,17 +1326,54 @@ static func is_touch_device() -> bool:
 		return coarse == true
 	return false
 
+## Small screen (phone-sized window, in CSS / logical px) also gets the lighter look by default.
+func _small_screen() -> bool:
+	var vs := get_viewport_rect().size / _dpr()
+	return minf(vs.x, vs.y) < 560.0
+
 func _apply_quality() -> void:
+	if not GFX_LEVELS.has(gfx_level): gfx_level = "high"
+	gfx_low = gfx_level == "low"
 	var pm := post.material as ShaderMaterial
 	pm.set_shader_parameter("low_quality", gfx_low)
-	pm.set_shader_parameter("tilt", 0.0 if gfx_low else 1.0)
-	if gfx_btn: gfx_btn.text = "Graphics: %s" % ("Low (fast)" if gfx_low else "High")
+	pm.set_shader_parameter("taps", 12 if gfx_level == "high" else 5)
+	pm.set_shader_parameter("tilt", 0.0 if gfx_low else (0.7 if gfx_level == "phone" else 1.0))
+	if gfx_btn: gfx_btn.text = "Graphics: %s" % {"high": "High", "phone": "Phone (light)", "low": "Low (fast)"}[gfx_level]
 	if not grade.is_empty(): _apply_grade()
 
-func set_gfx_low(on: bool) -> void:
-	gfx_low = on; _gfx_saved = true
+func set_gfx(level: String) -> void:
+	gfx_level = level; _gfx_saved = true
 	_apply_quality()
 	save_game()
+
+func set_gfx_low(on: bool) -> void:
+	set_gfx("low" if on else "high")
+
+func cycle_gfx() -> void:
+	set_gfx(GFX_LEVELS[(GFX_LEVELS.find(gfx_level) + 1) % GFX_LEVELS.size()])
+
+## Safe-area insets (notch, rounded corners, home indicator). On the web the page exposes
+## env(safe-area-inset-*) as CSS vars (see export_presets.cfg head include); natively we use the OS.
+var _inset_px := Vector4.ZERO
+
+func _read_insets() -> void:
+	_inset_px = Vector4.ZERO
+	if OS.has_feature("web"):
+		var js = JavaScriptBridge.eval("(function(){var s=getComputedStyle(document.documentElement);function v(n){return parseFloat(s.getPropertyValue(n))||0;}return [v('--sat'),v('--sar'),v('--sab'),v('--sal')].join(',');})()", true)
+		if js is String:
+			var parts := (js as String).split(",")
+			if parts.size() == 4:
+				var d := _dpr()
+				_inset_px = Vector4(float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3])) * d
+	elif OS.has_feature("mobile"):
+		var sa := DisplayServer.get_display_safe_area()
+		var ss := DisplayServer.screen_get_size()
+		if sa.size.x > 0:
+			_inset_px = Vector4(sa.position.y, ss.x - sa.end.x, ss.y - sa.end.y, sa.position.x)
+
+## Safe play rect in ui units (used by the map screen).
+func safe_rect_ui() -> Rect2:
+	return Rect2(Vector2(insets.w, insets.x), ui.size - Vector2(insets.w + insets.y, insets.x + insets.z))
 
 func set_reduced_motion(on: bool) -> void:
 	reduced_motion = on
@@ -1138,6 +1424,10 @@ func _build_world_nodes() -> void:
 	life.k = self
 	life.z_index = 25
 	add_child(life)
+	prompt_layer = KingdomView.PromptLayer.new()
+	prompt_layer.k = self
+	prompt_layer.z_index = 40
+	add_child(prompt_layer)
 	fg = KingdomView.Foreground.new()
 	fg.k = self
 	fg.z_index = 30
@@ -1187,6 +1477,17 @@ func _button(text: String, cb: Callable, primary: bool = false) -> Button:
 	return b
 
 
+func _icon(path: String) -> TextureRect:
+	var t := TextureRect.new()
+	t.texture = load(path)
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.custom_minimum_size = Vector2(18, 18)
+	t.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return t
+
+
 func _build_ui() -> void:
 	var fx := CanvasLayer.new()
 	fx.layer = 5
@@ -1205,42 +1506,59 @@ func _build_ui() -> void:
 	ui.theme = AfTheme.get_theme()
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(ui)
-	# Location card: name, HP, gold, danger meter
-	loc_card = PanelContainer.new()
+	# Location card: name + area, HP (heart, bar, numbers), gold, danger meter
+	loc_card = _panel("FramedPanel")
 	loc_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ui.add_child(loc_card)
+	loc_card.visible = true
 	var lc := VBoxContainer.new()
-	lc.add_theme_constant_override("separation", 4)
+	lc.add_theme_constant_override("separation", 3)
 	loc_card.add_child(lc)
 	loc_name = Label.new()
 	loc_name.theme_type_variation = "HeaderLabel"
 	loc_name.add_theme_font_size_override("font_size", 18)
 	lc.add_child(loc_name)
+	loc_sub = Label.new()
+	loc_sub.theme_type_variation = "MutedLabel"
+	loc_sub.add_theme_font_size_override("font_size", 12)
+	loc_sub.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	lc.add_child(loc_sub)
 	var hr := HBoxContainer.new()
+	hr.add_theme_constant_override("separation", 6)
 	lc.add_child(hr)
-	var hl := Label.new()
-	hl.text = "HP"
-	hl.theme_type_variation = "MutedLabel"
-	hr.add_child(hl)
+	hr.add_child(_icon("res://assets/af/icons/armory-max-health.png"))
+	var hpw := Control.new()
+	hpw.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hpw.custom_minimum_size = Vector2(84, 16)
+	hr.add_child(hpw)
 	hp_bar = ProgressBar.new()
 	hp_bar.show_percentage = false
-	hp_bar.custom_minimum_size = Vector2(100, 14)
-	hp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	hr.add_child(hp_bar)
+	hp_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hp_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hpw.add_child(hp_bar)
+	hp_text = Label.new()
+	hp_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+	hp_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hp_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hp_text.add_theme_font_size_override("font_size", 11)
+	hp_text.add_theme_constant_override("outline_size", 4)
+	hp_text.add_theme_color_override("font_outline_color", Color(0.05, 0.04, 0.03))
+	hpw.add_child(hp_text)
+	hr.add_child(_icon("res://assets/af/icons/armory-gold.png"))
 	gold_label = Label.new()
 	gold_label.add_theme_color_override("font_color", AfTheme.GOLD)
 	hr.add_child(gold_label)
 	danger_row = HBoxContainer.new()
+	danger_row.add_theme_constant_override("separation", 6)
 	lc.add_child(danger_row)
 	var dl := Label.new()
 	dl.text = "Danger"
 	dl.theme_type_variation = "MutedLabel"
+	dl.add_theme_font_size_override("font_size", 12)
 	danger_row.add_child(dl)
 	danger_bar = ProgressBar.new()
 	danger_bar.theme_type_variation = "DangerBar"
 	danger_bar.show_percentage = false
-	danger_bar.custom_minimum_size = Vector2(110, 14)
+	danger_bar.custom_minimum_size = Vector2(90, 10)
 	danger_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	danger_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	danger_row.add_child(danger_bar)
@@ -1248,22 +1566,20 @@ func _build_ui() -> void:
 	minimap = KingdomView.Minimap.new()
 	minimap.k = self
 	ui.add_child(minimap)
-	menu_btn = _button("Menu", func(): AfTheme.pop_in(menu, reduced_motion))
+	menu_btn = _button("Menu", func(): _open_menu())
 	menu_btn.custom_minimum_size = Vector2(84, 44)
 	ui.add_child(menu_btn)
-	# Touch controls
-	joystick = KingdomView.Joystick.new()
-	joystick.k = self
-	joystick.visible = DisplayServer.is_touchscreen_available() or OS.has_feature("web_ios") or OS.has_feature("web_android")
-	ui.add_child(joystick)
-	use_btn = _button("Use", func(): use(near), true)
-	use_btn.add_theme_font_size_override("font_size", 22)
-	use_btn.disabled = true
+	# Touch: floating stick (appears under the finger) + context Use button (appears when in reach)
+	stick = KingdomView.FloatStick.new()
+	stick.k = self
+	stick.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stick.visible = false
+	ui.add_child(stick)
+	use_btn = KingdomView.UseButton.new()
+	use_btn.k = self
+	use_btn.visible = false
+	use_btn.modulate.a = 0.0
 	ui.add_child(use_btn)
-	hint = _panel("ToastPanel")
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint_label = Label.new()
-	hint.add_child(hint_label)
 	# Area banner (fades in on entering a place)
 	banner = VBoxContainer.new()
 	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1279,6 +1595,9 @@ func _build_ui() -> void:
 	banner.add_child(orn)
 	banner_sub = Label.new()
 	banner_sub.theme_type_variation = "FlavorLabel"
+	for bl in [banner_title, banner_sub]:
+		bl.add_theme_constant_override("outline_size", 7)
+		bl.add_theme_color_override("font_outline_color", Color(0.06, 0.045, 0.035, 0.85))
 	banner_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.add_child(banner_sub)
 	toast = _panel("ToastPanel")
@@ -1391,7 +1710,7 @@ func _build_ui() -> void:
 	rm_btn = _button("", func(): set_reduced_motion(not reduced_motion))
 	rm_btn.text = "Reduced motion: %s" % ("On" if reduced_motion else "Off")
 	mv.add_child(rm_btn)
-	gfx_btn = _button("", func(): set_gfx_low(not gfx_low))
+	gfx_btn = _button("", func(): cycle_gfx())
 	mv.add_child(gfx_btn)
 	# Battle setup (scripts/target_select.gd): who the party hits when you don't tap a foe in target select
 	var tgt_btn := _button("Auto target: %s" % TargetSelect.label(), func(): pass)
@@ -1403,6 +1722,11 @@ func _build_ui() -> void:
 	cr.text = "Art created with Grok"
 	cr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	mv.add_child(cr)
+	# Full map screen (M / tap the minimap / gamepad Back)
+	map_screen = KingdomView.MapScreen.new()
+	map_screen.k = self
+	map_screen.visible = false
+	ui.add_child(map_screen)
 	# Transition overlay
 	var tl := CanvasLayer.new()
 	tl.layer = 20
@@ -1417,52 +1741,64 @@ func _build_ui() -> void:
 	tl.add_child(iris)
 
 
+var _last_vs := Vector2.ZERO
+
 func _layout() -> void:
 	var vs := get_viewport_rect().size
+	if vs != _last_vs:
+		_last_vs = vs
+		_read_insets() # rotation / resize changes the notch side
 	var s := clampf(_dpr() * clampf(minf(vs.x, vs.y) / _dpr() / 560.0, 0.85, 1.25), 0.85, 4.0)
 	ui.scale = Vector2(s, s)
 	var w := vs.x / s
 	var h := vs.y / s
 	ui.size = Vector2(w, h)
+	insets = _inset_px / s
 	var m := 12.0
+	var mt := m + insets.x  # top (notch / status bar)
+	var mr := m + insets.y
+	var mb := m + maxf(insets.z - 6.0, 0.0) # home indicator
+	var ml := m + insets.w
 	var portrait := h > w
-	loc_card.position = Vector2(m, m)
-	loc_card.custom_minimum_size = Vector2(minf(240.0, w * 0.5), 0)
+	loc_card.position = Vector2(ml, mt)
+	loc_card.custom_minimum_size = Vector2(minf(230.0, (w - ml - mr) * 0.52), 0)
 	loc_card.size = Vector2.ZERO
-	var mm := Vector2(150, 110) if not portrait else Vector2(minf(130.0, w * 0.34), 100)
-	if minimap.big:
-		mm = Vector2(minf(w - 2 * m, 560.0), minf(h - 140.0, 420.0))
-		minimap.position = (Vector2(w, h) - mm) / 2.0
-	else:
-		minimap.position = Vector2(w - mm.x - m, m)
+	var mm := Vector2(150, 110) if not portrait else Vector2(minf(128.0, w * 0.32), 104)
+	minimap.position = Vector2(w - mm.x - mr, mt)
 	minimap.size = mm
-	menu_btn.size = Vector2(84, 44)
-	menu_btn.position = Vector2(w - 84 - m, (m + mm.y + 8) if not minimap.big else m)
-	var touch := joystick.visible
-	var ub := 112.0 if touch else 92.0
+	menu_btn.size = Vector2(84, 40)
+	menu_btn.position = Vector2(w - 84 - mr, mt + mm.y + 8)
+	var ub := 104.0 if touch_ui else 88.0
 	use_btn.size = Vector2(ub, ub)
-	use_btn.position = Vector2(w - ub - m - 8, h - ub - m - 8)
-	var js := 150.0
-	joystick.size = Vector2(js, js)
-	joystick.position = Vector2(m + 8, h - js - m - 8)
-	hint.size = Vector2.ZERO
-	hint.position = Vector2((w - hint.size.x) / 2.0, h - hint.size.y - (ub + 36.0 if portrait else m + 10.0))
+	use_btn.position = Vector2(w - ub - mr - 6, h - ub - mb - 6)
+	stick.size = Vector2.ZERO
 	toast.size = Vector2.ZERO
-	toast.position = Vector2((w - toast.size.x) / 2.0, h * 0.62)
-	banner.size = Vector2(w, 0)
-	banner_y = (m + maxf(loc_card.size.y, 100.0) + 70.0) if portrait else 70.0
-	banner.position.x = 0
-	var pw := minf(w - 2 * m, 560.0)
+	toast.position = Vector2((w - toast.size.x) / 2.0, h * 0.64)
+	# Area banner: never over the hero (screen centre). Landscape: top centre between the HUD card and the
+	# minimap. Portrait: just under the HUD row.
+	if portrait:
+		# between the left edge and the Menu button, under the HUD card: well above the hero
+		banner.size = Vector2(w - 2.0 * (84.0 + mr + 6.0), 0)
+		banner.position.x = (w - banner.size.x) / 2.0
+		banner_y = mt + loc_card.size.y + 8.0
+	else:
+		var left := loc_card.position.x + loc_card.size.x + 12.0
+		var right := minimap.position.x - 12.0
+		banner.size = Vector2(maxf(right - left, 200.0), 0)
+		banner.position.x = left if right - left >= 200.0 else (w - 200.0) / 2.0
+		banner_y = mt + 2.0
+	var pw := minf(w - ml - mr, 560.0)
 	dialog.custom_minimum_size = Vector2(pw, 0)
 	dialog.size = Vector2(pw, 0)
-	dialog.position = Vector2((w - pw) / 2.0, h - dialog.size.y - (ub + 28.0 if portrait else m + 4.0))
-	shop.size = Vector2(pw, minf(h - 2 * m, 520.0))
-	shop.position = (Vector2(w, h) - shop.size) / 2.0
+	dialog.position = Vector2((w - pw) / 2.0, h - dialog.size.y - mb - 4.0)
+	shop.size = Vector2(pw, minf(h - mt - mb, 520.0))
+	shop.position = Vector2((w - shop.size.x) / 2.0, mt + (h - mt - mb - shop.size.y) / 2.0)
 	inn.custom_minimum_size = Vector2(minf(pw, 440.0), 0)
 	inn.size = Vector2.ZERO
 	inn.position = (Vector2(w, h) - inn.size) / 2.0
 	menu.custom_minimum_size = Vector2(minf(pw, 340.0), 0)
 	menu.size = Vector2.ZERO
 	menu.position = (Vector2(w, h) - menu.size) / 2.0
+	map_screen.size = Vector2(w, h)
 	(post.material as ShaderMaterial).set_shader_parameter("aspect", vs.x / maxf(1.0, vs.y))
 	(iris.material as ShaderMaterial).set_shader_parameter("aspect", vs.x / maxf(1.0, vs.y))

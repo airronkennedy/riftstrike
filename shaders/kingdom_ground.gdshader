@@ -96,6 +96,34 @@ void fragment() {
 			col *= 1.0 - 0.22 * wet;
 		}
 		if (id != id0 && natural(id0)) col *= 0.97;
+		if (id == 7) {
+			// Castle / house flagstones: break up the uniform floor.
+			vec2 cell = floor(tp);
+			col *= 0.86 + 0.26 * hash(cell);                                    // per-slab tone
+			float chk = mod(floor(tp.x * 0.5) + floor(tp.y * 0.5), 2.0);
+			col = mix(col, col * vec3(1.06, 0.98, 0.88), chk * 0.45);          // 2x2 inlay pattern
+			float wall = 0.0;
+			float rug = 0.0;
+			for (int k = 0; k < 4; k++) {
+				vec2 d = vec2(cos(float(k) * 1.5708), sin(float(k) * 1.5708));
+				wall = max(wall, solid(tid(tp + d * 0.7)) ? 1.0 : 0.0);
+				rug = max(rug, tid(tp + d * 0.8) == 8 ? 1.0 : 0.0);
+			}
+			col *= 1.0 - 0.2 * wall;                                            // darker border band by the walls
+			col *= 1.0 + 0.07 * rug * (1.0 - wall);                             // feet-worn strip along the carpet
+			float moss = smoothstep(0.64, 0.82, vnoise(tp * 0.9 + vec2(3.7, 1.3)));
+			col = mix(col, col * vec3(0.7, 0.8, 0.6), moss * 0.5 * (0.4 + 0.6 * wall)); // damp moss in corners
+			float cr = abs(vnoise(tp * 3.1 + vec2(9.0, 2.0)) - 0.5);
+			col *= 1.0 - 0.38 * (1.0 - smoothstep(0.0, 0.03, cr)) * step(0.6, hash(cell + 7.0)); // hairline cracks
+		} else if (id == 8) {
+			// Carpet runner: gold trim where it meets stone.
+			float edge = 0.0;
+			for (int k = 0; k < 4; k++) {
+				vec2 d = vec2(cos(float(k) * 1.5708), sin(float(k) * 1.5708));
+				edge = max(edge, tid(tp + d * 0.1) != 8 ? 1.0 : 0.0);
+			}
+			col = mix(col, vec3(0.72, 0.55, 0.26), edge * 0.55);
+		}
 		// contact shadow under a wall / cliff face
 		if (solid(tid(floor(tp) + vec2(0.5, -0.5)))) col *= mix(0.55, 1.0, smoothstep(0.0, 0.5, fract(tp.y)));
 	}
