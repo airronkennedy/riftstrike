@@ -28,14 +28,39 @@ func touches(seen: Dictionary, c: Vector2i) -> bool:
 		if seen.has(c + d): return true
 	return false
 
+func settle(st) -> void:
+	var idle := 0
+	for i in 3000:
+		await process_frame
+		var ui = st.ui
+		if not ui.choices_box.get_children().is_empty():
+			ui._pick(0); idle = 0
+		elif ui.dlg.visible and ui.catcher.visible:
+			ui.dlg_text.visible_ratio = 1.0; ui.advance(); idle = 0
+		elif ui._blocking:
+			ui._tap = true; idle = 0
+		elif st.pending_dialog != "":
+			idle = 0
+		else:
+			idle += 1
+			if idle > 90: return
+
 func _run() -> void:
 	# ---- 1) maps
 	for fi in DungeonMaps.FLOORS.size():
+		var fd: Dictionary = DungeonMaps.floor_def(fi)
+		if fd.has("guardian"):
+			var st0 := DungeonMaps.find(fi, "S") if fi == 0 else DungeonMaps.find(fi, "<")
+			var down0 := DungeonMaps.find(fi, ">")
+			ok(not reach(fi, st0, {"G": true, "D": true}).has(down0), "floor %d: the %s blocks the way down" % [fi + 1, fd.guardian])
+			ok(reach(fi, st0, {"G": true, "D": true, "K": true}).has(down0), "floor %d: beaten, the way down opens" % [fi + 1])
+			if DungeonMaps.find(fi, "d").x >= 0:
+				ok(reach(fi, st0, {"d": true}).has(down0), "floor %d: the side door gets round the guardian" % [fi + 1])
 		var rows: Array = DungeonMaps.rows(fi)
 		var w: int = str(rows[0]).length()
 		ok(rows.all(func(r): return str(r).length() == w), "floor %d is rectangular (%dx%d)" % [fi + 1, w, rows.size()])
 		var start: Vector2i = DungeonMaps.find(fi, "S") if fi == 0 else DungeonMaps.find(fi, "<")
-		var all_open := reach(fi, start, {"G": true, "D": true})
+		var all_open := reach(fi, start, {"G": true, "D": true, "K": true})
 		var closed := reach(fi, start, {})
 		for ch in ["C", "L", "D", "G", "P", "B", ">"]:
 			for c in DungeonMaps.find_all(fi, ch):
@@ -53,7 +78,7 @@ func _run() -> void:
 	for id in BossDefs.BOSSES.keys():
 		var d: Dictionary = BossDefs.get_def(id)
 		var ph: Array = d.phases
-		ok(ph.size() >= 2 and float(ph[0].at) >= 0.999, "%s: %d phases from full HP" % [id, ph.size()])
+		ok(ph.size() >= (2 if str(d.tier) != "elite" else 1) and float(ph[0].at) >= 0.999, "%s: %d phase(s) from full HP" % [id, ph.size()])
 		var sorted := true
 		for i in range(1, ph.size()): if float(ph[i].at) >= float(ph[i - 1].at): sorted = false
 		ok(sorted, "%s: phase thresholds go down" % id)
@@ -93,24 +118,25 @@ func _run() -> void:
 		dn.drag_vec = Vector2(40, 0) if (steps / 60) % 2 == 0 else Vector2(-40, 0)
 		dn._process(1.0 / 60.0); steps += 1
 	dn.drag_vec = Vector2.ZERO
-	ok(asked.size() == 1 and str(asked[0]) == "deeps_1", "walking fills the danger meter and asks Encounters for a deeps_1 battle (%s after %d frames)" % [str(asked), steps])
+	ok(asked.size() == 1 and str(asked[0]) == "bastion_1", "walking fills the danger meter and asks Encounters for a bastion_1 battle (%s after %d frames)" % [str(asked), steps])
 	ok(dn.meter < 0.05 and qf.return_scene == DungeonGate.SCENE, "meter resets and the fight returns to the dungeon")
 	qf.return_scene = ""
-	var enc: Dictionary = qf.encounter_for("deeps_1", 4)
-	ok(str(enc.area) == "coalvein-deeps" and int(enc.level) == 4, "QuestFlow builds the deeps_1 encounter")
+	var enc: Dictionary = qf.encounter_for("bastion_1", 4)
+	ok(str(enc.area) == "riven-choir" and int(enc.level) == 4, "QuestFlow builds the bastion_1 encounter")
 	dn.busy = false
 	# stairs down -> floor 2; key + locked door
 	dn.pos = dn.cell_center(DungeonMaps.find(0, ">")); dn.stair_grace = 0.0
 	dn._check_step_triggers()
 	for i in 4: await process_frame
 	ok(dn.floor_i == 1, "the stairs lead to floor 2")
+	root.get_node("Story").set_flag("bastion_f2") # the Knellbearer is covered in 3b; here: key + door
 	var door: Vector2i = DungeonMaps.find(1, "D")
 	dn.pos = dn.cell_center(door + Vector2i(0, 1)); await process_frame
 	dn.use(dn.near); dn.dialog.visible = false
 	ok(not bool(dn.fopen().D), "the vault door stays locked without the key")
 	dn.pos = dn.cell_center(Vector2i(5, 13)); await process_frame
 	dn.use(dn.near); dn.dialog.visible = false
-	ok(dn.keys.has("deeps_2"), "the floor 2 chest holds the Vault Key")
+	ok(dn.keys.has("bastion_2"), "the floor 2 chest holds the Bell Key")
 	dn.pos = dn.cell_center(door + Vector2i(0, 1)); await process_frame
 	dn.use(dn.near); dn.dialog.visible = false
 	ok(bool(dn.fopen().D), "the key opens the vault door")
@@ -125,9 +151,59 @@ func _run() -> void:
 	dn.queue_free()
 	en.random_battle_requested.disconnect(cb)
 	en.random_battle_requested.connect(qf._on_battle_requested)
-	# ---- 4) boss fights on the real battle (intro, phases, finishing blow, Bosses signal)
+	# ---- 3b) story beats in the dungeon (docs/STORY.md dungeon contract), story fights stubbed
+	var st = root.get_node("Story")
+	st.reset(); st.ui.close_all(); st.battle_stub = true; st.ui.fast = true
+	DungeonGate.reset()
+	dn = (load("res://scenes/dungeon.tscn") as PackedScene).instantiate()
+	dn.shots_mode = true
+	root.add_child(dn)
+	await process_frame
+	var kc: Vector2i = DungeonMaps.find(0, "K")
+	ok(not DungeonMaps.walkable(0, kc, dn.fopen()), "the Tithe Collector bars floor 1 until bastion_f1")
+	st.set_flag("c2_keep")
+	dn.pos = dn.cell_center(DungeonMaps.find(0, "d") + Vector2i(1, 0)); await process_frame
+	ok(dn.near.get("kind", "") == "side" and dn.near.prompt == "Unlock", "with the Reliquary Key (c2_keep) the side door unlocks")
+	dn.use(dn.near); await settle(st)
+	ok(bool(dn.fopen().d) and st.get_flag("bastion_f1"), "the side door skips the guardian (f1_skip sets bastion_f1)")
+	st.reset(); st.ui.close_all(); st.battle_stub = true; st.ui.fast = true
+	DungeonGate.reset()
+	dn.open = {}
+	dn.pos = dn.cell_center(kc + Vector2i(0, 1)); await process_frame
+	ok(dn.near.get("kind", "") == "guardian", "next to the floor 1 guardian")
+	var bs0 = root.get_node("Bosses")
+	bs0.reset()
+	var got0: Array = []
+	var cb0 := func(id): got0.append(id)
+	bs0.boss_defeated.connect(cb0)
+	dn.use(dn.near); await settle(st)
+	ok(st.get_flag("bastion_f1") and DungeonGate.flag("bastion_f1") and dn.astar.is_point_solid(kc) == false, "f1_enter -> story fight guardian_f1 -> bastion_f1, the way opens")
+	ok(got0.has("guardian_f1") and bs0.is_defeated("guardian_f1"), "Bosses relays Story.boss_defeated")
+	dn.load_floor(1, dn.cell_center(DungeonMaps.find(1, "K") + Vector2i(0, 1)))
+	st.set_flag("c4_bind")
+	await process_frame
+	dn.use(dn.near); await settle(st)
+	ok(st.get_flag("bastion_f2") and not dn.astar.is_point_solid(DungeonMaps.find(1, "K")), "the bound drowned court clears floor 2's guardian (f2_bind)")
+	dn.load_floor(2, dn.cell_center(DungeonMaps.find(2, "B") + Vector2i(1, 1)))
+	await process_frame
+	ok(dn.near.get("kind", "") == "boss", "at the throne doors")
+	dn.use(dn.near); await settle(st)
+	ok(st.get_flag("boss1_won") and st.get_flag("boss2_won") and st.get_flag("s_ending"), "final_confront chains the Regnant, choice 5a, the Sovereign and the ending")
+	ok(got0.has("boss_regnant") and got0.has("boss_sovereign") and DungeonGate.cleared(), "both final phases reported (%s)" % str(got0))
+	bs0.boss_defeated.disconnect(cb0)
+	st.battle_stub = false
+	if is_instance_valid(dn): dn.queue_free()
+	await process_frame
+	# a story boss fight through QuestFlow gets the boss presentation
+	st.reset()
+	qf.pending_region = "story:miniboss_matron"; qf.in_kingdom_battle = true
 	change_scene_to_file("res://main.tscn")
 	await create_timer(0.6).timeout
+	var gs = current_scene
+	ok(gs.boss != null and gs.boss.id == "miniboss_matron" and not gs.boss.standalone and gs.G.mode == "intro" and gs.boss.unit.name == "Matron of Cinders",
+		"Story.start_battle(\"miniboss_matron\") opens on the Matron's intro cut-in")
+	qf.pending_region = ""; qf.in_kingdom_battle = false
+	# ---- 4) boss fights on the real battle (intro, phases, finishing blow, Bosses signal)
 	var g = current_scene
 	g.sfx.muted = true
 	var C = load("res://scripts/combo.gd")
@@ -138,11 +214,11 @@ func _run() -> void:
 	var smart: Array = []
 	var sdel := {}
 	for j in plan.order.size(): smart.append(party[plan.order[j]]); sdel[party[plan.order[j]]] = plan.delays[j]
-	for id in BossDefs.BOSSES.keys():
+	for id in ["miniboss_matron", "boss_sovereign"]:
 		var res := {"random": [0, 0, 0], "smart": [0, 0, 0]}
 		for mode in ["random", "smart"]:
 			for i in 8:
-				for h in party: g.set_hero_level(h, 7); g.HERO_MP[h] = 0.0
+				for h in party: g.set_hero_level(h, int(BossDefs.get_def(id).level)); g.HERO_MP[h] = 0.0
 				if mode == "random":
 					var o2: Array = party.duplicate(); o2.shuffle(); g.HERO_ORDER = o2; g.HERO_DELAY = {}
 				else:
@@ -173,13 +249,13 @@ func _run() -> void:
 	g.AUTO = true
 	for h in party: g.set_hero_level(h, 10)
 	bs.return_scene = "res://main.tscn"
-	g.start_boss_battle("unlit_regnant")
+	g.start_boss_battle("miniboss_matron")
 	g.boss.unit.hp = 1
 	var gd := 0
 	while g.phase == "battle" and gd < 60000: g.step(17); gd += 1
 	g.boss_return(g.G.result == "win")
 	for i in 8: await process_frame
-	ok(got == ["unlit_regnant"] and bs.is_defeated("unlit_regnant"), "a win emits Bosses.boss_defeated and is saved (%s)" % str(got))
+	ok(got == ["miniboss_matron"] and bs.is_defeated("miniboss_matron"), "a win emits Bosses.boss_defeated and is saved (%s)" % str(got))
 	bs.reset()
 	preload("res://tools/test_save.gd").fresh()
 	DungeonGate.reset()

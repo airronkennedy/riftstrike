@@ -1,9 +1,9 @@
 extends SceneTree
 # Boss fight capture: intro cut-in, a signature telegraph, a phase change and the finishing blow (+ frame sequences).
-#   xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --resolution 1280x720 --script res://tools/shot_boss.gd -- --boss=ash_sovereign --out=/tmp/boss
+#   xvfb-run -a -s "-screen 0 1280x720x24" godot --path . --resolution 1280x720 --script res://tools/shot_boss.gd -- --boss=boss_sovereign --out=/tmp/boss
 var g
 var out := "/tmp/boss"
-var id := "ash_sovereign"
+var id := "boss_sovereign"
 var frames := true
 var fi := 0
 func _init() -> void:

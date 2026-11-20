@@ -1,12 +1,17 @@
 extends Node
-## Autoload "Bosses" (project.godot): the story-facing boss interface (docs/BOSSES.md).
+## Autoload "Bosses" (project.godot): the boss interface for the story and the dungeon (docs/BOSSES.md).
+## Boss ids are docs/STORY.md's story fight ids: miniboss_matron, guardian_f1, guardian_f2, boss_regnant,
+## boss_sovereign (BossDefs.BOSSES).
 ##
-##   Bosses.start_boss("unlit_regnant")              # mini-boss: fight, then back to the scene that called it
-##   Bosses.start_boss("ash_sovereign", DUNGEON)     # or name the scene to return to
-##   Bosses.boss_defeated.connect(func(id): ...)     # story beat / flags after a win (emitted once back in that scene)
-##   Bosses.boss_failed.connect(func(id): ...)       # the party fell (HP left at 1; the boss can be retried)
-##   Bosses.is_defeated(id) -> bool                  # saved in user://bosses.cfg
+##   Bosses.start_boss("miniboss_matron")           # with the Story autoload: Story.start_battle(id) (flags, the
+##                                                  # story's win / lose dialogs, back to the calling scene);
+##                                                  # without one: a standalone fight that returns to return_to
+##   Bosses.boss_defeated.connect(func(id): ...)    # every boss win (relays Story.boss_defeated in story play)
+##   Bosses.boss_failed.connect(func(id): ...)      # the party fell (the boss can be retried)
+##   Bosses.is_defeated(id) -> bool                 # saved in user://bosses.cfg
 ##
+## Any story fight whose id is in BossDefs gets the boss presentation automatically (game.gd keys off
+## encounter.story_id): intro cut-in, big HP bar, phases, telegraphed signatures, Break, finishing blow.
 ## The battle itself runs in main.tscn on the normal auto battle + combo + camera systems (scripts/boss/boss_fight.gd).
 
 signal boss_started(id: String)
@@ -21,9 +26,13 @@ var return_scene := ""     # where to go after the fight
 var last_result := {}      # {"id", "won"} of the most recent fight (cleared when the signal is emitted)
 var _emit_after_load := {}
 
-## Preview helpers: ?dungeon=1 opens the Vespergate Deeps, ?bossfight=<id> starts that boss fight
-## (desktop: -- --dungeon=1 / -- --bossfight=ash_sovereign).
+## Preview helpers: ?dungeon=1 opens the Sunken Bastion, ?bossfight=<id> starts that boss fight standalone
+## (desktop: -- --dungeon=1 / -- --bossfight=boss_sovereign).
 func _ready() -> void:
+	var st := get_node_or_null("/root/Story")
+	if st != null:
+		if st.has_signal("boss_defeated"): st.boss_defeated.connect(_on_story_boss_defeated)
+		if st.has_signal("battle_finished"): st.battle_finished.connect(_on_story_battle_finished)
 	var q := ""
 	if OS.has_feature("web"):
 		var v = JavaScriptBridge.eval("location.search", true)
@@ -32,14 +41,22 @@ func _ready() -> void:
 	for kv in q.trim_prefix("?").split("&", false):
 		var parts: PackedStringArray = kv.split("=")
 		if parts[0] == "dungeon" and (parts.size() < 2 or parts[1] == "1"):
-			DungeonGate.enter.call_deferred(get_tree())
+			get_tree().change_scene_to_file.call_deferred(DungeonGate.SCENE)
 		elif parts[0] == "bossfight" and parts.size() > 1 and BossDefs.has(parts[1]):
-			start_boss.call_deferred(parts[1], "res://main.tscn")
+			_start_standalone.call_deferred(parts[1], "res://main.tscn")
 
 func start_boss(id: String, return_to: String = "") -> void:
 	if not BossDefs.has(id):
 		push_warning("Bosses.start_boss: unknown boss " + id)
 		return
+	var st := get_node_or_null("/root/Story")
+	if st != null and st.has_method("start_battle") and not st.encounter_for(id).is_empty():
+		boss_started.emit(id)
+		st.start_battle(id)
+		return
+	_start_standalone(id, return_to)
+
+func _start_standalone(id: String, return_to: String = "") -> void:
 	pending = id
 	var cur := get_tree().current_scene
 	return_scene = return_to if return_to != "" else (cur.scene_file_path if cur != null and cur.scene_file_path != "" else "res://scenes/kingdom.tscn")
@@ -99,3 +116,17 @@ func _write_party_hp(won: bool, frac_left: float) -> void:
 	var hp := maxi(1, int(roundf(float(qr.hp_after_battle(won, frac_left)) * mx)))
 	cf.set_value("kingdom", "hp", mini(hp, mx))
 	cf.save(path)
+
+func _record(id: String) -> void:
+	var cf := ConfigFile.new()
+	cf.load(SAVE)
+	cf.set_value("defeated", id, true)
+	cf.save(SAVE)
+
+func _on_story_boss_defeated(id: String) -> void:
+	if not BossDefs.has(id): return
+	_record(id)
+	boss_defeated.emit(id)
+
+func _on_story_battle_finished(id: String, won: bool) -> void:
+	if not won and BossDefs.has(id): boss_failed.emit(id)

@@ -1,9 +1,11 @@
 extends Node2D
-## The Vespergate Deeps (scenes/dungeon.tscn, docs/DUNGEON.md): three floors under the Coalvein Cave.
+## The Sunken Bastion (scenes/dungeon.tscn, docs/DUNGEON.md, docs/STORY.md Act IV): three floors under the ruin.
 ## Walk (WASD / arrows, tap or click to walk, drag to steer), E / Space / Enter or the Use button to interact.
 ## A danger meter fills as you walk and starts a random battle through the Encounters autoload (the same hook as the
 ## overworld); the fight runs in main.tscn and comes back here. Beats: chests, a lever and portcullis (floor 1), a locked
 ## door and its key (floor 2), an ember shrine save point and the sealed door of the final boss (floor 3).
+## Story beats (DungeonGate.flag / Story): the Tithe Collector guards floor 1 (the Reliquary Key side door skips it),
+## the Knellbearer guards floor 2 (the bound drowned court clears it), and the throne plays "final_confront".
 
 const TILE := DungeonMaps.TILE
 const WALL_H := 20.0 # front face of a wall, drawn in the wall cell's lower part
@@ -87,6 +89,11 @@ func _ready() -> void:
 		bs.boss_failed.connect(_on_boss_failed)
 	var en := get_node_or_null("/root/Encounters")
 	if en != null: en.random_battle_finished.connect(func(_w): meter = 0.0)
+	var st := DungeonGate.story()
+	if st != null:
+		if st.has_signal("flag_changed"): st.flag_changed.connect(func(_n, _v): _refresh_astar())
+		# battle_stub (tests) resolves story fights without leaving; in play the scene is swapped out instead
+		if st.has_signal("battle_finished"): st.battle_finished.connect(func(_id, _w): busy = false; _refresh_astar(); _fade(0.0))
 
 # ---------------------------------------------------------------- data / save
 func _load_tex() -> void:
@@ -99,6 +106,7 @@ func _load_tex() -> void:
 	tex["chest"] = load("res://assets/af/props/ember-chest.png")
 	tex["flame"] = load("res://assets/af/gen/fx_flame.png")
 	tex["hero"] = load("res://assets/af/heroes/bramwell.png")
+	for n in ["tithe", "knell"]: tex["foe_" + n] = load("res://assets/af/foes/foe-%s.png" % n)
 
 func _load_save() -> void:
 	var cf := ConfigFile.new()
@@ -109,7 +117,7 @@ func _load_save() -> void:
 		meter = float(cf.get_value("progress", "meter", 0.0))
 		open = cf.get_value("progress", "open", {})
 		keys = cf.get_value("progress", "keys", {})
-		cleared = bool(cf.get_value("progress", "cleared", false))
+	cleared = DungeonGate.cleared()
 	var kf := ConfigFile.new()
 	if kf.load(DungeonGate.KINGDOM_SAVE) == OK:
 		gold = int(kf.get_value("kingdom", "gold", gold))
@@ -125,7 +133,6 @@ func save_game() -> void:
 	cf.set_value("progress", "meter", meter)
 	cf.set_value("progress", "open", open)
 	cf.set_value("progress", "keys", keys)
-	cf.set_value("progress", "cleared", cleared)
 	cf.save(DungeonGate.SAVE)
 	var kf := ConfigFile.new()
 	kf.load(DungeonGate.KINGDOM_SAVE)
@@ -136,8 +143,11 @@ func save_game() -> void:
 
 func fopen() -> Dictionary:
 	var id: String = str(fdef.id)
-	if not open.has(id): open[id] = {"G": false, "D": false, "chests": []}
-	return open[id]
+	if not open.has(id): open[id] = {"G": false, "D": false, "d": false, "chests": []}
+	var o: Dictionary = open[id]
+	var gf := str(fdef.get("guardian_flag", ""))
+	o["K"] = gf != "" and DungeonGate.flag(gf)
+	return o
 
 # ---------------------------------------------------------------- world
 func _build_world() -> void:
@@ -197,7 +207,7 @@ func load_floor(i: int, at: Vector2) -> void:
 	var lava: Array = DungeonMaps.find_all(i, "~")
 	for j in lava.size():
 		if j % 4 == 0:
-			var l2 := _make_light(Color(1.0, 0.42, 0.15), 0.55, 0.75); l2.position = cell_center(lava[j]); lights.append(l2)
+			var l2 := _make_light(Color(1.0, 0.42, 0.15) if str(fdef.get("liquid", "lava")) == "lava" else Color(0.35, 0.8, 0.85), 0.55 if str(fdef.get("liquid", "lava")) == "lava" else 0.3, 0.75); l2.position = cell_center(lava[j]); lights.append(l2)
 	for c in DungeonMaps.find_all(i, "P"):
 		var l3 := _make_light(Color(0.55, 0.85, 1.0), 1.0, 0.95); l3.position = cell_center(c) + Vector2(0, -18); lights.append(l3)
 	var bd: Array = DungeonMaps.find_all(i, "B")
@@ -340,11 +350,15 @@ func usables() -> Array:
 		if not bool(o.D): out.append({"kind": "door", "cell": c, "prompt": "Unlock" if keys.has(str(fdef.id)) else "Look", "name": "Locked door"})
 	for c in DungeonMaps.find_all(floor_i, "G"):
 		if not bool(o.G): out.append({"kind": "gate", "cell": c, "prompt": "Look", "name": "Portcullis"})
+	for c in DungeonMaps.find_all(floor_i, "K"):
+		if not bool(o.K): out.append({"kind": "guardian", "cell": c, "prompt": "Face", "name": str(BossDefs.get_def(str(fdef.guardian)).get("name", "Guardian"))})
+	for c in DungeonMaps.find_all(floor_i, "d"):
+		if not bool(o.get("d", false)): out.append({"kind": "side", "cell": c, "prompt": "Unlock" if DungeonGate.flag(str(fdef.get("side_flag", ""))) else "Look", "name": "Side door"})
 	for c in DungeonMaps.find_all(floor_i, "P"):
 		out.append({"kind": "shrine", "cell": c, "prompt": "Rest", "name": "Ember shrine"})
 	var bd: Array = DungeonMaps.find_all(floor_i, "B")
 	if not bd.is_empty():
-		out.append({"kind": "boss", "cell": bd[bd.size() / 2], "prompt": "Leave" if cleared else "Enter", "name": "Sealed door" if not cleared else "Ember gate"})
+		out.append({"kind": "boss", "cell": bd[bd.size() / 2], "prompt": "Leave" if cleared else "Enter", "name": "The Unlit Throne" if not cleared else "The way up"})
 	return out
 
 func _update_near() -> void:
@@ -403,13 +417,62 @@ func use(u: Dictionary) -> void:
 			save_game()
 			_burst(cell_center(u.cell), Color(0.6, 0.9, 1.0))
 			say("Ember shrine", "Warm light washes over the party. HP restored, and your progress is saved.\nBeyond the sealed door, something vast is breathing.")
-		"boss":
-			if cleared:
-				say("Ember gate", "The sanctum is quiet now. Return to Emberhold?", [["Return", func(): DungeonGate.leave(get_tree())], ["Stay", func(): pass]])
+		"guardian":
+			_face_guardian()
+		"side":
+			if DungeonGate.flag(str(fdef.get("side_flag", ""))):
+				o["d"] = true
+				_refresh_astar(); save_game()
+				_burst(cell_center(u.cell), Color(0.7, 0.95, 0.9))
+				var st := DungeonGate.story()
+				if st != null and not DungeonGate.flag(str(fdef.guardian_flag)): st.start_dialog("f1_skip", func(): _refresh_astar())
+				else: say("Side door", "The Reliquary Key turns. The side door opens onto a dry stair around the guardian.")
 			else:
-				var pre: Array = [["The sealed door", "The door is warm to the touch, and it opens at your hand. A voice rolls out of the dark:"],
-					[str(BossDefs.get_def(DungeonGate.FINAL_BOSS).name), "\u201cAnother keeper, come to put out the last flame? Come in. Let us see whose fire lasts.\u201d"]]
-				say_seq(pre, [["Enter", func(): _start_boss()], ["Not yet", func(): pass]])
+				say("Side door", "A narrow door in the wall, sealed with a reliquary lock. Someone in Emberhold might know its key.")
+		"shrine":
+			hp = hp_max; meter = 0.0
+			save_game()
+			_burst(cell_center(u.cell), Color(0.6, 0.9, 1.0))
+			say("Ember shrine", "Warm light washes over the party. HP restored, and your progress is saved.\nBeyond the black-glass doors, something is breathing.")
+		"boss":
+			_face_throne()
+
+## Floor guardian: the story's dialog + fight (or Bosses on its own). The bound drowned court clears floor 2's.
+func _face_guardian() -> void:
+	var gid := str(fdef.get("guardian", ""))
+	var st := DungeonGate.story()
+	save_game()
+	if st != null:
+		if str(fdef.get("bind_flag", "")) != "" and DungeonGate.flag(str(fdef.bind_flag)):
+			st.start_dialog("f2_bind", func(): _refresh_astar())
+		else:
+			st.start_dialog("f1_enter" if floor_i == 0 else "f2_enter", func(): _story_fight(gid))
+		return
+	var gd: Dictionary = BossDefs.get_def(gid)
+	say_seq([[str(gd.name), "\u201c" + str(BossDefs.lines(gid).intro) + "\u201d"]], [["Fight", func(): _start_boss(gid)], ["Not yet", func(): pass]])
+
+## The throne room: the story's final sequence (both final phases chain from "final_confront"), or Bosses alone.
+func _face_throne() -> void:
+	var st := DungeonGate.story()
+	if cleared:
+		say("The way up", "The Bastion is quiet. Go back up to Emberhold?", [["Go up", func(): DungeonGate.leave(get_tree())], ["Stay", func(): pass]])
+		return
+	save_game()
+	var first := not DungeonGate.flag("boss1_won")
+	if st != null:
+		st.start_dialog("final_confront" if first else "sovereign_intro")
+		return
+	var id: String = DungeonGate.FIRST_BOSS if first else DungeonGate.FINAL_BOSS
+	var pre: Array = [["The Unlit Throne", "Black-glass doors, warm to the touch. They open at your hand."],
+		[str(BossDefs.get_def(id).name), "\u201c" + str(BossDefs.lines(id).intro) + "\u201d"]]
+	say_seq(pre, [["Enter", func(): _start_boss(id)], ["Not yet", func(): pass]])
+
+func _story_fight(id: String) -> void:
+	busy = true
+	save_game()
+	await _fade(1.0)
+	var st := DungeonGate.story()
+	if st != null: st.start_battle(id)
 
 func _check_step_triggers() -> void:
 	var ch := DungeonMaps.at(floor_i, cell_of(pos))
@@ -454,25 +517,41 @@ func _start_battle() -> void:
 	await _fade(1.0)
 	en.start_random_battle(str(fdef.id))
 
-func _start_boss() -> void:
+func _start_boss(id: String) -> void:
 	busy = true
 	save_game()
 	await _fade(1.0)
 	var bs := get_node_or_null("/root/Bosses")
-	if bs != null: bs.start_boss(DungeonGate.FINAL_BOSS, DungeonGate.SCENE)
+	if bs != null: bs.start_boss(id, DungeonGate.SCENE)
 
+## Bosses (no Story): record the flag the story would set, then the next beat.
 func _on_boss_defeated(id: String) -> void:
-	if id != DungeonGate.FINAL_BOSS: return
+	if DungeonGate.story() != null: return # the story plays its own after-fight dialog here
+	var flag_of := {"guardian_f1": "bastion_f1", "guardian_f2": "bastion_f2", "boss_regnant": "boss1_won", "boss_sovereign": "boss2_won"}
+	if flag_of.has(id): DungeonGate.set_flag(flag_of[id])
+	_refresh_astar()
+	_load_hp()
+	if id == DungeonGate.FIRST_BOSS:
+		say_seq([[str(BossDefs.get_def(id).name), "\u201c" + str(BossDefs.lines(id).victory) + "\u201d"],
+			["The Unlit Throne", "The floor splits open. Far below, something vast opens one grey eye."]], [], func(): _face_throne())
+		return
+	if id != DungeonGate.FINAL_BOSS:
+		say(str(BossDefs.get_def(id).name), "\u201c" + str(BossDefs.lines(id).victory) + "\u201d")
+		return
 	cleared = true
 	_load_hp()
 	save_game()
 	load_floor(2, cell_center(DungeonMaps.find(2, "B")) + Vector2(0, TILE * 1.6))
 	var ln: Dictionary = BossDefs.lines(id)
 	say_seq([[str(BossDefs.get_def(id).name), "\u201c" + str(ln.get("victory", "")) + "\u201d"],
-		["The sanctum", "The last of the ash drifts down like snow. Somewhere above, Emberhold's hearth flares bright."]], [], func(): _show_end_card())
+		["The Unlit Throne", "The Sovereign comes apart like a burned-out log, and the Bastion goes quiet. The Heart-Coal is warm in your hand."]], [], func(): _show_end_card())
 
 func _on_boss_failed(id: String) -> void:
+	if DungeonGate.story() != null: return
 	_load_hp()
+	if not id.begins_with("boss_"):
+		say("The Bastion", "The party falls back, singed but breathing. Rest at a shrine, then face it again.")
+		return
 	var p: Vector2i = DungeonMaps.find(2, "P")
 	load_floor(2, cell_center(p) + Vector2(0, TILE))
 	say("Ember shrine", "The party wakes at the shrine, singed but breathing. Rest, then try the door again.")
@@ -488,7 +567,8 @@ func _burst(p: Vector2, c: Color) -> void:
 
 # ---------------------------------------------------------------- input
 func _modal_open() -> bool:
-	return dialog.visible or menu.visible or end_card.visible
+	var st := DungeonGate.story()
+	return dialog.visible or menu.visible or end_card.visible or (st != null and st.has_method("ui_open") and bool(st.ui_open()))
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo:
@@ -561,7 +641,7 @@ func _draw() -> void:
 		for x in sz.x:
 			var c3 := Vector2i(x, y)
 			var ch3 := DungeonMaps.at(floor_i, c3)
-			if ch3 == "#" or "bpsCLGDPB<>S".contains(ch3): list.append([float(y) * TILE + TILE, c3, ch3])
+			if ch3 == "#" or "bpsCLGDPB<>SKd".contains(ch3): list.append([float(y) * TILE + TILE, c3, ch3])
 	list.append([pos.y, null, "hero"])
 	list.sort_custom(func(a, b): return a[0] < b[0])
 	for it in list:
@@ -585,6 +665,8 @@ func _draw() -> void:
 
 func _draw_lava(r: Rect2, c: Vector2i) -> void:
 	var t := t_now if not reduced_motion else 0.0
+	if str(fdef.get("liquid", "lava")) == "water":
+		_draw_water(r, c, t); return
 	draw_rect(r, Color(0.2, 0.04, 0.02))
 	# slow molten blobs + thin bright seams
 	for k in 2:
@@ -605,6 +687,26 @@ func _draw_lava(r: Rect2, c: Vector2i) -> void:
 			elif d.x > 0: e = Rect2(r.position + Vector2(TILE - 5, 0), Vector2(5, TILE))
 			draw_rect(e, Color(0.08, 0.05, 0.04, 0.9))
 			draw_rect(e.grow(-1.5), Color(1.0, 0.5, 0.15, 0.25))
+
+## Black water (the Drowned Gate): dark, slow ripples, a pale glint, a wet rim on the stone.
+func _draw_water(r: Rect2, c: Vector2i, t: float) -> void:
+	draw_rect(r, Color(0.03, 0.07, 0.09))
+	for k in 2:
+		var cx: float = r.position.x + fposmod(float(hash(c + Vector2i(k, 3)) % 48) + t * (5.0 + k * 3.0), TILE)
+		var cy: float = r.position.y + 14.0 + k * 20.0 + sin(t * 0.9 + c.x + k) * 3.0
+		_ellipse(Vector2(cx, cy), 15.0, 6.0, Color(0.1, 0.22, 0.26, 0.6))
+	for k in 2:
+		var yy: float = r.position.y + 12.0 + k * 22.0 + sin(t * 1.1 + c.x * 0.7 + k) * 2.5
+		draw_line(Vector2(r.position.x + 4, yy), Vector2(r.end.x - 4, yy + sin(c.y + k) * 3.0), Color(0.55, 0.85, 0.9, 0.12 + 0.08 * sin(t * 1.7 + c.y + k)), 1.2)
+	for d in [Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(1, 0)]:
+		var nb := DungeonMaps.at(floor_i, c + d)
+		if nb != "~" and nb != "=":
+			var e := Rect2(r.position, Vector2(TILE, 4))
+			if d.y > 0: e = Rect2(r.position + Vector2(0, TILE - 4), Vector2(TILE, 4))
+			elif d.x < 0: e = Rect2(r.position, Vector2(4, TILE))
+			elif d.x > 0: e = Rect2(r.position + Vector2(TILE - 4, 0), Vector2(4, TILE))
+			draw_rect(e, Color(0.05, 0.06, 0.07, 0.9))
+			draw_rect(e.grow(-1.0), Color(0.5, 0.8, 0.85, 0.12))
 
 func _draw_bridge(r: Rect2) -> void:
 	draw_rect(Rect2(r.position + Vector2(0, 8), Vector2(TILE, TILE - 16)), Color(0.24, 0.2, 0.18))
@@ -714,6 +816,23 @@ func _draw_cell(c: Vector2i, ch: String, o: Dictionary) -> void:
 				var gl2: float = 0.5 + 0.5 * sin(t_now * 2.2)
 				draw_arc(foot + Vector2(0, -4), 30.0 + gl2 * 4.0, 0, TAU, 32, Color(0.6, 0.9, 1.0, 0.25 + 0.2 * gl2), 2.0)
 		"B": _draw_boss_door(c)
+		"K":
+			if not bool(o.K):
+				var gt: Texture2D = tex.get("foe_" + str(fdef.get("guardian_art", "")))
+				_shadow(foot, 46, 0.55)
+				var bob: float = 0.0 if reduced_motion else sin(t_now * 2.0) * 1.5
+				if gt != null: _sprite(gt, foot + Vector2(0, bob), 92, Color(0.95, 0.9, 0.95))
+				var col := Color(BossDefs.get_def(str(fdef.guardian)).get("color", "#ffffff"))
+				if not reduced_motion: draw_arc(foot + Vector2(0, -2), 30.0 + sin(t_now * 3.0) * 3.0, 0, TAU, 32, Color(col.r, col.g, col.b, 0.35), 2.0)
+		"d":
+			var pd := Vector2(c) * TILE
+			if bool(o.get("d", false)):
+				draw_rect(Rect2(pd + Vector2(-3, -WALL_H), Vector2(6, TILE + WALL_H - 6)), Color(0.25, 0.22, 0.2))
+			else:
+				var dd := Rect2(pd + Vector2(6, -WALL_H + 4), Vector2(TILE - 12, TILE + WALL_H - 10))
+				draw_rect(dd, Color(0.2, 0.19, 0.2))
+				draw_rect(dd.grow(-3), Color(0.27, 0.26, 0.28))
+				draw_circle(dd.get_center(), 5.0, Color(0.7, 0.95, 0.9, 0.5 + 0.3 * sin(t_now * 2.4)))
 		">", "<", "S":
 			var p3 := Vector2(c) * TILE
 			var st: Texture2D = tex.get("stairs")
@@ -854,19 +973,19 @@ func _build_ui() -> void:
 	# menu
 	menu = _panel("FramedPanel")
 	var mv := VBoxContainer.new(); mv.add_theme_constant_override("separation", 8); menu.add_child(mv)
-	var mt := Label.new(); mt.text = "The Vespergate Deeps"; mt.theme_type_variation = "HeaderLabel"; mv.add_child(mt)
+	var mt := Label.new(); mt.text = "The Sunken Bastion"; mt.theme_type_variation = "HeaderLabel"; mv.add_child(mt)
 	mv.add_child(_button("Resume", func(): AfTheme.pop_out(menu, reduced_motion), true))
-	mv.add_child(_button("Leave the Deeps", func(): save_game(); DungeonGate.leave(get_tree())))
+	mv.add_child(_button("Leave the Bastion", func(): save_game(); DungeonGate.leave(get_tree())))
 	menu.visible = false
 	ui.add_child(menu)
 	# end card (after the final boss)
 	end_card = _panel("FramedPanel")
 	var ev := VBoxContainer.new(); ev.add_theme_constant_override("separation", 8); end_card.add_child(ev)
-	var et := Label.new(); et.text = "The Last Flame Is Free"; et.theme_type_variation = "HeaderLabel"; et.add_theme_font_size_override("font_size", 26)
+	var et := Label.new(); et.text = "The Bastion Is Quiet"; et.theme_type_variation = "HeaderLabel"; et.add_theme_font_size_override("font_size", 26)
 	et.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; ev.add_child(et)
 	var es := Label.new(); es.theme_type_variation = "FlavorLabel"; es.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; es.custom_minimum_size = Vector2(300, 0)
 	es.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	es.text = "The Ash Sovereign has fallen and the Vespergate Deeps are quiet. Emberhold's hearth burns warm again."
+	es.text = "The Ash Sovereign has fallen. Carry the Heart-Coal home: Emberhold's throne is going cold."
 	ev.add_child(es)
 	ev.add_child(_button("Return to Emberhold", func(): DungeonGate.leave(get_tree()), true))
 	ev.add_child(_button("Stay a while", func(): AfTheme.pop_out(end_card, reduced_motion)))

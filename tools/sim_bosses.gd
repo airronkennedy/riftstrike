@@ -1,6 +1,7 @@
 extends SceneTree
 ## Boss balance sweep (docs/BOSSES.md):
-##   godot --headless --path . -s res://tools/sim_bosses.gd -- --n=40 [--levels=4,7,10] [--boss=ash_sovereign]
+##   godot --headless --path . -s res://tools/sim_bosses.gd -- --n=40 [--levels=7,9] [--boss=boss_sovereign] [--modes=random,default,smart]
+## Default levels per boss: its story recommended level (BossDefs level) and one above.
 ## For each boss and party level: n AUTO fights per Attack Order: random (bad), default (party order, untouched Build)
 ## and smart (the suggested order, Combo.best_plan). Prints win %, spark rate on all party hits, Breaks, phases reached, signatures and fight length.
 const C = preload("res://scripts/combo.gd")
@@ -11,7 +12,7 @@ func _init() -> void:
 
 func _run() -> void:
 	var n := 30
-	var levels: Array = [4, 7, 10]
+	var levels: Array = []
 	var only := ""
 	var modes: Array = ["random", "default", "smart"]
 	for a in OS.get_cmdline_user_args():
@@ -40,7 +41,11 @@ func _run() -> void:
 	var out := {}
 	for id in BossDefs.BOSSES.keys():
 		if only != "" and id != only: continue
-		for L in levels:
+		var lv: Array = levels
+		if lv.is_empty():
+			var l0 := int(BossDefs.get_def(id).get("level", 7))
+			lv = [l0] if l0 >= 10 else [l0, l0 + 1]
+		for L in lv:
 			for mode in modes:
 				var wins := 0; var hits := 0; var sparks := 0; var breaks := 0; var ph := 0.0; var sigs := 0; var turns := 0; var secs := 0.0
 				for i in n:

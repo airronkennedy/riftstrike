@@ -1333,7 +1333,7 @@ func new_battle(n: int = 0) -> void:
 			ou.plan = null; ou.act = null; ou.burn = null
 		G.queue = []; G.cur = null
 	sync_pending = []
-	if not encounter.has("boss"): boss = null
+	if BossDefs.id_for(encounter) == "": boss = null
 	var units := []
 	var enc_on: bool = not encounter.is_empty()
 	if n == 0: n = int(params.get("enemies", "0"))
@@ -3737,7 +3737,7 @@ func run_battle() -> void:
 	sfx.tone(330, 0.06, "square", 0.03)
 	stash_party_mp()
 	save_cfg()
-	if boss != null:
+	if boss != null and boss.standalone:
 		boss_return(false)
 	elif kingdom_battle():
 		return_to_kingdom(false)
@@ -3748,7 +3748,7 @@ func run_battle() -> void:
 
 
 func results_primary() -> void:
-	if boss != null:
+	if boss != null and boss.standalone:
 		boss_return(G != null and G.result == "win")
 	elif kingdom_battle():
 		return_to_kingdom(G != null and G.result == "win")
@@ -3759,7 +3759,7 @@ func results_primary() -> void:
 
 
 func results_title() -> void:
-	if boss != null:
+	if boss != null and boss.standalone:
 		boss_return(G != null and G.result == "win"); return
 	if kingdom_battle():
 		return_to_kingdom(G != null and G.result == "win"); return
@@ -5122,11 +5122,16 @@ func start_kingdom_battle(region: String) -> void:
 	encounter = e
 	new_battle(3)
 	if AREAS.has(str(e.area)): battle_area = str(e.area)
+	var bid := BossDefs.id_for(e) # story boss fights get the boss presentation (scripts/boss/, docs/BOSSES.md)
+	if bid != "":
+		boss = BossFight.new(bid); boss.setup(self)
 	var frac: float = qf.party_hp_frac()
 	for u in G.units:
 		if u.team == "blue": u.hp = maxi(1, int(roundf(float(u.maxhp) * frac)))
 	phase = "battle"; paused = false; screen = ""
 	begin_timeline()
+	if boss != null: # the boss intro cut-in replaces the banner
+		sfx.tone(392, 0.09, "square", 0.04); return
 	banner.text = "AMBUSH!"
 	banner.sub = str(e.get("region", "")).capitalize() + "  ·  Lv." + str(int(e.get("level", 1)))
 	banner.color = "yellow"; banner.life = 1400.0
@@ -5144,6 +5149,7 @@ func start_boss_battle(id: String, carry_hp: bool = false) -> void:
 	new_battle(3)
 	boss = BossFight.new(id) if boss == null else boss
 	boss.setup(self)
+	boss.standalone = true
 	var qf := get_node_or_null("/root/QuestFlow")
 	var frac: float = qf.party_hp_frac() if (qf != null and carry_hp) else 1.0
 	for u in G.units:
@@ -5226,7 +5232,7 @@ func show_results() -> void:
 		var exp_e: int = WORLD.encounter_xp(encounter)
 		xp_full = exp_e if win else int(roundf(float(exp_e) * 0.25))
 		raid_name = (str(encounter.region).capitalize() if encounter.has("region") else "Wild") + " Lv." + str(int(encounter.get("level", 1))) + (" · Elite!" if bool(encounter.get("elite", false)) else "")
-	if boss != null: raid_name = str(boss.d.name) + (" · Final Boss" if boss.is_final() else " · Mini-boss")
+	if boss != null: raid_name = str(boss.d.name) + " · " + boss.tag().capitalize()
 	if r == "draw" and encounter.is_empty():
 		xp_full = raid_xp_award(G.n_red, false)
 	stash_party_mp()

@@ -1,45 +1,63 @@
 class_name DungeonGate
 extends RefCounted
-## The Vespergate Deeps: the story-facing interface of the dungeon (docs/DUNGEON.md).
+## The Sunken Bastion: the dungeon's interface to the rest of the game (docs/DUNGEON.md, docs/STORY.md Act IV).
 ##
-##   DungeonGate.is_open()          the entrance flag: the overworld cave lets the hero in (story sets it)
-##   DungeonGate.set_open(true)     story: unlock the dungeon (saved in user://dungeon.cfg [gate] open)
-##   DungeonGate.enter(tree)        go to the dungeon (floor 1 entrance, or the saved spot)
-##   DungeonGate.leave(tree)        back to the overworld at the cave mouth
-##   DungeonGate.cleared()          true once the final boss in the last room is beaten
+## With the Story autoload (normal play), the story owns the way in and out: the Sunken Bastion spot on the overworld
+## plays "bastion_enter", which calls Story.enter_dungeon() -> this scene; leave() calls Story.exit_dungeon().
+## The floors read the story flags (bastion_f1/f2, c2_keep, c4_bind, boss1_won/boss2_won) and start the story's
+## fights and dialogs (Story.start_battle / start_dialog). Without a Story autoload (tools, previews) the dungeon runs
+## on its own: local flags in user://dungeon.cfg and Bosses.start_boss for the guardians and bosses.
 ##
-## If a story autoload named "Story" exists and has has_flag(name), its DUNGEON_FLAG decides (or set_open(true));
-## without one the gate is open so the dungeon is playable before the story lands.
-## The overworld entrance is the Coalvein Cave spot in the kingdom overworld (kingdom maps: spot id "cave").
+##   DungeonGate.is_open()          entrance flag: the Kindling (mini-boss) is won (Story "s_kindling"), or set_open()
+##   DungeonGate.enter(tree)        go down (Story.enter_dungeon when there is a story)
+##   DungeonGate.leave(tree)        back up to the overworld at the ruin (Story.exit_dungeon)
+##   DungeonGate.cleared()          the final boss is beaten (Story "boss2_won", or the local flag)
 
 const SCENE := "res://scenes/dungeon.tscn"
 const SAVE := "user://dungeon.cfg"
 const KINGDOM_SAVE := "user://kingdom.cfg"
-const DUNGEON_FLAG := "dungeon_open"
-const FINAL_BOSS := "ash_sovereign"
-## Where the overworld puts the hero back (tile coords, just below the Coalvein Cave mouth).
-const OVERWORLD_RETURN := Vector2(32.0, 7.6)
+const DUNGEON_FLAG := "s_kindling"
+const FINAL_BOSS := "boss_sovereign"
+const FIRST_BOSS := "boss_regnant"
+## Where the overworld puts the hero back without a story (tile coords, the Sunken Bastion ruin; Story.exit_dungeon
+## uses the same spot).
+const OVERWORLD_RETURN := Vector2(32.0, 22.6)
 
 ## Random battles per floor (QuestFlow REGION_BATTLES format; levels follow the party like every wild fight).
 const BATTLES := {
-	"deeps_1": {"area": "coalvein-deeps", "elite": 0.1, "kinds": ["torch", "barrel", "tnt"],
-		"foes": {"torch": ["mote", "gnat"], "barrel": ["brute"], "tnt": ["moth"]}},
-	"deeps_2": {"area": "coalvein-deeps", "elite": 0.2, "kinds": ["barrel", "torch", "tnt"],
+	"bastion_1": {"area": "riven-choir", "elite": 0.1, "kinds": ["torch", "barrel", "tnt"],
+		"foes": {"torch": ["lancer", "gnat"], "barrel": ["pilgrim"], "tnt": ["moth"]}},
+	"bastion_2": {"area": "vespergate-sanctum", "elite": 0.2, "kinds": ["barrel", "torch", "tnt"],
 		"foes": {"torch": ["lancer", "ashling"], "barrel": ["pilgrim", "brute"], "tnt": ["chanter"]}},
-	"deeps_3": {"area": "vespergate-sanctum", "elite": 0.3, "kinds": ["torch", "tnt", "barrel"],
+	"bastion_3": {"area": "unlit-throne", "elite": 0.3, "kinds": ["torch", "tnt", "barrel"],
 		"foes": {"torch": ["lancer", "ashling"], "barrel": ["pilgrim"], "tnt": ["chanter", "moth"]}},
 }
+
+static func story() -> Node:
+	var ml := Engine.get_main_loop()
+	return (ml as SceneTree).root.get_node_or_null("Story") if ml is SceneTree else null
+
+## A story flag (Story.get_flag), or this dungeon's own copy in user://dungeon.cfg [flags] when there is no story.
+static func flag(name: String) -> bool:
+	var st := story()
+	if st != null and st.has_method("get_flag"): return bool(st.get_flag(name))
+	var cf := ConfigFile.new()
+	return cf.load(SAVE) == OK and bool(cf.get_value("flags", name, false))
+
+static func set_flag(name: String, v: bool = true) -> void:
+	var st := story()
+	if st != null and st.has_method("set_flag"):
+		st.set_flag(name, v); return
+	var cf := ConfigFile.new()
+	cf.load(SAVE)
+	cf.set_value("flags", name, v)
+	cf.save(SAVE)
 
 static func is_open() -> bool:
 	var cf := ConfigFile.new()
 	if cf.load(SAVE) == OK and bool(cf.get_value("gate", "open", false)): return true
-	var ml := Engine.get_main_loop()
-	if ml is SceneTree:
-		var st: Node = (ml as SceneTree).root.get_node_or_null("Story")
-		if st != null and st.has_method("has_flag"): return bool(st.has_flag(DUNGEON_FLAG))
-	# No story framework yet: the cave is open so the dungeon stays playable. Once a "Story" autoload with
-	# has_flag() exists, its DUNGEON_FLAG decides.
-	return true
+	if story() == null: return true # no story: always open (tools, previews)
+	return flag(DUNGEON_FLAG) or flag("s_bastion")
 
 static func set_open(v: bool = true) -> void:
 	var cf := ConfigFile.new()
@@ -48,14 +66,17 @@ static func set_open(v: bool = true) -> void:
 	cf.save(SAVE)
 
 static func cleared() -> bool:
-	var cf := ConfigFile.new()
-	return cf.load(SAVE) == OK and bool(cf.get_value("progress", "cleared", false))
+	return flag("boss2_won")
 
 static func enter(tree: SceneTree) -> void:
+	var st := story()
+	if st != null and st.has_method("enter_dungeon"): st.enter_dungeon(); return
 	tree.change_scene_to_file.call_deferred(SCENE)
 
-## Back to the overworld, standing at the cave mouth.
+## Back to the overworld, standing at the ruin.
 static func leave(tree: SceneTree) -> void:
+	var st := story()
+	if st != null and st.has_method("exit_dungeon"): st.exit_dungeon(); return
 	var cf := ConfigFile.new()
 	cf.load(KINGDOM_SAVE)
 	cf.set_value("kingdom", "map", "overworld")

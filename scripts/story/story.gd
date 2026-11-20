@@ -52,6 +52,9 @@ var hud_wanted := false
 ## Tests: battle_stub = resolve story fights instantly (result stub_win) instead of loading main.tscn.
 var battle_stub := false
 var stub_win := true           # another scene (the dungeon) can ask for the tracker / Quests button
+## Tests: false = play the built-in Sunken Bastion fallback (dialogs + fights from the ruin) instead of loading
+## scenes/dungeon.tscn (test_story walks the whole story on the overworld; tools/test_dungeon.gd covers the scene).
+var use_dungeon_scene := true
 
 
 func _ready() -> void:
@@ -621,7 +624,7 @@ func take_return_scene() -> String:
 # ================================================================ dungeon (Act IV)
 func enter_dungeon() -> void:
 	set_flag("s_bastion")
-	if ResourceLoader.exists(DUNGEON_SCENE):
+	if use_dungeon_scene and ResourceLoader.exists(DUNGEON_SCENE):
 		if is_instance_valid(kingdom): kingdom.save_game()
 		get_tree().change_scene_to_file.call_deferred(DUNGEON_SCENE)
 		return

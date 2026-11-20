@@ -41,6 +41,8 @@ var t_all := 0.0
 var won_shown := false
 var stats := {"sparks_on_boss": 0, "hits_on_boss": 0, "breaks": 0, "phases": 0, "sigs": 0}
 
+var standalone := false # started by Bosses.start_boss (not a story fight): game.gd returns through Bosses.finish
+
 func _init(boss_id: String) -> void:
 	id = boss_id
 	d = BossDefs.get_def(boss_id)
@@ -51,6 +53,10 @@ func phase_def() -> Dictionary:
 
 func is_final() -> bool:
 	return str(d.get("tier", "boss")) == "boss"
+
+## HUD label: MINI-BOSS, GUARDIAN, FINAL BOSS I / II.
+func tag() -> String:
+	return str(d.get("tag", "FINAL BOSS" if is_final() else "MINI-BOSS"))
 
 func color() -> Color:
 	return Color(str(d.get("color", "#ff8a3d")))
@@ -340,7 +346,7 @@ func _draw_bar(g, k: float) -> void:
 	g.HUD.portrait(g, unit, pc, 20.0 * k, c.lightened(0.2), 2.0)
 	var old: Font = g._font_override
 	g._font_override = g.FONT_TITLE
-	var tag: String = "FINAL BOSS" if is_final() else "MINI-BOSS"
+	var tag: String = tag()
 	g.text(str(d.name).to_upper(), x + 54.0 * k, y + 13.0 * k, g.fit_size(str(d.name).to_upper(), 14.0 * k, w * 0.55, 9.0), AfTheme.GOLD, "left")
 	g._font_override = old
 	g.text(tag + "  ·  " + str(phase_def().get("name", "")), r.end.x - 12.0 * k, y + 13.0 * k, 10.0 * k, c.lightened(0.3), "right")
@@ -393,7 +399,7 @@ func _draw_intro(g, k: float) -> void:
 	g.HUD.portrait(g, unit, Vector2(px, cy), 44.0 * k, c.lightened(0.25), 2.5)
 	var tx: float = px + 58.0 * k
 	var old: Font = g._font_override
-	var tag: String = "FINAL BOSS" if is_final() else "MINI-BOSS"
+	var tag: String = tag()
 	g.text(tag, tx, cy - 30.0 * k, 11.0 * k, c.lightened(0.35), "left", 3.0, Color(0, 0, 0, 0.9))
 	g._font_override = g.FONT_TITLE
 	var nm: String = str(d.name).to_upper()
