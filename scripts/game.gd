@@ -4926,7 +4926,7 @@ func show_results() -> void:
 	if not encounter.is_empty():
 		var exp_e: int = WORLD.encounter_xp(encounter)
 		xp_full = exp_e if win else int(roundf(float(exp_e) * 0.25))
-		raid_name = "Wild Lv." + str(int(encounter.get("level", 1)))
+		raid_name = (str(encounter.region).capitalize() if encounter.has("region") else "Wild") + " Lv." + str(int(encounter.get("level", 1))) + (" · Elite!" if bool(encounter.get("elite", false)) else "")
 	if r == "draw" and encounter.is_empty():
 		xp_full = raid_xp_award(G.n_red, false)
 	stash_party_mp()
