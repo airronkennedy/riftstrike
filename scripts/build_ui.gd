@@ -115,7 +115,7 @@ func _draw_loadout(g: Object, name: String, d: Rect2, short: bool) -> void:
 		if rh > 34.0:
 			var ef2: String = g.ab_effect_line(id2)
 			g.text(ef2, r2.position.x + 14.0, r2.get_center().y + 9.0, g.fit_size(ef2, 10.0, cw - 110.0, 7.0), g.ab_color(id2) if ok else g.UI_MUTED, "left")
-		g.text(("✓ " if slotted else "") + tag, r2.end.x - 12.0, r2.get_center().y, 11.0, g.UI_GOLD if slotted else (g.UI_TEAL_D if ok else g.UI_LOCK), "right")
+		g.text(("ON · " if slotted else "") + tag, r2.end.x - 12.0, r2.get_center().y, 11.0, g.UI_GOLD if slotted else (g.UI_TEAL_D if ok else g.UI_LOCK), "right")
 		if ok:
 			var tid: String = id2
 			g.add_btn("bld_pool_" + id2, r2, func():
@@ -165,9 +165,9 @@ func _draw_seq(g: Object, name: String, d: Rect2, short: bool) -> void:
 			var s2: Array = g.seq_of(name).duplicate(true)
 			s2[ii][1] = _cycle(QuestRPG.COND_ORDER, str(s2[ii][1])); g.AB_SEQ[name] = s2; g.save_cfg())
 		var bx: float = r.end.x - 3.0 * (sb + 6.0)
-		g.pill("bld_su_%d" % i, Rect2(bx, r.position.y + 4.0, sb, sb), "▲", "soft", 13.0, func(): _move(name, g, ii, -1), i == 0)
-		g.pill("bld_sd_%d" % i, Rect2(bx + sb + 6.0, r.position.y + 4.0, sb, sb), "▼", "soft", 13.0, func(): _move(name, g, ii, 1), i == seq.size() - 1)
-		g.pill("bld_sx_%d" % i, Rect2(bx + 2.0 * (sb + 6.0), r.position.y + 4.0, sb, sb), "✕", "danger", 13.0, func():
+		g.pill("bld_su_%d" % i, Rect2(bx, r.position.y + 4.0, sb, sb), "", "soft", 13.0, func(): _move(name, g, ii, -1), false, i == 0, false, "", "up")
+		g.pill("bld_sd_%d" % i, Rect2(bx + sb + 6.0, r.position.y + 4.0, sb, sb), "", "soft", 13.0, func(): _move(name, g, ii, 1), false, i == seq.size() - 1, false, "", "down")
+		g.pill("bld_sx_%d" % i, Rect2(bx + 2.0 * (sb + 6.0), r.position.y + 4.0, sb, sb), "X", "danger", 13.0, func():
 			var s3: Array = g.seq_of(name).duplicate(true)
 			s3.remove_at(ii); g.AB_SEQ[name] = s3; g.save_cfg())
 		y += rh + gap
