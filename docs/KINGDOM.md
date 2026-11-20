@@ -8,8 +8,11 @@ This is a self-contained scene, `scenes/kingdom.tscn`. It doesn't touch `scripts
 - **From the title menu (not wired yet):** `get_tree().change_scene_to_file("res://scenes/kingdom.tscn")`. The kingdom's own menu has a **Back to title** button.
 
 ## Controls
-- **Phone:** use the on-screen joystick (bottom left) or tap the map to walk. Tapping a door, person or sign walks there and uses it. The big button (bottom right) uses whatever is nearest; its label changes to Shop / Rest / Enter / Talk / Look. Tap the minimap to make it bigger.
-- **Keyboard and mouse:** WASD or arrow keys to move, or click to move. E, Space or Enter uses the nearest thing, M toggles the big map and Esc opens the menu.
+- **Phone / tablet (real multitouch, `scripts/kingdom/kingdom_touch.gd`):** touch anywhere on the field and an Airron's Fall floating joystick appears under your finger (118 px base, knob clamped to 31%, 10% dead zone, analog speed, fades out on release). Keep holding it and press **Use** with another finger. Use is a round button (bottom right) that pops in and pulses only when something is in reach, with an icon for Enter / Shop / Rest / Talk / Look / Pray. A floating prompt card over the target names it. A quick tap on a person, door or sign walks there and uses it. Tapping the minimap opens the map screen. Mouse emulation is off on the field and only turned on while a menu, shop or dialog is open.
+- **Keyboard and mouse:** WASD or arrow keys to move, or click to move. E, Space or Enter uses the nearest thing, M opens the map screen and Esc opens the menu.
+- **Gamepad:** left stick (analog) or d-pad to move, A to use or advance dialog, B to close or open the menu, Start for the menu, Back/Select for the map. Menus open with the first button focused.
+- **Safe areas / iOS Safari:** the web head include (`export_presets.cfg`) sets `viewport-fit=cover`, turns off zoom, pinch, double-tap zoom, long-press callouts and scrolling, and exposes `env(safe-area-inset-*)` as CSS vars that the HUD reads, so nothing sits under the notch or home indicator.
+- **Graphics:** High / Phone (light) / Low in the menu. Phone uses a 5-tap blur, 70% tilt-shift and about half the bloom and rays. It is the default on touch devices and small screens (`?gfx=high|phone|low` overrides it).
 
 ## Places
 - **Emberhold town** (`KingdomMaps.TOWN`):

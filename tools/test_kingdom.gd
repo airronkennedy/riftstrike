@@ -84,6 +84,65 @@ func _run() -> void:
 	ok(k.party_hp == k.party_hp_max and k.gold == 50 - k.INN_COST, "inn: hp restored, %d gold charged" % k.INN_COST)
 	var cf := ConfigFile.new()
 	ok(cf.load(k.SAVE_PATH) == OK and int(cf.get_value("kingdom", "hp", 0)) == k.party_hp_max, "inn: saved to %s" % k.SAVE_PATH)
+	# Floating joystick + multitouch routing (KingdomTouch, pure logic)
+	var tch := KingdomTouch.new()
+	tch.size = 118.0
+	tch.hit_ui = func(p: Vector2) -> String: return "use" if p.x > 300.0 else ""
+	var r := tch.radius()
+	var acts: Array = tch.handle(_touch(0, Vector2(100, 100), true), 0.0)
+	ok(tch.active() and acts.size() == 1 and acts[0].type == "stick_start", "touch: finger on the field spawns the stick there")
+	tch.handle(_drag(0, Vector2(100 + r * 0.08, 100)), 0.05)
+	ok(tch.vec == Vector2.ZERO, "touch: dead zone (8% push -> no movement)")
+	tch.handle(_drag(0, Vector2(100 + r * 0.55, 100)), 0.1)
+	ok(absf(tch.vec.length() - 0.5) < 0.01, "touch: analog speed (55%% push -> %.2f)" % tch.vec.length())
+	tch.handle(_drag(0, Vector2(100 + r * 3.0, 100)), 0.15)
+	ok(absf(tch.knob.length() - r) < 0.01 and absf(tch.vec.x - 1.0) < 0.01, "touch: knob clamped to 31% of the base, full speed")
+	acts = tch.handle(_touch(1, Vector2(350, 100), true), 0.2)
+	ok(acts.size() == 1 and acts[0].type == "ui_down" and acts[0].name == "use" and tch.vec.x > 0.99, "touch: second finger presses Use while the stick is held")
+	acts = tch.handle(_touch(1, Vector2(352, 102), false), 0.3)
+	ok(acts.size() == 1 and acts[0].type == "ui_up" and acts[0].inside and tch.active(), "touch: Use released inside fires, stick still held")
+	tch.handle(_touch(2, Vector2(200, 300), true), 0.4)
+	acts = tch.handle(_touch(2, Vector2(203, 301), false), 0.5)
+	ok(acts.size() == 1 and acts[0].type == "tap", "touch: quick tap with another finger = tap (use / walk)")
+	acts = tch.handle(_touch(0, Vector2(400, 100), false), 1.0)
+	ok(not tch.active() and tch.vec == Vector2.ZERO and acts[0].type == "stick_end" and acts.size() == 1, "touch: lifting the stick finger stops (no tap after a drag)")
+	# In the scene: stick walks the hero, Use with a second finger, tap the person to talk
+	root.size = Vector2i(1024, 576) # headless windows start tiny
+	k.load_map("town")
+	k.touch_ui = true
+	var npc: Dictionary = {}
+	for u in k.usables:
+		if u.kind == "npc": npc = u; break
+	k.player_pos = npc.pos + Vector2(0, 40)
+	k.player.position = k.player_pos
+	await process_frame
+	await process_frame
+	ok(k.near == npc and k.use_btn.shown, "use button pops in near %s (%s)" % [npc.name, KingdomView.icon_for(npc)])
+	k.player_pos = Vector2(12.0, 15.5) * 64.0
+	await process_frame
+	var x0: float = k.player_pos.x
+	var vsz: Vector2 = k.get_viewport_rect().size
+	var sp := Vector2(vsz.x * 0.3, vsz.y * 0.6)
+	k._input(_touch(0, sp, true))
+	k._input(_drag(0, sp + Vector2(200, 0)))
+	for i in 10: k._move(0.05)
+	ok(k.player_pos.x > x0 + 50.0 and k.stick.visible, "scene: floating stick walks the hero (+%d px)" % int(k.player_pos.x - x0))
+	k._input(_touch(0, sp + Vector2(200, 0), false))
+	k.player_pos = npc.pos + Vector2(0, 40)
+	await process_frame
+	await process_frame
+	k._input(_touch(0, sp, true))
+	var uc: Vector2 = k.use_btn.get_global_rect().get_center()
+	k._input(_touch(1, uc, true))
+	k._input(_touch(1, uc, false))
+	ok(k.dialog.visible and k.touch.active(), "scene: Use pressed with finger 2 while finger 1 holds the stick")
+	k._input(_touch(0, sp, false))
+	k.dialog.visible = false
+	await process_frame
+	k.tap_at(k.get_canvas_transform() * (npc.pos + Vector2(0, -30)))
+	ok(k.dialog.visible, "scene: quick tap on the person talks to them")
+	k.dialog.visible = false
+	ok(not Input.emulate_mouse_from_touch, "no mouse emulation on the field")
 	print("RESULT: %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(1 if fails else 0)
 
@@ -105,3 +164,14 @@ func _walk(k, total: float) -> float:
 				k.busy = false
 		if int(done) % 512 < 8: i += 1
 	return done
+
+
+func _touch(i: int, p: Vector2, down: bool) -> InputEventScreenTouch:
+	var t := InputEventScreenTouch.new()
+	t.index = i; t.position = p; t.pressed = down
+	return t
+
+func _drag(i: int, p: Vector2) -> InputEventScreenDrag:
+	var d := InputEventScreenDrag.new()
+	d.index = i; d.position = p
+	return d

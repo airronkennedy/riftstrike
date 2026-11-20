@@ -267,19 +267,79 @@ class Life extends Node2D:
 					draw_circle(bp + Vector2(40, 150), 4.0, Color(0, 0, 0, 0.12))
 
 
-# ------------------------------------------------------------------ minimap
+# ------------------------------------------------------------------ prompt icons (vector, AF palette)
+## Which icon a usable gets: door / bag / bed / talk / look / flame.
+static func icon_for(u: Dictionary) -> String:
+	if u.is_empty():
+		return ""
+	match str(u.get("action", "")):
+		"warp": return "door"
+		"shop": return "bag"
+		"inn": return "bed"
+	if u.get("kind", "") == "npc":
+		return "talk"
+	if bool(u.get("calm", false)):
+		return "flame"
+	return "look"
+
+
+static func draw_icon(ci: CanvasItem, kind: String, c: Vector2, r: float, col: Color) -> void:
+	var w := maxf(1.5, r * 0.16)
+	match kind:
+		"door":
+			var pts := PackedVector2Array()
+			pts.append(c + Vector2(-r * 0.55, r * 0.8))
+			for i in 13:
+				var a := PI + PI * float(i) / 12.0
+				pts.append(c + Vector2(cos(a) * r * 0.55, -r * 0.15 + sin(a) * r * 0.62))
+			pts.append(c + Vector2(r * 0.55, r * 0.8))
+			ci.draw_polyline(pts, col, w, true)
+			ci.draw_line(c + Vector2(-r * 0.8, r * 0.8), c + Vector2(r * 0.8, r * 0.8), col, w)
+			ci.draw_circle(c + Vector2(r * 0.25, r * 0.25), w * 0.8, col)
+		"bag":
+			ci.draw_rect(Rect2(c + Vector2(-r * 0.62, -r * 0.2), Vector2(r * 1.24, r * 1.0)), col, false, w)
+			ci.draw_arc(c + Vector2(0, -r * 0.2), r * 0.38, PI, TAU, 12, col, w)
+			ci.draw_circle(c + Vector2(0, r * 0.25), w * 0.9, col)
+		"bed":
+			ci.draw_line(c + Vector2(-r * 0.8, -r * 0.55), c + Vector2(-r * 0.8, r * 0.7), col, w)
+			ci.draw_rect(Rect2(c + Vector2(-r * 0.8, r * 0.05), Vector2(r * 1.6, r * 0.38)), col, false, w)
+			ci.draw_line(c + Vector2(r * 0.8, r * 0.43), c + Vector2(r * 0.8, r * 0.7), col, w)
+			ci.draw_rect(Rect2(c + Vector2(-r * 0.62, -r * 0.3), Vector2(r * 0.5, r * 0.3)), col)
+			ci.draw_arc(c + Vector2(r * 0.35, -r * 0.45), r * 0.3, PI * 0.6, PI * 1.9, 12, col, w)
+		"talk":
+			var rr := Rect2(c + Vector2(-r * 0.75, -r * 0.6), Vector2(r * 1.5, r * 1.0))
+			ci.draw_rect(rr, col, false, w)
+			ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-r * 0.35, r * 0.4), c + Vector2(-r * 0.05, r * 0.4), c + Vector2(-r * 0.45, r * 0.85)]), col)
+			for i in 3:
+				ci.draw_circle(c + Vector2(-r * 0.35 + r * 0.35 * i, -r * 0.1), w * 0.75, col)
+		"flame":
+			var f := PackedVector2Array([c + Vector2(0, -r * 0.85), c + Vector2(r * 0.5, -r * 0.05), c + Vector2(r * 0.42, r * 0.5),
+				c + Vector2(0, r * 0.8), c + Vector2(-r * 0.42, r * 0.5), c + Vector2(-r * 0.5, -r * 0.05), c + Vector2(0, -r * 0.85)])
+			ci.draw_polyline(f, col, w, true)
+			ci.draw_circle(c + Vector2(0, r * 0.35), r * 0.2, col)
+		_: # look: an eye
+			var e := PackedVector2Array()
+			for i in 17:
+				var a := TAU * float(i) / 16.0
+				e.append(c + Vector2(cos(a) * r * 0.8, sin(a) * r * 0.42))
+			ci.draw_polyline(e, col, w, true)
+			ci.draw_circle(c, r * 0.24, col)
+
+
+# ------------------------------------------------------------------ minimap (HUD, top right)
 class Minimap extends Control:
 	var k
 	var img_tex: ImageTexture
-	var big := false
 	func rebuild() -> void:
-		var img := Image.create(k.W, k.H, false, Image.FORMAT_RGBA8)
-		for r in k.H:
-			for c in k.W:
-				img.set_pixel(c, r, _col(k.ch_at(c, r)))
-		img_tex = ImageTexture.create_from_image(img)
+		img_tex = ImageTexture.create_from_image(make_image(k))
 		queue_redraw()
-	func _col(ch: String) -> Color:
+	static func make_image(kk) -> Image:
+		var img := Image.create(kk.W, kk.H, false, Image.FORMAT_RGBA8)
+		for r in kk.H:
+			for c in kk.W:
+				img.set_pixel(c, r, col_of(kk.ch_at(c, r)))
+		return img
+	static func col_of(ch: String) -> Color:
 		match ch:
 			"~": return Color("#1d3640")
 			",": return Color("#8a6a48")
@@ -290,29 +350,184 @@ class Minimap extends Control:
 			"c": return Color("#7a2620")
 			"P": return Color("#3a312a")
 		return Color("#4c5e40")
-	func map_rect() -> Rect2:
-		var fit: float = minf((size.x - 12.0) / k.W, (size.y - 12.0) / k.H)
-		var ms := Vector2(k.W, k.H) * fit
-		return Rect2((size - ms) / 2.0, ms)
 	func _draw() -> void:
 		if img_tex == null:
 			return
-		draw_style_box(get_theme_stylebox("panel", "Panel"), Rect2(Vector2.ZERO, size))
-		var mr := map_rect()
-		draw_texture_rect(img_tex, mr, false)
-		var sc: float = mr.size.x / float(k.W)
+		var full := Rect2(Vector2.ZERO, size)
+		draw_style_box(get_theme_stylebox("panel", "FramedPanel"), full)
+		var inner := full.grow(-7.0)
+		# Zoomed window that follows the hero (modern minimap), clipped to the frame.
+		var zoom := 4.0 if k.map.get("id", "") == "overworld" else 5.0
+		var src_size := inner.size / zoom
+		var center: Vector2 = k.player_pos / TILE
+		var src := Rect2(center - src_size / 2.0, src_size)
+		src.position.x = clampf(src.position.x, 0.0, maxf(0.0, k.W - src_size.x))
+		src.position.y = clampf(src.position.y, 0.0, maxf(0.0, k.H - src_size.y))
+		draw_rect(inner, Color("#14110e"))
+		var dst := inner
+		if src_size.x > k.W:
+			dst.size.x = k.W * zoom; dst.position.x += (inner.size.x - dst.size.x) / 2.0; src.size.x = k.W; src.position.x = 0
+		if src_size.y > k.H:
+			dst.size.y = k.H * zoom; dst.position.y += (inner.size.y - dst.size.y) / 2.0; src.size.y = k.H; src.position.y = 0
+		draw_texture_rect_region(img_tex, dst, src)
+		var to_px := func(tp: Vector2) -> Vector2: return dst.position + (tp - src.position) * zoom
 		for s in k.usables:
+			var sp: Vector2 = to_px.call(s.pos / TILE)
+			if not inner.has_point(sp):
+				continue
 			if s.get("kind", "") == "spot":
-				draw_circle(mr.position + s.pos / TILE * sc, 3.0 if not big else 5.0, AfTheme.GOLD)
-		var pp: Vector2 = mr.position + k.player_pos / TILE * sc
+				draw_colored_polygon(PackedVector2Array([sp + Vector2(0, -4), sp + Vector2(4, 0), sp + Vector2(0, 4), sp + Vector2(-4, 0)]), AfTheme.GOLD)
+			elif s.get("kind", "") == "npc":
+				draw_circle(sp, 2.2, Color(AfTheme.INK, 0.8))
+		var pp: Vector2 = to_px.call(k.player_pos / TILE)
 		var pulse := 0.0 if k.reduced_motion else 0.5 + 0.5 * sin(k.t_now * 5.0)
-		draw_circle(pp, 6.0 + 2.0 * pulse, Color(AfTheme.EMBER, 0.35))
-		draw_circle(pp, 4.0, AfTheme.EMBER_LIGHT)
-		if big:
-			var v: Rect2 = k.view_rect()
-			draw_rect(Rect2(mr.position + v.position / TILE * sc, v.size / TILE * sc), Color(AfTheme.INK, 0.6), false, 1.5)
+		draw_circle(pp, 7.0 + 2.0 * pulse, Color(AfTheme.EMBER, 0.3))
+		var f: Vector2 = k.face_dir
+		var sd := Vector2(-f.y, f.x)
+		draw_colored_polygon(PackedVector2Array([pp + f * 6.5, pp - f * 4.0 + sd * 4.5, pp - f * 2.0, pp - f * 4.0 - sd * 4.5]), AfTheme.EMBER_LIGHT)
+		# Vignette edge + compass N + "open map" glyph
+		draw_rect(inner, Color(AfTheme.LINE, 0.9), false, 1.0)
+		var font: Font = k.title_font
+		draw_string_outline(font, Vector2(size.x / 2.0 - 4, 17), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0.05, 0.04, 0.03, 0.9))
+		draw_string(font, Vector2(size.x / 2.0 - 4, 17), "N", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, AfTheme.GOLD)
+		var gc := Vector2(size.x - 16, size.y - 16)
+		draw_circle(gc, 9.0, Color(0.06, 0.05, 0.04, 0.8))
+		draw_arc(gc, 9.0, 0, TAU, 20, Color(AfTheme.GOLD, 0.7), 1.2)
+		for sgn in [-1.0, 1.0]:
+			draw_line(gc + Vector2(sgn * 4, -4) , gc + Vector2(sgn * 4, 4), Color(AfTheme.GOLD, 0.9), 1.4)
+		draw_line(gc + Vector2(-4, 0), gc + Vector2(4, 0), Color(AfTheme.GOLD, 0.9), 1.4)
 	func _gui_input(e: InputEvent) -> void:
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+			k.toggle_big_map()
+			accept_event()
+
+
+# ------------------------------------------------------------------ full map screen (M)
+class MapScreen extends Control:
+	var k
+	var img_tex: ImageTexture
+	var legend: Array = []   # [{n, name, pos, icon}]
+	var regions: Array = []  # [{name, pos}] overworld region names at their centres
+	func open() -> void:
+		# Soft, modern map: the tile map upscaled with smoothing, then lightly shaded.
+		var img: Image = Minimap.make_image(k)
+		img.resize(k.W * 8, k.H * 8, Image.INTERPOLATE_CUBIC)
+		img_tex = ImageTexture.create_from_image(img)
+		legend.clear()
+		var n := 1
+		for s in k.usables:
+			if s.get("kind", "") == "npc":
+				continue
+			legend.append({"n": n, "name": str(s.name), "pos": s.pos / TILE, "icon": KingdomView.icon_for(s)})
+			n += 1
+		regions.clear()
+		if k.map.get("id", "") == "overworld":
+			var acc := {}
+			for r in k.H:
+				for c in k.W:
+					var reg: String = k.region_at(Vector2(c + 0.5, r + 0.5) * TILE)
+					if reg in ["meadow", "forest", "highlands"] and k.is_land(c, r):
+						if not acc.has(reg): acc[reg] = [Vector2.ZERO, 0]
+						acc[reg][0] += Vector2(c + 0.5, r + 0.5)
+						acc[reg][1] += 1
+			for reg in acc:
+				regions.append({"name": str(KingdomMaps.REGIONS[reg].name), "pos": acc[reg][0] / float(acc[reg][1])})
+		queue_redraw()
+	func _process(_d: float) -> void:
+		if visible:
+			queue_redraw()
+	func frame_rect() -> Rect2:
+		var ins: Rect2 = k.safe_rect_ui()
+		return ins.grow(-10.0)
+	func _draw() -> void:
+		if img_tex == null:
+			return
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.035, 0.028, 0.022, 0.86))
+		var fr := frame_rect()
+		var portrait := fr.size.y > fr.size.x
+		var cols := 2 if portrait else 1
+		var rows_n: int = ceili(legend.size() / float(cols))
+		var leg_h := 28.0 * rows_n + 8.0
+		if portrait:
+			# Shrink the frame to its content (map + legend) and centre it, instead of a tall empty card.
+			var aw := fr.size.x - 36.0
+			var mh := minf(aw / k.W * k.H, fr.size.y - 86.0 - 40.0 - leg_h - 18.0)
+			var ch := 86.0 + mh + 18.0 + leg_h + 40.0
+			fr = Rect2(fr.position.x, fr.position.y + (fr.size.y - ch) / 2.0, fr.size.x, ch)
+		draw_style_box(get_theme_stylebox("panel", "FramedPanel"), fr)
+		var font: Font = k.title_font
+		var body: Font = get_theme_default_font()
+		var title: String = k.map.get("name", "")
+		var tsz := font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28)
+		draw_string(font, Vector2(fr.position.x + (fr.size.x - tsz.x) / 2.0, fr.position.y + 42), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 28, AfTheme.GOLD)
+		var sub: String = k.map.get("sub", "")
+		var ssz := body.get_string_size(sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 14)
+		draw_string(body, Vector2(fr.position.x + (fr.size.x - ssz.x) / 2.0, fr.position.y + 62), sub, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, AfTheme.MUTED)
+		var cx0 := fr.position.x + fr.size.x / 2.0
+		draw_line(Vector2(cx0 - 90, fr.position.y + 74), Vector2(cx0 + 90, fr.position.y + 74), Color(AfTheme.GOLD, 0.5), 1.0)
+		var area := Rect2(fr.position + Vector2(18, 86), fr.size - Vector2(36, 86 + 40))
+		var mr: Rect2
+		var leg: Rect2
+		if portrait:
+			var fit: float = minf(area.size.x / k.W, (area.size.y - leg_h - 18.0) / k.H)
+			var ms := Vector2(k.W, k.H) * fit
+			mr = Rect2(Vector2(area.position.x + (area.size.x - ms.x) / 2.0, area.position.y), ms)
+			leg = Rect2(area.position.x, mr.end.y + 18.0, area.size.x, leg_h)
+		else:
+			var lw := minf(area.size.x * 0.34, 260.0)
+			leg = Rect2(area.end.x - lw, area.position.y + 6, lw, area.size.y)
+			var ma := Rect2(area.position, Vector2(area.size.x - lw - 14, area.size.y))
+			var fit2: float = minf(ma.size.x / k.W, ma.size.y / k.H)
+			var ms2 := Vector2(k.W, k.H) * fit2
+			mr = Rect2(ma.position + (ma.size - ms2) / 2.0, ms2)
+		var fit3: float = mr.size.x / float(k.W)
+		draw_rect(mr.grow(6), Color(0.0, 0.0, 0.0, 0.35))
+		draw_texture_rect(img_tex, mr, false)
+		draw_rect(mr.grow(1), Color(AfTheme.GOLD_DARK, 0.75), false, 1.5)
+		for corner in [mr.position, Vector2(mr.end.x, mr.position.y), mr.end, Vector2(mr.position.x, mr.end.y)]:
+			draw_colored_polygon(PackedVector2Array([corner + Vector2(0, -5), corner + Vector2(5, 0), corner + Vector2(0, 5), corner + Vector2(-5, 0)]), AfTheme.GOLD)
+		for rg in regions:
+			var rp: Vector2 = mr.position + rg.pos * fit3
+			var rn: String = str(rg.name).to_upper()
+			var rs := font.get_string_size(rn, HORIZONTAL_ALIGNMENT_LEFT, -1, 11)
+			draw_string_outline(font, rp - Vector2(rs.x / 2.0, -4), rn, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 4, Color(0.05, 0.04, 0.03, 0.7))
+			draw_string(font, rp - Vector2(rs.x / 2.0, -4), rn, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(AfTheme.INK, 0.75))
+		var t: float = 0.0 if k.reduced_motion else k.t_now
+		for it in legend:
+			var p: Vector2 = mr.position + it.pos * fit3
+			draw_circle(p + Vector2(0, 2), 10.0, Color(0, 0, 0, 0.35))
+			draw_circle(p, 10.0, Color(0.07, 0.05, 0.04, 0.92))
+			draw_arc(p, 10.0, 0, TAU, 20, AfTheme.GOLD, 1.5, true)
+			var ns := str(it.n)
+			var nsz := body.get_string_size(ns, HORIZONTAL_ALIGNMENT_LEFT, -1, 12)
+			draw_string(body, p + Vector2(-nsz.x / 2.0, 4.5), ns, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, AfTheme.GOLD)
+		var pp: Vector2 = mr.position + k.player_pos / TILE * fit3
+		var pulse := 0.5 + 0.5 * sin(t * 4.0)
+		draw_circle(pp, 9.0 + 6.0 * pulse, Color(AfTheme.EMBER, 0.28 * (1.0 - pulse) + 0.08))
+		draw_circle(pp, 6.5, AfTheme.EMBER_LIGHT)
+		draw_arc(pp, 6.5, 0, TAU, 16, Color(0.1, 0.06, 0.04), 1.5, true)
+		var you := "You"
+		draw_string_outline(body, pp + Vector2(10, -8), you, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0.05, 0.04, 0.03, 0.85))
+		draw_string(body, pp + Vector2(10, -8), you, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, AfTheme.EMBER_LIGHT)
+		# legend
+		var cw := leg.size.x / cols
+		for i in legend.size():
+			var it: Dictionary = legend[i]
+			var cx := leg.position.x + cw * (i % cols)
+			var cy := leg.position.y + 12 + 28.0 * (i / cols)
+			if cy > fr.end.y - 44:
+				break
+			draw_circle(Vector2(cx + 10, cy), 9.0, Color(0.07, 0.05, 0.04, 0.9))
+			draw_arc(Vector2(cx + 10, cy), 9.0, 0, TAU, 18, AfTheme.GOLD, 1.2, true)
+			var ns := str(it.n)
+			draw_string(body, Vector2(cx + 10 - body.get_string_size(ns, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x / 2.0, cy + 4), ns, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, AfTheme.GOLD)
+			KingdomView.draw_icon(self, str(it.icon), Vector2(cx + 30, cy), 7.0, AfTheme.EMBER_LIGHT)
+			draw_string(body, Vector2(cx + 42, cy + 5), str(it.name), HORIZONTAL_ALIGNMENT_LEFT, cw - 46, 14, AfTheme.INK)
+		var close := "Tap anywhere to close" if k.touch_ui else ("B to close" if k.last_pad else "M / Esc to close")
+		var csz := body.get_string_size(close, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+		draw_string(body, Vector2(fr.position.x + (fr.size.x - csz.x) / 2.0, fr.end.y - 16), close, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AfTheme.MUTED)
+	func _gui_input(e: InputEvent) -> void:
+		if (e is InputEventMouseButton and e.pressed) or (e is InputEventScreenTouch and e.pressed):
 			k.toggle_big_map()
 			accept_event()
 
@@ -340,37 +555,129 @@ class MoreArrow extends Control:
 		draw_colored_polygon(PackedVector2Array([c + Vector2(-7, -4), c + Vector2(7, -4), c + Vector2(0, 5)]), AfTheme.GOLD)
 
 
-# ------------------------------------------------------------- touch joystick
-class Joystick extends Control:
+# ------------------------------------------------------------- floating touch joystick (Airron's Fall)
+## Visual only; KingdomTouch owns the logic. Matches AF: 118 px base, knob 37%, dark radial base with a
+## thin gold ring, ember knob, quick scale-in, fades out on release.
+class FloatStick extends Control:
 	var k
-	var vec := Vector2.ZERO
-	var active := false
 	var knob := Vector2.ZERO
-	func _gui_input(e: InputEvent) -> void:
-		var R := size.x * 0.5
-		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
-			active = e.pressed
-			if not active:
-				vec = Vector2.ZERO; knob = Vector2.ZERO
-			else:
-				_aim(e.position, R)
-			accept_event()
-		elif e is InputEventMouseMotion and active:
-			_aim(e.position, R)
-			accept_event()
+	var on := false
+	var _tw: Tween
+	func show_at(p: Vector2) -> void:
+		position = p
+		knob = Vector2.ZERO
+		on = true
+		visible = true
+		if _tw: _tw.kill()
+		if k.reduced_motion:
+			modulate.a = 0.9; scale = Vector2.ONE
+		else:
+			modulate.a = 0.0; scale = Vector2(0.85, 0.85)
+			_tw = create_tween().set_parallel(true)
+			_tw.tween_property(self, "modulate:a", 0.9, 0.12)
+			_tw.tween_property(self, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		queue_redraw()
-	func _aim(p: Vector2, R: float) -> void:
-		var d := p - size / 2.0
-		knob = d.limit_length(R * 0.62)
-		vec = knob / (R * 0.62)
-		if vec.length() < 0.18: vec = Vector2.ZERO
+	func release() -> void:
+		on = false
+		if _tw: _tw.kill()
+		if k.reduced_motion:
+			visible = false
+			return
+		_tw = create_tween()
+		_tw.tween_property(self, "modulate:a", 0.0, 0.18)
+		_tw.tween_callback(func(): visible = false)
+	func set_knob(v: Vector2) -> void:
+		knob = v
+		queue_redraw()
+	func _draw() -> void:
+		var R: float = k.stick_size() * 0.5
+		# base: radial dark gradient (rgba(10,9,8,.12) -> .32) + inset gold ring
+		for i in 6:
+			var f := 1.0 - float(i) / 6.0
+			draw_circle(Vector2.ZERO, R * f, Color(0.04, 0.035, 0.03, 0.06 + 0.04 * float(i == 0)))
+		draw_arc(Vector2.ZERO, R - 1.5, 0, TAU, 48, Color(0.85, 0.68, 0.38, 0.28 * 1.6), 2.0, true)
+		# direction hint ticks
+		for a in [0.0, PI * 0.5, PI, PI * 1.5]:
+			var d := Vector2(cos(a), sin(a))
+			draw_line(d * (R - 10), d * (R - 5), Color(0.85, 0.68, 0.38, 0.35), 2.0)
+		# knob: ember radial (lit from 40% height) + warm ring
+		var kr := R * 0.74 # knob = 0.37 * size
+		var kc := knob
+		for i in 5:
+			var f := 1.0 - float(i) / 5.0
+			draw_circle(kc + Vector2(0, -kr * 0.2 * (1.0 - f)), kr * f, Color(1.0, 0.62 + 0.12 * float(i) / 5.0, 0.36, 0.14 + 0.06 * float(i)))
+		draw_arc(kc, kr - 1.0, 0, TAU, 36, Color(1.0, 0.84, 0.59, 0.55), 1.6, true)
+
+
+# ------------------------------------------------------------- context Use button
+## Hidden until something is in reach, then pops in with the prompt's icon and pulses.
+## Pressed by KingdomTouch (per finger, multitouch) or a desktop mouse click.
+class UseButton extends Control:
+	var k
+	var prompt := ""
+	var icon := ""
+	var shown := false
+	var held := false
+	var _tw: Tween
+	func set_target(u: Dictionary) -> void:
+		var want := not u.is_empty()
+		if want:
+			prompt = str(u.prompt)
+			icon = KingdomView.icon_for(u)
+		if want == shown:
+			queue_redraw()
+			return
+		shown = want
+		if _tw: _tw.kill()
+		pivot_offset = size / 2.0
+		if want:
+			visible = true
+		if k.reduced_motion:
+			visible = want; modulate.a = 1.0; scale = Vector2.ONE
+			return
+		_tw = create_tween().set_parallel(true)
+		_tw.tween_property(self, "modulate:a", 1.0 if want else 0.0, 0.14)
+		_tw.tween_property(self, "scale", Vector2.ONE if want else Vector2(0.7, 0.7), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		if not want:
+			_tw.chain().tween_callback(func(): if not shown: visible = false)
+	func press(on: bool) -> void:
+		held = on
+		pivot_offset = size / 2.0
+		scale = Vector2(0.92, 0.92) if on else Vector2.ONE
+		queue_redraw()
+	func _process(_d: float) -> void:
+		if visible:
+			queue_redraw()
 	func _draw() -> void:
 		var c := size / 2.0
-		var R := size.x * 0.5
-		draw_circle(c, R, Color(AfTheme.SHEET, 0.55))
-		draw_arc(c, R - 2, 0, TAU, 40, Color(AfTheme.LINE, 0.9), 3.0)
-		draw_circle(c + knob, R * 0.36, Color(AfTheme.EMBER, 0.85 if active else 0.55))
-		draw_arc(c + knob, R * 0.36, 0, TAU, 30, Color(AfTheme.GOLD, 0.8), 2.0)
+		var R := minf(size.x, size.y) * 0.5 - 4.0
+		var t: float = 0.0 if k.reduced_motion else k.t_now
+		var pulse := 0.5 + 0.5 * sin(t * 4.2)
+		if not k.reduced_motion:
+			draw_arc(c, R + 2.0 + 5.0 * pulse, 0, TAU, 48, Color(AfTheme.EMBER, 0.45 * (1.0 - pulse)), 3.0, true)
+		draw_circle(c + Vector2(0, 3), R, Color(0, 0, 0, 0.35))
+		draw_circle(c, R, Color(AfTheme.EMBER_DARK.lerp(AfTheme.SHEET, 0.3), 0.94))
+		draw_circle(c, R * 0.86, Color(AfTheme.EMBER, 0.92 if held else 0.78))
+		draw_circle(c + Vector2(0, -R * 0.25), R * 0.55, Color(AfTheme.EMBER_LIGHT, 0.35))
+		draw_arc(c, R, 0, TAU, 48, AfTheme.GOLD, 2.5, true)
+		KingdomView.draw_icon(self, icon, c + Vector2(0, -R * 0.16), R * 0.38, Color(0.12, 0.07, 0.04))
+		var f: Font = k.title_font
+		var fs := int(clampf(R * 0.3, 11.0, 17.0))
+		var sz := f.get_string_size(prompt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+		draw_string(f, c + Vector2(-sz.x / 2.0, R * 0.58), prompt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.12, 0.07, 0.04))
+		if not k.touch_ui:
+			var key: String = "A" if k.last_pad else "E"
+			var kc := c + Vector2(R * 0.72, -R * 0.72)
+			draw_circle(kc, 11.0, AfTheme.SHEET)
+			draw_arc(kc, 11.0, 0, TAU, 20, AfTheme.GOLD, 1.5)
+			var ksz := f.get_string_size(key, HORIZONTAL_ALIGNMENT_LEFT, -1, 13)
+			draw_string(f, kc + Vector2(-ksz.x / 2.0, 5), key, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, AfTheme.GOLD)
+	func _gui_input(e: InputEvent) -> void:
+		if e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+			press(e.pressed)
+			if not e.pressed and Rect2(Vector2.ZERO, size).has_point(e.position):
+				k.use(k.near)
+			accept_event()
 
 
 # ------------------------------------------- spot rings + overworld landmark names
@@ -385,9 +692,32 @@ class Markers extends Node2D:
 			var pulse := 0.5 + 0.5 * sin(t * 3.0 + p.x * 0.01)
 			draw_arc(p, 22.0 + 3.0 * pulse, 0, TAU, 28, Color(AfTheme.GOLD, 0.3 + 0.25 * pulse), 2.5)
 			draw_arc(p, 30.0 + 5.0 * pulse, 0, TAU, 32, Color(AfTheme.EMBER, 0.12 * pulse), 2.0)
-			if k.map.get("id", "") == "overworld":
+			if k.map.get("id", "") == "overworld" and s != k.near: # the prompt card names it when in reach
 				var f: Font = k.title_font
 				var nm: String = s.name
 				var sz := f.get_string_size(nm, HORIZONTAL_ALIGNMENT_CENTER, -1, 15)
 				draw_string_outline(f, p + Vector2(-sz.x / 2.0, 46), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, 6, Color(0.08, 0.06, 0.05, 0.9))
 				draw_string(f, p + Vector2(-sz.x / 2.0, 46), nm, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, AfTheme.GOLD)
+
+
+# ------------------------------------------- interact prompt (world space, above sprites)
+class PromptLayer extends Node2D:
+	var k
+	func _draw() -> void:
+		# Interact prompt: a small AF card with the action icon floating over whatever is in reach.
+		var u: Dictionary = k.near
+		if u.is_empty() or k.busy or k._modal_open():
+			return
+		var bob := 0.0 if k.reduced_motion else sin(k.t_now * 3.2) * 3.0
+		var tp: Vector2 = u.pos + Vector2(0, (-92.0 if u.get("kind", "") == "npc" else -58.0) + bob)
+		var ff: Font = k.title_font
+		var label := "%s  %s" % [str(u.prompt), str(u.name)]
+		var lsz := ff.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15)
+		var bw := lsz.x + 44.0
+		var br := Rect2(tp - Vector2(bw / 2.0, 15.0), Vector2(bw, 30.0))
+		draw_rect(Rect2(br.position + Vector2(0, 3), br.size), Color(0, 0, 0, 0.3))
+		draw_rect(br, Color(AfTheme.SHEET, 0.94))
+		draw_rect(br, Color(AfTheme.GOLD_DARK, 0.9), false, 1.5)
+		draw_colored_polygon(PackedVector2Array([tp + Vector2(-6, 15), tp + Vector2(6, 15), tp + Vector2(0, 22)]), Color(AfTheme.SHEET, 0.94))
+		KingdomView.draw_icon(self, KingdomView.icon_for(u), br.position + Vector2(17, 15), 8.0, AfTheme.EMBER_LIGHT)
+		draw_string(ff, br.position + Vector2(32, 20), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, AfTheme.INK)

@@ -67,6 +67,54 @@ def biggest_blob(m, grow=4):
     return (lab == best) if best else None
 
 
+def label(d):
+    """8-connected labels of a boolean mask (plain numpy + a stack flood fill). Returns (labels, count)."""
+    lab = np.zeros(d.shape, np.int32)
+    h, w = d.shape
+    cur = 0
+    for sy, sx in zip(*np.where(d)):
+        if lab[sy, sx]:
+            continue
+        cur += 1
+        stack = [(sy, sx)]; lab[sy, sx] = cur
+        while stack:
+            y, x = stack.pop()
+            for yy in (y - 1, y, y + 1):
+                for xx in (x - 1, x, x + 1):
+                    if 0 <= yy < h and 0 <= xx < w and d[yy, xx] and not lab[yy, xx]:
+                        lab[yy, xx] = cur; stack.append((yy, xx))
+    return lab, cur
+
+
+def own_mask(win, m, inner, px, min_frac=0.004):
+    """Keep the blobs that belong to this cell: label the key mask at 1/px scale (grown a little so a sprite's
+    loose parts join up), then keep every blob whose centre lies inside the cell proper (`inner` = y0, y1, x0, x1
+    in window coords). Parts that spill past the cell line are kept whole; neighbours' slivers are dropped.
+    `min_frac`: smallest kept blob relative to the biggest (details like pebbles / flowers keep their loose bits;
+    props and buildings drop stray specks and the odd extra object the generator put in the cell)."""
+    h, w = m.shape
+    hs, ws = h // px, w // px
+    small = m[:hs * px, :ws * px].reshape(hs, px, ws, px).any(axis=(1, 3))
+    g = small.copy()
+    for _ in range(2):
+        e = g.copy()
+        e[1:] |= g[:-1]; e[:-1] |= g[1:]; e[:, 1:] |= g[:, :-1]; e[:, :-1] |= g[:, 1:]
+        g = e
+    lab, n = label(g)
+    keep = np.zeros_like(g)
+    sizes = [(lab == i).sum() for i in range(1, n + 1)]
+    big = max(sizes) if sizes else 0
+    iy0, iy1, ix0, ix1 = [v / px for v in inner]
+    for i in range(1, n + 1):
+        ys, xs = np.where(lab == i)
+        cy, cx = ys.mean(), xs.mean()
+        if iy0 <= cy < iy1 and ix0 <= cx < ix1 and sizes[i - 1] >= big * min_frac:
+            keep |= lab == i
+    full = np.zeros_like(m)
+    full[:hs * px, :ws * px] = np.repeat(np.repeat(keep, px, 0), px, 1)
+    return m & full
+
+
 def outline(a, col=(26, 18, 16)):
     """Clean the key edge: darken any leftover pink edge pixel, then add a 1 px dark outline (Airron's Fall style)."""
     op = a[..., 3] > 0
@@ -92,15 +140,19 @@ def main():
         cw, ch = w / cols, h / rows
         for i, name in enumerate(names):
             cx, cy = i % cols, i // cols
-            x0, y0 = int(cx * cw) + 2, int(cy * ch) + 2
-            cell = im[y0:int((cy + 1) * ch) - 2, x0:int((cx + 1) * cw) - 2]
+            # Window = the cell plus a 14% margin so sprites that overflow their cell are not cropped;
+            # own_mask() then drops whatever belongs to the neighbouring cells.
+            mx, my = int(cw * 0.14), int(ch * 0.14)
+            X0, Y0 = max(0, int(cx * cw) - mx), max(0, int(cy * ch) - my)
+            X1, Y1 = min(w, int((cx + 1) * cw) + mx), min(h, int((cy + 1) * ch) + my)
+            cell = im[Y0:Y1, X0:X1]
             m = key_mask(cell, bg)
-            # keep only reasonably large blobs' bounding box (ignores stray specks near cell edges)
+            frac = 0.5 if name == "log" else (0.004 if fn == "sheet-details.jpg" else 0.2)
+            m = own_mask(cell, m, (int(cy * ch) - Y0, int((cy + 1) * ch) - Y0, int(cx * cw) - X0, int((cx + 1) * cw) - X0), px, frac)
             ys, xs = np.where(m)
             if len(xs) == 0:
                 print("empty", name); continue
-            y1, y2 = np.percentile(ys, [0.2, 99.8]).astype(int)
-            x1, x2 = np.percentile(xs, [0.2, 99.8]).astype(int)
+            y1, y2, x1, x2 = ys.min(), ys.max(), xs.min(), xs.max()
             y1, x1 = max(0, y1 - 2), max(0, x1 - 2)
             sub = cell[y1:y2 + 3, x1:x2 + 3]
             sm = m[y1:y2 + 3, x1:x2 + 3]
