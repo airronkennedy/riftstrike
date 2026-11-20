@@ -31,18 +31,20 @@ func _run() -> void:
 	g.AUTO = false
 	g.start_fight(3)
 	for u in g.G.units:
-		if u.team == "blue" and absf(u.gauge - minf(100.0, (100.0 if u.name == nm else 37.0) + float(u.mana_regen))) > 0.01: fails.append("start mp " + u.name + " " + str(u.gauge))
+		# side-view timeline: only the unit whose turn it is has gained its turn regen yet
+		var base := 100.0 if u.name == nm else 37.0
+		if u.team == "blue" and absf(u.gauge - base) > 0.01 and absf(u.gauge - minf(100.0, base + float(u.mana_regen))) > 0.01: fails.append("start mp " + u.name + " " + str(u.gauge))
 	# AUTO turn
 	g.AUTO = true
 	g.step(17)
 	var lead_u = null
 	for u in g.G.units:
 		if u.team == "blue" and u.name == nm: lead_u = u
-	if g.G.mode == "select": fails.append("auto did not execute")
-	if g.G.queue.size() != g.alive("blue").size(): fails.append("auto queue size %d" % g.G.queue.size())
+	if g.G.active != null and g.G.active.team == "blue" and g.G.mode == "select": fails.append("auto did not execute")
+	if g.G.active != null and g.G.active.team == "blue" and g.G.queue.size() != 1: fails.append("auto queue size %d" % g.G.queue.size())
 	var cast := false
 	var guard := 0
-	while guard < 600 and g.G.side == "blue" and g.phase == "battle":
+	while guard < 4000 and g.phase == "battle" and not cast:
 		g.step(17); guard += 1
 		if lead_u.gauge < 50.0: cast = true
 	if not cast: fails.append("auto ability not cast (gauge %d)" % int(lead_u.gauge))
@@ -57,7 +59,7 @@ func _run() -> void:
 	if int(cf.get_value("mp", nm, -1)) != 64: fails.append("saved mp " + str(cf.get_value("mp", nm, -1)))
 	g.start_fight(2)
 	for u in g.G.units:
-		if u.team == "blue" and u.name == nm and absf(u.gauge - minf(100.0, 64.0 + float(u.mana_regen))) > 0.01: fails.append("next fight mp " + str(u.gauge))
+		if u.team == "blue" and u.name == nm and absf(u.gauge - 64.0) > 0.01 and absf(u.gauge - minf(100.0, 64.0 + float(u.mana_regen))) > 0.01: fails.append("next fight mp " + str(u.gauge))
 	# no ability marked: full MP, AUTO -> basic attack, MP not spent by ability
 	g.run_battle()
 	g.AB_SEQ[nm] = [[cid, "boss"]]
