@@ -15,6 +15,7 @@ run/low_processor_mode=false
 [autoload]
 
 Encounters="*res://scripts/encounters.gd"
+QuestFlow="*res://scripts/quest_flow.gd"
 
 [display]
 

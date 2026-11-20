@@ -36,8 +36,14 @@ static func _box(fill: Color, border: Color, bw: int, rad: int, shadow: int = 0,
 	sb.bg_color = fill
 	sb.border_color = border
 	sb.set_border_width_all(bw)
-	sb.set_corner_radius_all(rad)
-	sb.corner_detail = 10
+	# Airron's Fall plate: top-left and bottom-right corners cut on a straight diagonal (the CSS clip-path chamfer
+	# that game.gd rbox() and the battle HUD draw too), square top-right and bottom-left.
+	var cut := int(roundf(rad * 0.55))
+	sb.corner_radius_top_left = cut
+	sb.corner_radius_bottom_right = cut
+	sb.corner_radius_top_right = 0
+	sb.corner_radius_bottom_left = 0
+	sb.corner_detail = 1
 	sb.anti_aliasing = true
 	sb.set_content_margin_all(pad)
 	if shadow > 0:
@@ -56,8 +62,8 @@ static func build() -> Theme:
 	t.default_font = body
 	t.default_font_size = 18
 	# Panels: flat ash sheet, and the carved Airron's Fall frame (ui_panel_9) for dialogs.
-	t.set_stylebox("panel", "Panel", _box(Color(SHEET, 0.96), LINE, 2, 14, 10))
-	t.set_stylebox("panel", "PanelContainer", _box(Color(SHEET, 0.96), LINE, 2, 14, 10, 14))
+	t.set_stylebox("panel", "Panel", _box(Color(SHEET, 0.96), Color(GOLD_DARK, 0.55), 1, 30, 10))
+	t.set_stylebox("panel", "PanelContainer", _box(Color(SHEET, 0.96), Color(GOLD_DARK, 0.55), 1, 30, 10, 14))
 	var frame := StyleBoxTexture.new()
 	frame.texture = load("res://assets/af/gen/ui_panel_9.png")
 	frame.set_texture_margin_all(28)

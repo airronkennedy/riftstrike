@@ -52,3 +52,10 @@ Add a **Windows Desktop** or **iOS** preset in Project → Export (Godot downloa
 ## Assets
 Everything is Airron's Fall art (Airron Kennedy's own game). See `docs/ASSET_LICENSES.md`.
 Rebuild the art from an Airron's Fall checkout: `python3 tools/build_af_assets.py /path/to/arena-survival-game`.
+
+## Main flow (title -> kingdom -> battle)
+Title **New Game / Continue** opens the Emberhold kingdom (`scenes/kingdom.tscn`). When the overworld danger meter fills,
+`Encounters.random_battle_requested(region)` is picked up by the `QuestFlow` autoload (`scripts/quest_flow.gd`), which runs
+that region's side-view battle (foes and Airron's Fall backdrop per region in `REGION_BATTLES`), writes the party's remaining
+HP to `user://kingdom.cfg`, calls `Encounters.finish_random_battle(won)` and returns to the same spot.
+Test: `godot --headless --path . --script res://tools/test_quest_flow.gd`.

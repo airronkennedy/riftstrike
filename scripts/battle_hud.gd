@@ -5,14 +5,14 @@ extends RefCounted
 ## Layout (landscape): turn timeline across the top, command menu upper right, party cards bottom right,
 ## speed / auto / tips bar bottom left. game.gd owns the rules; this file only draws and routes taps.
 
-const GOLD := Color("#d9ad62")
-const GOLD_HI := Color("#f4d796")
-const PARCH := Color("#ece3cf")
-const PARCH_DIM := Color("#b9ab92")
-const EMBER := Color("#ee7a3a")
+const GOLD := AfTheme.GOLD_DARK # shared Airron's Fall palette (scripts/ui/af_theme.gd)
+const GOLD_HI := AfTheme.GOLD
+const PARCH := AfTheme.INK
+const PARCH_DIM := AfTheme.MUTED
+const EMBER := AfTheme.EMBER
 const ASH := Color(0.086, 0.074, 0.06, 0.9)
 const INK := Color(0.035, 0.03, 0.025, 0.94)
-const FOE := Color("#d2584a")
+const FOE := AfTheme.CORAL
 const HP_G := Color("#6fcf6a")
 const MP_B := Color("#5aa8ff")
 const YEL := Color("#f2c94c")
