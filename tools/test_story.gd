@@ -183,6 +183,7 @@ func walk(tag: String, pol: Dictionary) -> void:
 	preload("res://tools/test_save.gd").fresh()
 	st.reset()
 	st.battle_stub = true
+	st.use_dungeon_scene = false # the overworld fallback; the dungeon scene has its own test (tools/test_dungeon.gd)
 	st.ui.fast = true
 	k = load("res://scenes/kingdom.tscn").instantiate()
 	root.add_child(k)

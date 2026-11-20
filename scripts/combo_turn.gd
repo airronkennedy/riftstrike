@@ -23,11 +23,19 @@ func start(g, side: String, order: Array, delays: Dictionary, focus) -> void:
 	team = side; clock = 0.0; strikes = []; projs = []; hist = {}; hits = 0; sparks = 0; dmg = 0; last_spark_pop = {}; chain = {}; spark_txt = {}; hit_nums = {}
 	rng.randomize()
 	var slot := 0
+	var boss = g.get("boss")
+	if side == "red" and boss != null: order = boss.enemy_order(g, order)
 	for u in order:
 		if u.dead: continue
 		var s := _plan(g, u, slot, float(delays.get(u.name, 0.0)), focus)
 		if not s.is_empty():
 			strikes.append(s); slot += 1
+			# a boss may act more than once a turn (its phase's "acts"): each act starts after the previous one
+			if boss != null and boss.owns(u):
+				for a in range(1, boss.acts(g)):
+					var s2 := _plan(g, u, slot, 0.0, focus, a, float(strikes[strikes.size() - 1].end) + 160.0)
+					if s2.is_empty(): break
+					strikes.append(s2); slot += 1
 	end_t = 0.0
 	for s in strikes: end_t = maxf(end_t, float(s.end))
 	running = not strikes.is_empty()
@@ -40,9 +48,11 @@ func _pick_target(g, u, focus):
 		return g.bf_auto_target()
 	return foes[rng.randi() % foes.size()]
 
-func _plan(g, u, slot: int, delay: float, focus) -> Dictionary:
+func _plan(g, u, slot: int, delay: float, focus, act: int = 0, t0_at: float = -1.0) -> Dictionary:
 	var t = _pick_target(g, u, focus)
 	if t == null: return {}
+	var boss = g.get("boss")
+	var bp: Dictionary = boss.plan(g, act) if (boss != null and boss.owns(u)) else {}
 	var ab_id := ""
 	var ab: Dictionary = {}
 	if u.team == "blue" and u.gauge >= g.AB_MP and g.CHAR.has(u.name):
@@ -53,8 +63,12 @@ func _plan(g, u, slot: int, delay: float, focus) -> Dictionary:
 	if u.team == "blue": f = Combo.frames(str(u.cls), ab)
 	else:
 		f = (Combo.FOE_FRAMES.ranged if str(u.K.ranged) != "" else Combo.FOE_FRAMES.melee).duplicate()
-		if u.tier == "elite": f.hits = int(f.hits) + 1
+		# stronger tiers swing more often (balance: elite, miniboss, boss); a boss fight's boss uses its phase frames
+		if u.tier == "elite" or u.tier == "miniboss" or u.tier == "boss": f.hits = int(f.hits) + 1
 		if foe_bb: f = _foe_bb(f)
+		if not bp.is_empty():
+			f = bp.f; foe_bb = false
+			if bp.target != null: t = bp.target
 	var kind: String = str(ab.get("kind", "attack"))
 	var support: bool = ab_id != "" and not (kind == "damage_single" or kind == "damage_all_enemies")
 	if support:
@@ -64,13 +78,13 @@ func _plan(g, u, slot: int, delay: float, focus) -> Dictionary:
 	var home := Vector2(u.hx, u.hy)
 	var side: float = 1.0 if u.hx > t.x else -1.0
 	var ap := Vector2(t.x + side * (float(u.K.range) + 34.0), t.y + 2.0) if str(f.style) == "melee" and not support else home + Vector2(-side * 34.0, 0)
-	var t0: float = float(slot) * Combo.SLOT_STAGGER + delay
+	var t0: float = (t0_at if t0_at >= 0.0 else float(slot) * Combo.SLOT_STAGGER + delay) + float(bp.get("tele", 0.0))
 	var r := Combo.roll_hits(f, t0, home.distance_to(ap), rng)
 	var times: Array = r.times
 	var last: float = times[times.size() - 1] if not times.is_empty() else t0 + r.dash + r.wind
 	var ret: float = (r.dash * 0.85) if str(f.style) == "melee" else 150.0
 	var s := {"u": u, "f": f, "t0": t0, "dash": r.dash, "wind": r.wind, "travel": r.travel, "times": times, "next": 0, "shot": 0,
-		"target": t, "all": kind == "damage_all_enemies", "ab": ab_id, "support": support, "foe_bb": foe_bb,
+		"target": t, "all": kind == "damage_all_enemies" or bool(bp.get("all", false)), "ab": ab_id, "sig": str(bp.get("sig", "")), "support": support, "foe_bb": foe_bb,
 		"home": home, "ap": ap, "last": last, "ret": ret, "end": last + Combo.RECOVER + ret, "started": false, "first_hit": true}
 	return s
 
@@ -228,17 +242,17 @@ func _retarget(g, s: Dictionary):
 	return nt
 
 ## Is another unit's hit on t within the spark window of time tm (landed or still to come)?
-func _sparks(t, tm: float, who) -> bool:
+func _sparks(t, tm: float, who, win: float = Combo.SPARK_WINDOW) -> bool:
 	for h in hist.get(t.id, []):
-		if h[1] != who and absf(tm - float(h[0])) <= Combo.SPARK_WINDOW: return true
+		if h[1] != who and absf(tm - float(h[0])) <= win: return true
 	for s in strikes:
 		if s.u == who or s.u.dead or s.support: continue
 		if not (s.all or s.target == t): continue
 		var times: Array = s.times
 		for i in range(int(s.next), times.size()):
 			var d: float = float(times[i]) - tm
-			if d > Combo.SPARK_WINDOW: break
-			if d >= -Combo.SPARK_WINDOW: return true
+			if d > win: break
+			if d >= -win: return true
 	return false
 
 func _land(g, s: Dictionary, tm: float, i: int) -> void:
@@ -264,7 +278,7 @@ func _land(g, s: Dictionary, tm: float, i: int) -> void:
 	s.first_hit = false
 	for t in targets:
 		if t.dead: continue
-		var sp := _sparks(t, tm, u)
+		var sp := _sparks(t, tm, u, g.boss.spark_window(t) if g.get("boss") != null else Combo.SPARK_WINDOW)
 		var crit: bool = rng.randf() < clampf(float(u.crit) / 100.0, 0.0, 0.6)
 		var raw: float = float(u.atk) * float(f.mult) / float(n) * g.surge_mult() * (1.5 if crit else 1.0)
 		var after: float = raw * g.def_mit(float(t.def))
@@ -335,6 +349,8 @@ func _hit_number(g, t, d: int, hy: float, sp: bool, crit: bool) -> void:
 	st.live = live; st.slot = slot + 1; hit_nums[t.id] = st
 
 func _apply(g, u, t, d: int, sp: bool, crit: bool, s: Dictionary, last: bool) -> void:
+	var boss = g.get("boss")
+	if boss != null: d = boss.damage_in(g, u, t, d, sp)
 	t.hp = maxi(0, t.hp - d)
 	u.dmg += d
 	if g.combat_trace != null:
@@ -386,3 +402,4 @@ func _apply(g, u, t, d: int, sp: bool, crit: bool, s: Dictionary, last: bool) ->
 		g.add_text(t.x, t.y - t.K.head * g.uS(t) - 44, "KO!", "#ff5a5a", 22, 900, true)
 		g.hitstop = maxf(g.hitstop, 80.0)
 		g.sfx.ko(); g.shake(6, 180); g.cam_punch = maxf(g.cam_punch, 1.4)
+	if boss != null: boss.after_hit(g, u, t)

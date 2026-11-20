@@ -1305,6 +1305,7 @@ var banner = null
 var now := 0.0
 var hitstop := 0.0
 var cam_punch := 0.0 # combo camera punch (decays)
+var boss = null # BossFight while a boss battle runs (scripts/boss/boss_fight.gd, docs/BOSSES.md)
 # Battle camera (side view): frames the fighters tightly and pushes in on the attacker during hits, sparks and
 # Brave Bursts, then eases back out. world -> screen: p * cam_s + cam_off (logical screen px, before dpr).
 var cam_c := Vector2(512, 300)
@@ -1332,6 +1333,7 @@ func new_battle(n: int = 0) -> void:
 			ou.plan = null; ou.act = null; ou.burn = null
 		G.queue = []; G.cur = null
 	sync_pending = []
+	if BossDefs.id_for(encounter) == "": boss = null
 	var units := []
 	var enc_on: bool = not encounter.is_empty()
 	if n == 0: n = int(params.get("enemies", "0"))
@@ -1958,7 +1960,7 @@ const CAM_EASE_Z := 3.6
 
 func battle_cam_rect() -> Rect2:
 	var port: bool = VHc > VWc
-	var top: float = SAFE_T + (96.0 if port else 58.0)
+	var top: float = SAFE_T + (96.0 if port else 58.0) + (boss.hud_h(self) * (0.5 if port else 0.8) if boss != null else 0.0)
 	var bot: float = SAFE_B + (170.0 if port else 92.0)
 	return Rect2(SAFE_L + 8.0, top, VWc - SAFE_L - SAFE_R - 16.0, maxf(120.0, VHc - top - bot))
 
@@ -1976,6 +1978,9 @@ func battle_box() -> Rect2:
 
 ## Where to push in: the unit striking now (and its target), harder for a Brave Burst; the party on victory.
 func cam_focus() -> Dictionary:
+	if boss != null:
+		var bfz: Dictionary = boss.cam_focus(self)
+		if not bfz.is_empty(): return bfz
 	if phase == "ending" and G.result == "win":
 		var c := Vector2.ZERO
 		var n := 0
@@ -2063,7 +2068,8 @@ func begin_timeline() -> void:
 		if u.team == "red":
 			u.letter = "ABCDEFGH".substr(li, 1); li += 1
 	banner = {"text": "", "sub": "", "t": 0.0, "life": 1000.0, "color": "blue"}
-	bf_select()
+	if boss != null: boss.begin(self) # intro cut-in first, then the party's turn
+	else: bf_select()
 
 # ---------------------------------------------------------------- team turns + combos
 ## Party turn opens with a short target select: tap an enemy to focus everyone, or wait (AUTO skips it).
@@ -2151,11 +2157,13 @@ func bf_enemy_turn() -> void:
 	apply_mana_regen("red")
 	G.mode = "strike"
 	G.turnc.start(self, "red", bf_order("red"), {}, null)
-	banner = {"text": "ENEMY TURN", "sub": "", "t": 0.0, "life": 750.0, "color": "red"}
+	banner = {"text": "ENEMY TURN", "sub": "", "t": 0.0, "life": 750.0, "color": "red"} if (boss == null or boss.tele.is_empty()) else null
 	sfx.tone(220, 0.15, "sawtooth", 0.04, 0.8)
 
 func bf_controller(dt: float) -> void:
 	match G.mode:
+		"intro":
+			if boss == null or boss.intro_done(): bf_select()
 		"select":
 			if paused: return
 			G.sel_t -= dt
@@ -2249,6 +2257,7 @@ func clear_queue() -> void:
 func step(dt: float) -> void:
 	now += dt
 	if phase == "battle" or phase == "ending":
+		if boss != null: dt = boss.tick(self, dt) # boss timers; slow motion on the finishing blow
 		if hitstop > 0:
 			hitstop -= dt; dt *= 0.15
 		G.t += dt
@@ -2273,7 +2282,7 @@ func step(dt: float) -> void:
 				else: sfx.lose()
 		else:
 			G.end_t += dt
-			if G.end_t > 1450: show_results()
+			if G.end_t > 1450.0 + (boss.end_extra() if boss != null else 0.0): show_results()
 	elif G != null:
 		for u in G.units:
 			u.at += dt; u.shown_hp = u.hp
@@ -3728,7 +3737,9 @@ func run_battle() -> void:
 	sfx.tone(330, 0.06, "square", 0.03)
 	stash_party_mp()
 	save_cfg()
-	if kingdom_battle():
+	if boss != null and boss.standalone:
+		boss_return(false)
+	elif kingdom_battle():
 		return_to_kingdom(false)
 	elif not encounter.is_empty():
 		end_encounter_return()
@@ -3737,7 +3748,9 @@ func run_battle() -> void:
 
 
 func results_primary() -> void:
-	if kingdom_battle():
+	if boss != null and boss.standalone:
+		boss_return(G != null and G.result == "win")
+	elif kingdom_battle():
 		return_to_kingdom(G != null and G.result == "win")
 	elif not encounter.is_empty():
 		end_encounter_return()
@@ -3746,6 +3759,8 @@ func results_primary() -> void:
 
 
 func results_title() -> void:
+	if boss != null and boss.standalone:
+		boss_return(G != null and G.result == "win"); return
 	if kingdom_battle():
 		return_to_kingdom(G != null and G.result == "win"); return
 	encounter = {}
@@ -4753,7 +4768,7 @@ func draw_cast_banner() -> void:
 		var inn: float = clampf(bt / 160.0, 0.0, 1.0)
 		var outk: float = clampf((bt - (life - 220.0)) / 220.0, 0.0, 1.0)
 		var bh := 56.0
-		var by: float = SAFE_T + 34.0
+		var by: float = SAFE_T + 34.0 + (boss.hud_h(self) + 4.0 if boss != null else 0.0)
 		var open_h: float = bh * (1.0 - pow(1.0 - inn, 3.0)) * (1.0 - outk)
 		if open_h < 1.0: return
 		draw_rect(Rect2(0, by - open_h / 2.0, VWc, open_h), Color(0.04, 0.03, 0.025, 0.82))
@@ -5057,6 +5072,7 @@ func _draw() -> void:
 	for p in projectiles: draw_projectile(p)
 	if G != null and G.bf and G.turnc != null:
 		for p in G.turnc.projs: draw_projectile(p)
+	if side_view and boss != null: boss.draw_world(self)
 	if side_view:
 		for u in G.units: HUD.unit_overlay(self, u)
 	elif G != null and phase != "title":
@@ -5106,11 +5122,16 @@ func start_kingdom_battle(region: String) -> void:
 	encounter = e
 	new_battle(3)
 	if AREAS.has(str(e.area)): battle_area = str(e.area)
+	var bid := BossDefs.id_for(e) # story boss fights get the boss presentation (scripts/boss/, docs/BOSSES.md)
+	if bid != "":
+		boss = BossFight.new(bid); boss.setup(self)
 	var frac: float = qf.party_hp_frac()
 	for u in G.units:
 		if u.team == "blue": u.hp = maxi(1, int(roundf(float(u.maxhp) * frac)))
 	phase = "battle"; paused = false; screen = ""
 	begin_timeline()
+	if boss != null: # the boss intro cut-in replaces the banner
+		sfx.tone(392, 0.09, "square", 0.04); return
 	banner.text = "AMBUSH!"
 	banner.sub = str(e.get("region", "")).capitalize() + "  ·  Lv." + str(int(e.get("level", 1)))
 	banner.color = "yellow"; banner.life = 1400.0
@@ -5118,6 +5139,38 @@ func start_kingdom_battle(region: String) -> void:
 		banner.text = str(e.banner); banner.sub = str(e.get("banner_sub", "")) + "  ·  Lv." + str(int(e.get("level", 1)))
 		banner.color = "red" if bool(e.get("boss", false)) else "yellow"; banner.life = 2000.0
 	sfx.tone(392, 0.09, "square", 0.04)
+
+## A boss fight (Bosses.start_boss, scripts/boss/): the normal side-view battle plus the BossFight hooks.
+## carry_hp: start at the party's saved overworld HP (the story/dungeon path); tools start at full HP.
+func start_boss_battle(id: String, carry_hp: bool = false) -> void:
+	if not BossDefs.has(id): return
+	boss = BossFight.new(id)
+	encounter = BossDefs.encounter(id, int(roundf(raid_party_level())))
+	new_battle(3)
+	boss = BossFight.new(id) if boss == null else boss
+	boss.setup(self)
+	boss.standalone = true
+	var qf := get_node_or_null("/root/QuestFlow")
+	var frac: float = qf.party_hp_frac() if (qf != null and carry_hp) else 1.0
+	for u in G.units:
+		if u.team == "blue": u.hp = maxi(1, int(roundf(float(u.maxhp) * frac)))
+	phase = "battle"; paused = false; screen = ""
+	begin_timeline()
+
+## Leave a boss fight: Bosses records it, writes party HP and returns to the scene that started it.
+func boss_return(won: bool) -> void:
+	var id: String = str(boss.id) if boss != null else ""
+	var tot := 0.0
+	var left := 0.0
+	if G != null:
+		for u in G.units:
+			if u.team == "blue":
+				tot += float(u.maxhp); left += 0.0 if u.dead else float(maxi(0, u.hp))
+	stash_party_mp(); save_cfg()
+	encounter = {}; boss = null
+	var bs := get_node_or_null("/root/Bosses")
+	if bs != null: bs.finish(id, won, left / maxf(1.0, tot))
+	else: to_title()
 
 func kingdom_battle() -> bool:
 	var qf := get_node_or_null("/root/QuestFlow")
@@ -5179,6 +5232,7 @@ func show_results() -> void:
 		var exp_e: int = WORLD.encounter_xp(encounter)
 		xp_full = exp_e if win else int(roundf(float(exp_e) * 0.25))
 		raid_name = (str(encounter.region).capitalize() if encounter.has("region") else "Wild") + " Lv." + str(int(encounter.get("level", 1))) + (" · Elite!" if bool(encounter.get("elite", false)) else "")
+	if boss != null: raid_name = str(boss.d.name) + " · " + boss.tag().capitalize()
 	if r == "draw" and encounter.is_empty():
 		xp_full = raid_xp_award(G.n_red, false)
 	stash_party_mp()
@@ -5455,7 +5509,10 @@ func _ready() -> void:
 	build_terrain(); terrain_built = true
 	to_title()
 	var qf := get_node_or_null("/root/QuestFlow")
-	if qf != null and qf.in_kingdom_battle and qf.pending_region != "":
+	var bs := get_node_or_null("/root/Bosses")
+	if bs != null and str(bs.pending) != "":
+		start_boss_battle(str(bs.pending), true)
+	elif qf != null and qf.in_kingdom_battle and qf.pending_region != "":
 		start_kingdom_battle(qf.pending_region)
 	if params.get("auto", "") == "1":
 		AUTO = true; start_fight(int(params.get("enemies", str(last_raid))))

@@ -17,6 +17,7 @@ run/low_processor_mode=false
 Encounters="*res://scripts/encounters.gd"
 QuestFlow="*res://scripts/quest_flow.gd"
 Story="*res://scripts/story/story.gd"
+Bosses="*res://scripts/boss/boss_flow.gd"
 
 [display]
 

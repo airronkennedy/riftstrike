@@ -177,6 +177,11 @@ func draw(g) -> void:
 	draw_summary(g)
 	draw_cards(g)
 	draw_bar(g)
+	if g.boss != null: g.boss.draw_hud(g) # boss HP bar, intro / phase / signature / finishing-blow cut-ins
+
+## Extra top margin under the boss HP bar during a boss fight.
+func top_off(g) -> float:
+	return g.boss.hud_h(g) if g.boss != null else 0.0
 
 func portrait(g, u, c: Vector2, r: float, border: Color, bw: float) -> void:
 	g.draw_colored_polygon(diamond(c, r), INK)
@@ -206,7 +211,7 @@ func draw_combo(g) -> void:
 	var a = 1.0 if age < 1100.0 else 1.0 - (age - 1100.0) / 400.0
 	var sp: int = tc.sparks if live else int(G.summary.get("sparks", 0))
 	var x: float = g.VWc - g.SAFE_R - 24.0 * k
-	var y: float = g.SAFE_T + (64.0 if g.VHc > g.VWc else 96.0) * k
+	var y: float = g.SAFE_T + (64.0 if g.VHc > g.VWc else 96.0) * k + (top_off(g) if g.VHc > g.VWc else 0.0)
 	var col = PARCH
 	if n >= 30: col = Color("#b8ff6a")
 	elif n >= 20: col = EMBER
@@ -237,7 +242,7 @@ func draw_summary(g) -> void:
 	var a = ain if age < 1250.0 else 1.0 - (age - 1250.0) / 350.0
 	var w = minf(360.0 * k, g.VWc - 16.0)
 	var h = 54.0 * k
-	var r = Rect2((g.VWc - w) / 2.0, g.SAFE_T + 14.0 * k - (1.0 - ain) * 14.0, w, h)
+	var r = Rect2((g.VWc - w) / 2.0, g.SAFE_T + top_off(g) + 14.0 * k - (1.0 - ain) * 14.0, w, h)
 	g.save(); g._alpha = a
 	g.rbox(r, 14, Color(0.07, 0.055, 0.045, 0.9), Color.WHITE, 1.2, 4)
 	var old: Font = g._font_override
@@ -254,7 +259,7 @@ func draw_select(g) -> void:
 	var w = minf(430.0 * k, g.VWc * 0.6) if g.VWc > g.VHc else g.VWc - 16.0
 	var h = 62.0 * k
 	var e = ease_out(sel_in)
-	var r = Rect2((g.VWc - w) / 2.0, g.SAFE_T + 10.0 * k - (1.0 - e) * 30.0, w, h)
+	var r = Rect2((g.VWc - w) / 2.0, g.SAFE_T + top_off(g) + 10.0 * k - (1.0 - e) * 30.0, w, h)
 	g.save(); g._alpha = e
 	g.rbox(r, 14, Color(0.07, 0.058, 0.046, 0.9), Color.WHITE, 1.2, 4)
 	var old: Font = g._font_override
