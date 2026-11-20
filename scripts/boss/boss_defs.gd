@@ -99,8 +99,8 @@ const SIGNATURES := {
 	"smother": {"name": "Smother", "telegraph": 900.0, "target": "single", "mult": 2.1,
 		"frames": {"style": "melee", "windup": 300.0, "hits": 6, "interval": 70.0, "travel": 0.0, "mult": 2.1},
 		"warn": "Mother pulls one keeper close"},
-	"final_tally": {"name": "Final Tally", "telegraph": 900.0, "target": "back", "mult": 1.9,
-		"frames": {"style": "melee", "windup": 300.0, "hits": 5, "interval": 75.0, "travel": 0.0, "mult": 1.9},
+	"final_tally": {"name": "Final Tally", "telegraph": 900.0, "target": "back", "mult": 1.0,
+		"frames": {"style": "melee", "windup": 300.0, "hits": 4, "interval": 75.0, "travel": 0.0, "mult": 1.0},
 		"warn": "The ledger names the last in line"},
 	"death_knell": {"name": "Death Knell", "telegraph": 1000.0, "target": "all", "mult": 1.1,
 		"frames": {"style": "cast", "windup": 420.0, "hits": 3, "interval": 200.0, "travel": 200.0, "mult": 1.1},
@@ -157,11 +157,11 @@ static var LINES := {
 ## FOE_SIZE, TIER_XP) through encounter.tiers / foe_ids. TUNE is an extra per-boss multiplier on top, for the boss
 ## mechanics here (ward, Break, phases, signatures): 1.0 = the plain tier numbers. Tuned with tools/sim_bosses.gd.
 static var TUNE := {
-	"miniboss_matron": {"hp": 1.6, "atk": 0.74, "def": 1.0},
-	"guardian_f1": {"hp": 1.0, "atk": 1.0, "def": 1.0},
-	"guardian_f2": {"hp": 1.0, "atk": 1.0, "def": 1.0},
-	"boss_regnant": {"hp": 1.05, "atk": 0.84, "def": 1.0},
-	"boss_sovereign": {"hp": 1.2, "atk": 0.64, "def": 1.0},
+	"miniboss_matron": {"hp": 1.15, "atk": 0.99, "def": 1.0, "break": 1.5, "spark": 0.25},
+	"guardian_f1": {"hp": 0.58, "atk": 1.4, "def": 1.0, "break": 1.5, "spark": 0.2},
+	"guardian_f2": {"hp": 0.72, "atk": 1.04, "def": 1.0, "break": 1.5, "spark": 0.25},
+	"boss_regnant": {"hp": 0.65, "atk": 1.02, "def": 1.0, "break": 1.5, "spark": 0.25},
+	"boss_sovereign": {"hp": 0.86, "atk": 0.78, "def": 1.0, "break": 1.5, "spark": 0.25},
 }
 
 static func has(id: String) -> bool:

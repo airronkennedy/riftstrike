@@ -8,7 +8,7 @@ extends RefCounted
 ## its phase's hit frames, `acts` times a turn, and every `sig_every` turns (and on entering a phase) uses a
 ## signature attack with a telegraph: the camera holds on it, warning rings mark the targets, the name drops in.
 ## HP thresholds change phase (new frames, tighter spark window, more acts, a line). Non-spark hits are dulled by the
-## ward; sparks fill the Break gauge (a Broken boss takes +10% and its next turn is one weak act). The killing blow slows time and holds the
+## ward; sparks fill the Break gauge (a Broken boss takes +15% and staggers its next turn). The killing blow slows time and holds the
 ## camera on the boss before the victory push-in.
 
 const INTRO_MS := 3400.0
@@ -16,8 +16,11 @@ const PHASE_MS := 1500.0
 const FINISH_MS := 1500.0
 const FINISH_SLOW := 0.22
 const END_EXTRA := 2600.0
-const BROKEN_MULT := 1.1 # damage taken while Broken
-const STAGGER_MULT := 0.75 # the Broken boss's one weak act
+const BROKEN_MULT := 1.15 # damage taken while Broken
+## A Broken boss's next turn is staggered: STAGGER_MULT damage, and a signature due that turn comes one turn later.
+## It keeps its acts and its signature cadence (it used to drop to one weak act and skip the signature; with the rift
+## surge that swung boss fights 40-60 win-% points between a good and a weak Attack Order, docs/BOSSES.md).
+const STAGGER_MULT := 0.85
 
 var id := ""
 var d: Dictionary = {}
@@ -147,11 +150,9 @@ func enemy_order(g, order: Array) -> Array:
 	var out: Array = order.filter(func(u): return u != unit)
 	staggered = false
 	if broken:
-		# Broken: this turn the boss only manages one weak, plain act (no signature)
+		# Broken: this turn the boss staggers: weaker plain acts, and a signature due now waits a turn
 		broken = false; staggered = true
 		g.add_text(unit.x, unit.y - float(unit.K.head) * g.uS(unit) - 40.0, "STAGGERED", "#9fd8ff", 20, 1100, true)
-		out.push_front(unit)
-		return out
 	boss_turns += 1
 	var every: int = maxi(1, int(phase_def().get("sig_every", 3)))
 	if boss_turns % every == 0: sig_due = true
@@ -161,7 +162,7 @@ func enemy_order(g, order: Array) -> Array:
 var staggered := false
 
 func acts(g) -> int:
-	return 1 if staggered else maxi(1, int(phase_def().get("acts", 1)))
+	return maxi(1, int(phase_def().get("acts", 1)))
 
 ## The boss's strike for this act: frames, target and telegraph. act = 0 for the first strike of the turn.
 func plan(g, act: int) -> Dictionary:
@@ -214,7 +215,7 @@ func damage_in(g, u, t, dmg: int, sp: bool) -> int:
 func _fill_break(g) -> void:
 	if broken: return
 	break_g += 1.0
-	var need: float = float(d.get("break_need", 12))
+	var need: float = float(d.get("break_need", 12)) * BossDefs.tune(id, "break")
 	if break_g >= need:
 		break_g = 0.0
 		broken = true
@@ -366,7 +367,7 @@ func _draw_bar(g, k: float) -> void:
 		g.draw_rect(Rect2(tx - 1.0, br.position.y - 3.0, 2.0, br.size.y + 6.0), AfTheme.GOLD)
 	g.text("%d / %d" % [maxi(0, unit.hp), unit.maxhp], br.end.x - 4.0 * k, br.get_center().y, 9.0 * k, AfTheme.INK, "right", 3.0)
 	# Break gauge (sparks fill it)
-	var need: float = float(d.get("break_need", 12))
+	var need: float = float(d.get("break_need", 12)) * BossDefs.tune(id, "break")
 	var gb := Rect2(x + 54.0 * k, y + 40.0 * k, (w - 66.0 * k) * 0.5, 4.0 * k)
 	g.draw_rect(gb.grow(1), Color(0, 0, 0, 0.75))
 	var bv: float = 1.0 if broken else clampf(break_g / need, 0.0, 1.0)

@@ -280,10 +280,12 @@ func _land(g, s: Dictionary, tm: float, i: int) -> void:
 		if t.dead: continue
 		var sp := _sparks(t, tm, u, g.boss.spark_window(t) if g.get("boss") != null else Combo.SPARK_WINDOW)
 		var crit: bool = rng.randf() < clampf(float(u.crit) / 100.0, 0.0, 0.6)
-		var raw: float = float(u.atk) * float(f.mult) / float(n) * g.surge_mult() * (1.5 if crit else 1.0)
+		var raw: float = float(u.atk) * float(f.mult) / float(n) * g.surge_mult(u) * (1.5 if crit else 1.0)
 		var after: float = raw * g.def_mit(float(t.def))
 		var cut: float = maxf(after - float(t.armor) / float(n), after * g.ARMOR_FLOOR)
-		var d: int = maxi(1, int(roundf(cut * (Combo.SPARK_MULT if sp else 1.0))))
+		# boss fights: BossDefs.TUNE "spark" scales the spark bonus (1 = +50%, 0.5 = +25%) on every foe (docs/BOSSES.md)
+		var spm: float = 1.0 + (Combo.SPARK_MULT - 1.0) * (BossDefs.tune(str(g.boss.id), "spark") if g.get("boss") != null else 1.0)
+		var d: int = maxi(1, int(roundf(cut * (spm if sp else 1.0))))
 		_apply(g, u, t, d, sp, crit, s, i == n - 1)
 
 ## One running damage total per target this turn: re-pops on every hit (Brave Frontier's chained number).
@@ -360,7 +362,9 @@ func _apply(g, u, t, d: int, sp: bool, crit: bool, s: Dictionary, last: bool) ->
 	if team == "blue":
 		hits += 1; dmg += d
 		if sp: sparks += 1
-	g.gain_mp(u, Combo.BB_PER_HIT + (Combo.BB_PER_SPARK if sp else 0.0))
+	# boss fights scale the spark bonuses by BossDefs.TUNE "spark" (docs/BOSSES.md): order matters, but less
+	var spk: float = BossDefs.tune(str(boss.id), "spark") if boss != null else 1.0
+	g.gain_mp(u, Combo.BB_PER_HIT + (Combo.BB_PER_SPARK * spk if sp else 0.0))
 	g.gain_mp(t, Combo.BB_PER_TAKEN)
 	t.flash = maxf(t.flash, 55.0 if sp else 35.0)
 	t.hurt = 260.0
