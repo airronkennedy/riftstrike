@@ -10,7 +10,7 @@ func ok(c: bool, m: String) -> void:
 func _init() -> void:
 	_run.call_deferred()
 func _run() -> void:
-	var n := 8
+	var n := int(OS.get_environment("SWEEP_N")) if OS.get_environment("SWEEP_N") != "" else 30
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--n="): n = int(a.substr(4))
 	var Q = load("res://scripts/quest_rpg.gd")
@@ -55,9 +55,11 @@ func _run() -> void:
 			if qf.encounter_for(r).elite: el[r] += 1
 	ok(el.meadow == 0 and el.highlands > 50 and el.highlands < 150, "elites: meadow %d/400, highlands %d/400" % [el.meadow, el.highlands])
 	# ---- balance sweep: party at level L vs region foes at level L (AUTO, 1x time)
-	print("\nlevel  region     win%   avg battle s   EXP/keeper   battles to next")
-	var regions := {1: "meadow", 3: "road", 5: "forest", 7: "shore", 9: "highlands"}
-	for L in [1, 3, 5, 7, 9]:
+	print("\nlevel  region     win%   avg battle s   EXP/keeper   battles to next   (foes auto-levelled: party lv ±1)")
+	var regions := {1: "meadow", 2: "road", 3: "road", 4: "forest", 5: "forest", 6: "shore", 7: "shore", 8: "highlands", 9: "highlands", 10: "highlands"}
+	var all_w := 0
+	var all_n := 0
+	for L in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
 		var wins := 0
 		var secs := 0.0
 		var xp := 0.0
@@ -68,8 +70,7 @@ func _run() -> void:
 				g.SUB_XP[h] = {str(g.CHAR[h].sub): Q.xp_floor(L)}
 				g.HERO_MP[h] = 0.0
 			qf.in_kingdom_battle = true
-			var e: Dictionary = qf.encounter_for(regions[L])
-			e.level = L; e.mult = qf.foe_mult(L)
+			var e: Dictionary = qf.encounter_for(regions[L], Q.foe_level(L))
 			g.encounter = e
 			g.new_battle(3)
 			g.phase = "battle"; g.screen = ""; g.AUTO = true
@@ -88,7 +89,11 @@ func _run() -> void:
 		var per := xp / n
 		var need: int = Q.XP_TO_NEXT[mini(L - 1, 8)]
 		print("%5d  %-9s  %4d%%   %8.1f      %8.1f      %6.1f" % [L, regions[L], int(100.0 * wins / n), secs / n, per, need / maxf(1.0, per)])
-		ok(wins >= int(n * 0.6), "Lv%d party wins most on-level fights (%d/%d)" % [L, wins, n])
+		all_w += wins; all_n += n
+		ok(wins >= int(n * 0.7) and wins < n + 1, "Lv%d party wins most on-level fights (%d/%d)" % [L, wins, n])
+	var rate := float(all_w) / maxf(1.0, float(all_n))
+	print("overall AUTO win rate %.1f%%" % (100.0 * rate))
+	# The 85-95% balance band is owned by the balance pass (docs/BALANCE.md); printed here for reference only.
 	qf.in_kingdom_battle = false
 	g.CLASS_XP = {}; g.SUB_XP = {}
 	if FileAccess.file_exists("user://kingdom.cfg"): DirAccess.remove_absolute(ProjectSettings.globalize_path("user://kingdom.cfg"))

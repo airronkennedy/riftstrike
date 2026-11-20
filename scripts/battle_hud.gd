@@ -1,9 +1,9 @@
 extends RefCounted
 ## Airron's Quest side-view battle HUD, drawn in the Airron's Fall UI language (chamfered ash panels,
 ## gold hairlines, Cinzel headings, Rajdhani labels, parchment text) with a modern finish:
-## eased panel slides, a sliding turn timeline, raised active card, warm lighting and drifting embers.
-## Layout (landscape): turn timeline across the top, command menu upper right, party cards bottom right,
-## speed / auto / tips bar bottom left. game.gd owns the rules; this file only draws and routes taps.
+## combo counter pops, SPARK feedback, a target-select prompt with countdown, warm lighting and drifting embers.
+## Battles are always automatic (team turns, scripts/combo_turn.gd). Layout (landscape): combo counter upper right,
+## target-select prompt top centre, party cards bottom right, speed / AUTO / pause / tips bar bottom left.
 
 const GOLD := AfTheme.GOLD_DARK # shared Airron's Fall palette (scripts/ui/af_theme.gd)
 const GOLD_HI := AfTheme.GOLD
@@ -17,23 +17,17 @@ const HP_G := Color("#6fcf6a")
 const MP_B := Color("#5aa8ff")
 const YEL := Color("#f2c94c")
 
-## Command rows: [id, label, icon, tooltip]
-const CMDS := [
-	["attack", "Attack", "greatsword-slash", "Strike one foe with your weapon. Builds MP."],
-	["abilities", "Abilities", "chain-spark", "Spend a full MP bar on one of your four slotted abilities."],
-	["defend", "Defend", "ember-aegis", "Brace: Defense and Armor up until your next turn, +30 MP."],
-	["items", "Items", "field-medkit", "Potions heal the weakest ally. Ethers give +50 MP."],
-	["escape", "Escape", "swift-feet", "Leave the fight. Bosses won't wait for you."],
-]
 const ICONS := ["greatsword-slash", "chain-spark", "ember-aegis", "field-medkit", "swift-feet", "chest", "vital-spark",
 	"second-wind", "bright-mind", "ember-bolt", "prayer-knot", "starfall", "spire-lance", "bellstroke"]
 const KIND_ICON := {"damage_single": "spire-lance", "damage_all_enemies": "starfall", "buff_self": "ember-aegis",
 	"buff_party": "bellstroke", "heal_single": "vital-spark", "heal_party": "prayer-knot"}
 
 var ic := {}
-var panel_in := 0.0 # 0..1 command panel slide
-var tl_shift := 0.0 # 1 -> 0 after the timeline advances
-var last_active = null
+var last_hits := 0
+var hit_pop := 0.0 # 1 -> 0 after each new combo hit
+var spark_pop := 0.0
+var last_sparks := 0
+var sel_in := 0.0 # 0..1 target prompt slide
 var raise := {} # unit -> 0..1 card lift
 var embers: Array = []
 var ember_acc := 0.0
@@ -57,17 +51,18 @@ func update(g, dt_ms: float) -> void:
 	var G = g.G
 	if G == null: return
 	k = clampf(g.VHc / 560.0, 0.82, 1.25)
-	if G.active != last_active:
-		last_active = G.active
-		tl_shift = 1.0
-		panel_in = 0.0
-	tl_shift = maxf(0.0, tl_shift - dt * 4.0)
-	var want_panel: bool = show_menu(g)
-	panel_in = clampf(panel_in + (dt * 3.2 if want_panel else -dt * 6.0), 0.0, 1.0)
+	var tc = G.turnc
+	if tc != null and tc.team == "blue":
+		if tc.hits > last_hits: hit_pop = 1.0
+		if tc.sparks > last_sparks: spark_pop = 1.0
+		last_hits = tc.hits; last_sparks = tc.sparks
+	hit_pop = maxf(0.0, hit_pop - dt * 6.0)
+	spark_pop = maxf(0.0, spark_pop - dt * 4.0)
+	sel_in = clampf(sel_in + (dt * 5.0 if selecting(g) else -dt * 7.0), 0.0, 1.0)
 	for u in G.units:
 		if u.team != "blue": continue
-		var goal = 1.0 if u == G.active else 0.0
-		raise[u] = lerpf(float(raise.get(u, 0.0)), goal, minf(1.0, dt * 10.0))
+		var striking: bool = tc != null and tc.running and tc.team == "blue" and absf(u.x - u.hx) > 4.0
+		raise[u] = lerpf(float(raise.get(u, 0.0)), 1.0 if striking or u.gauge >= g.AB_MP else 0.0, minf(1.0, dt * 10.0))
 	# embers rise from the ground line
 	ember_acc += dt * 14.0
 	while ember_acc >= 1.0:
@@ -81,9 +76,9 @@ func update(g, dt_ms: float) -> void:
 		e.y += e.vy * dt
 		if e.age >= e.life: embers.remove_at(i)
 
-func show_menu(g) -> bool:
+func selecting(g) -> bool:
 	var G = g.G
-	return g.phase == "battle" and G != null and G.ctb and G.active != null and G.active.team == "blue" and G.mode == "select" and not g.AUTO
+	return g.phase == "battle" and G != null and G.bf and G.mode == "select" and not g.AUTO
 
 # ---------------------------------------------------------------- backdrop + light (screen space, before the world)
 func draw_backdrop(g) -> void:
@@ -145,13 +140,19 @@ func unit_overlay(g, u) -> void:
 		g.draw_colored_polygon(diamond(Vector2(bx - 12, top + 2), 9), INK)
 		g.draw_polyline(closed(diamond(Vector2(bx - 12, top + 2), 9)), FOE, 1.2, true)
 		g.text(lt, bx - 12, top + 2, 11, PARCH)
-		if targeting(g):
-			var p = 0.5 + 0.5 * sin(t * 7.0)
-			g.stroke_ellipse(x, u.y - 2, 34 + p * 5, 11 + p * 2, Color(GOLD_HI.r, GOLD_HI.g, GOLD_HI.b, 0.6 + p * 0.4), 2.0)
-			g.draw_polyline(closed(diamond(Vector2(x, u.y - h * 0.55), 14 + p * 3)), GOLD_HI, 1.6, true)
-
-func targeting(g) -> bool:
-	return show_menu(g) and g.G.cmd == "target"
+		var focused: bool = G.focus == u
+		if selecting(g) or focused:
+			var p = 0.5 + 0.5 * sin(t * (9.0 if focused else 5.0))
+			var c = GOLD_HI if focused else Color(GOLD_HI.r, GOLD_HI.g, GOLD_HI.b, 0.35 + 0.3 * p)
+			g.stroke_ellipse(x, u.y - 2, 34 + p * 5, 11 + p * 2, c, 2.4 if focused else 1.6)
+			if focused:
+				var cy = u.y - h * 0.55
+				var rr = 20.0 + p * 3.0
+				for a in 4:
+					var ang = a * PI / 2.0 + t * 1.4
+					var d = Vector2(cos(ang), sin(ang))
+					g.draw_line(Vector2(x, cy) + d * rr, Vector2(x, cy) + d * (rr + 9.0), GOLD_HI, 2.0)
+				g.text("FOCUS", x, top - 12.0, 10, GOLD_HI)
 
 static func diamond(c: Vector2, r: float) -> PackedVector2Array:
 	return PackedVector2Array([c + Vector2(0, -r), c + Vector2(r, 0), c + Vector2(0, r), c + Vector2(-r, 0)])
@@ -164,9 +165,9 @@ func draw(g) -> void:
 	var G = g.G
 	if G == null: return
 	draw_vignette(g)
-	draw_timeline(g)
-	if panel_in > 0.01: draw_command(g)
-	elif g.AUTO and g.phase == "battle": draw_auto_panel(g)
+	draw_combo(g)
+	if sel_in > 0.01: draw_select(g)
+	draw_summary(g)
 	draw_cards(g)
 	draw_bar(g)
 
@@ -185,192 +186,90 @@ func portrait(g, u, c: Vector2, r: float, border: Color, bw: float) -> void:
 		g.draw_texture_rect_region(tex, dst, src)
 	g.draw_polyline(closed(diamond(c, r)), border, bw, true)
 
-func draw_timeline(g) -> void:
+## Big escalating hit counter while the party strikes (and briefly after).
+func draw_combo(g) -> void:
 	var G = g.G
-	var x0: float = g.SAFE_L + 12.0 * k
-	var xb: float = g.VWc - g.SAFE_R - 12.0 * k
-	var y: float = g.SAFE_T + 34.0 * k
-	var R = 27.0 * k
-	var r = 15.0 * k
-	var bigc = Vector2(x0 + R, y)
-	var xa = bigc.x + R + 10.0 * k
-	# track: an ash bar with a gold hairline and ornament ends
-	g.rbox(Rect2(xa - 4, y - r - 4, xb - xa + 4, r * 2 + 8), 10, Color(0.07, 0.06, 0.05, 0.78), Color.WHITE, 1.0)
-	var n = clampi(int((xb - xa) / (r * 2.7)), 5, 14)
-	var step = (xb - xa) / float(n)
-	var list: Array = g.timeline_preview(n + 1)
-	var sh = ease_out(1.0 - tl_shift) # 0 right after a turn passes
-	g.save()
-	for i in range(list.size() - 1, -1, -1):
-		var u = list[i]
-		var cx = xa + step * (float(i) + 0.5) + step * (1.0 - sh)
-		if cx > xb - r * 0.4: continue
-		var a = 1.0 if i < n - 1 else 0.6
-		var col: Color = FOE if u.team == "red" else GOLD
-		g._alpha = a
-		portrait(g, u, Vector2(cx, y), r, col, 1.3)
-		if u.team == "red":
-			g.text(str(u.letter), cx + r * 0.7, y + r * 0.75, 10 * k, PARCH, "center", 3.0)
-		if i == 0:
-			g.text("NEXT", cx, y + r + 9 * k, 9 * k, GOLD_HI, "center")
+	var tc = G.turnc
+	if tc == null: return
+	var live: bool = tc.running and tc.team == "blue"
+	var n: int = tc.hits if live else int(G.summary.get("hits", 0))
+	var age: float = 0.0 if live else float(G.summary.get("t", 99999.0))
+	if n <= 0 or age > 1500.0: return
+	var a = 1.0 if age < 1100.0 else 1.0 - (age - 1100.0) / 400.0
+	var sp: int = tc.sparks if live else int(G.summary.get("sparks", 0))
+	var x: float = g.VWc - g.SAFE_R - 24.0 * k
+	var y: float = g.SAFE_T + 70.0 * k
+	var col = PARCH
+	if n >= 30: col = Color("#b8ff6a")
+	elif n >= 20: col = EMBER
+	elif n >= 10: col = GOLD_HI
+	var sc = 1.0 + 0.35 * ease_out(hit_pop)
+	var fs = (40.0 + minf(float(n), 40.0) * 0.5) * k * sc
+	var old: Font = g._font_override
+	g._font_override = g.FONT_TITLE
+	g.save(); g._alpha = a
+	g.text(str(n), x - 70.0 * k, y, fs, col, "right", 5.0, Color(0.06, 0.03, 0.02, 0.95))
+	g.text("HITS", x, y + 4.0 * k, 18.0 * k, GOLD_HI, "right", 3.0, Color(0.06, 0.03, 0.02, 0.95))
+	g._font_override = old
+	if sp > 0:
+		var ss = 1.0 + 0.4 * ease_out(spark_pop)
+		g.text("%d SPARK%s" % [sp, "" if sp == 1 else "S"], x, y + 32.0 * k, 15.0 * k * ss, Color("#c8ff7a"), "right", 3.0, Color(0.04, 0.06, 0.02, 0.95))
 	g.restore()
-	# active unit: the large diamond with a slow glow
-	var act = G.active
-	if act != null and not act.dead:
-		var glow = 0.5 + 0.5 * sin(t * 3.0)
-		for i in 3:
-			g.draw_colored_polygon(diamond(bigc, R + 3 + i * 3 + glow * 2), Color(1.0, 0.62, 0.25, 0.08))
-		var s = 0.8 + 0.2 * ease_out(1.0 - tl_shift)
-		portrait(g, act, bigc, R * s, GOLD_HI if act.team == "blue" else FOE, 2.0)
-		var nm: String = str(act.name).to_upper()
-		var old: Font = g._font_override
-		g._font_override = g.FONT_TITLE
-		g.text(nm, bigc.x - R + 2, y + R + 11 * k, 12 * k, PARCH, "left", 3.0)
-		g._font_override = old
-		g.text("TURN " + str(G.turn), bigc.x - R + 2, y + R + 25 * k, 9 * k, GOLD, "left", 3.0)
 
-func cmd_rows(g) -> Array:
+## Turn summary plate after the party's turn: total hits, sparks, spark rate, damage.
+func draw_summary(g) -> void:
 	var G = g.G
-	var u = G.active
-	var rows: Array = []
-	if G.cmd == "abilities":
-		for id in g.loadout_of(u.name):
-			if not g.ABILITY_DEFS.has(id): continue
-			var ab: Dictionary = g.ABILITY_DEFS[id]
-			rows.append({"id": "ab:" + id, "label": str(ab.name), "icon": KIND_ICON.get(str(ab.kind), "bright-mind"), "tip": str(ab.get("blurb", ab.get("desc", ""))),
-				"right": "MP 100", "off": float(u.gauge) < g.AB_MP})
-		rows.append({"id": "back", "label": "Back", "icon": "", "tip": "", "right": "", "off": false})
-	elif G.cmd == "items":
-		rows.append({"id": "it:potion", "label": "Potion", "icon": "vital-spark", "tip": "Heals the weakest ally 35%.", "right": "x" + str(G.items.get("potion", 0)), "off": int(G.items.get("potion", 0)) <= 0})
-		rows.append({"id": "it:ether", "label": "Ether", "icon": "prayer-knot", "tip": "+50 MP to the active keeper.", "right": "x" + str(G.items.get("ether", 0)), "off": int(G.items.get("ether", 0)) <= 0})
-		rows.append({"id": "back", "label": "Back", "icon": "", "tip": "", "right": "", "off": false})
-	elif G.cmd == "target":
-		for e in g.alive("red"):
-			rows.append({"id": "tg", "unit": e, "label": str(e.name), "icon": "", "tip": "Tap a foe on the field or pick one here.", "right": str(e.letter), "off": false})
-		rows.append({"id": "back", "label": "Back", "icon": "", "tip": "", "right": "", "off": false})
-	else:
-		for c in CMDS:
-			var off: bool = c[0] == "abilities" and float(u.gauge) < g.AB_MP
-			rows.append({"id": c[0], "label": c[1], "icon": c[2], "tip": c[3], "right": "", "off": off})
-	return rows
+	if not G.summary.has("t") or g.phase != "battle": return
+	var age: float = float(G.summary.t)
+	if age > 1600.0 or int(G.summary.hits) <= 0: return
+	var ain = ease_out(age / 180.0)
+	var a = ain if age < 1250.0 else 1.0 - (age - 1250.0) / 350.0
+	var w = 360.0 * k
+	var h = 54.0 * k
+	var r = Rect2((g.VWc - w) / 2.0, g.VHc * 0.34 - (1.0 - ain) * 14.0, w, h)
+	g.save(); g._alpha = a
+	g.rbox(r, 14, Color(0.07, 0.055, 0.045, 0.9), Color.WHITE, 1.2, 4)
+	var old: Font = g._font_override
+	g._font_override = g.FONT_TITLE
+	g.text("COMBO  %d HITS" % int(G.summary.hits), r.get_center().x, r.position.y + 18.0 * k, 17.0 * k, GOLD_HI)
+	g._font_override = old
+	var line = "%d sparks (%d%%)  ·  %d damage" % [int(G.summary.sparks), int(roundf(float(G.summary.rate) * 100.0)), int(G.summary.dmg)]
+	g.text(line, r.get_center().x, r.position.y + 38.0 * k, 12.0 * k, Color("#c8ff7a") if int(G.summary.sparks) > 0 else PARCH_DIM)
+	g.restore()
 
-func run_row(g, row: Dictionary) -> void:
+## Target select: tap an enemy to focus the whole party, GO to attack now, or wait for the countdown.
+func draw_select(g) -> void:
 	var G = g.G
-	var id: String = row.id
-	if row.get("off", false) and id != "abilities":
-		g.sfx.tone(220, 0.05, "square", 0.02); return
-	match id:
-		"attack": g.cmd_attack()
-		"abilities": G.cmd = "abilities"; g.cmd_hover = 0; g.sfx.tone(660, 0.04, "triangle", 0.03)
-		"defend": g.cmd_defend()
-		"items": G.cmd = "items"; g.cmd_hover = 0; g.sfx.tone(660, 0.04, "triangle", 0.03)
-		"escape": g.run_away()
-		"back": G.cmd = ""; G.pending = {}; g.cmd_hover = 0; g.sfx.tone(440, 0.04, "triangle", 0.03)
-		"tg": g.cmd_target(row.unit)
-		_:
-			if id.begins_with("ab:"): g.cmd_ability(id.substr(3))
-			elif id.begins_with("it:"): g.cmd_item(id.substr(3))
-
-func panel_rect(g) -> Rect2:
-	var w = 236.0 * k
-	var x: float = g.VWc - g.SAFE_R - 12.0 * k - w
-	var y: float = g.SAFE_T + 112.0 * k
-	return Rect2(x, y, w, 0)
-
-func draw_command(g) -> void:
-	var G = g.G
-	var u = G.active
-	if u == null: return
-	var rows = cmd_rows(g)
-	g.cmd_hover = clampi(g.cmd_hover, 0, rows.size() - 1)
-	var e = ease_out(panel_in)
-	var pr = panel_rect(g)
-	var rh = 36.0 * k
-	var head = 40.0 * k
-	var h = head + rows.size() * (rh + 4.0 * k) + 10.0 * k
-	var r = Rect2(pr.position.x + (1.0 - e) * 46.0, pr.position.y, pr.size.x, h)
+	var w = minf(430.0 * k, g.VWc * 0.6)
+	var h = 62.0 * k
+	var e = ease_out(sel_in)
+	var r = Rect2((g.VWc - w) / 2.0, g.SAFE_T + 10.0 * k - (1.0 - e) * 30.0, w, h)
 	g.save(); g._alpha = e
-	# hero bust rising out of the panel top
-	var tex: Texture2D = g.IMG.get(u.K.img, null)
-	if tex != null:
-		var f: Dictionary = u.K.f
-		var fw = float(f.fw); var fh = float(f.fh)
-		var bh = 60.0 * k
-		var bw = bh * fw / (fh * 0.55)
-		var src = Rect2(0, 0, fw, fh * 0.55)
-		var dst = Rect2(r.end.x - bw - 6 * k, r.position.y - bh + 14 * k, -bw, bh)
-		g.draw_texture_rect_region(tex, dst, src, Color(1, 1, 1, e))
-	g.rbox(r, 18, Color(0.08, 0.068, 0.055, 0.86), Color.WHITE, 1.4, 6)
+	g.rbox(r, 14, Color(0.07, 0.058, 0.046, 0.9), Color.WHITE, 1.2, 4)
 	var old: Font = g._font_override
 	g._font_override = g.FONT_TITLE
-	var title: String = {"abilities": "ABILITIES", "items": "ITEMS", "target": "CHOOSE A TARGET"}.get(G.cmd, str(u.name).to_upper())
-	g.text(title, r.position.x + 16 * k, r.position.y + head * 0.55, 15 * k, PARCH, "left")
+	var head = "FOCUS: " + str(G.focus.name).to_upper() if G.focus != null and not G.focus.dead else "TAP AN ENEMY TO FOCUS"
+	g.text(head, r.position.x + 16.0 * k, r.position.y + 17.0 * k, 14.0 * k, GOLD_HI, "left")
 	g._font_override = old
-	var gy: float = r.position.y + head - 2
-	g.draw_line(Vector2(r.position.x + 14 * k, gy), Vector2(r.end.x - 14 * k, gy), Color(GOLD.r, GOLD.g, GOLD.b, 0.45), 1.0)
-	var mouse: Vector2 = g.mouse_pos
-	for i in rows.size():
-		var row: Dictionary = rows[i]
-		var rr = Rect2(r.position.x + 10 * k, gy + 6 * k + i * (rh + 4 * k), r.size.x - 20 * k, rh)
-		if rr.has_point(mouse) and g.mouse_moved: g.cmd_hover = i
-		var hot: bool = g.cmd_hover == i
-		var off: bool = row.get("off", false)
-		if hot:
-			var sweep = 0.6 + 0.4 * sin(t * 4.0)
-			g.draw_polygon(g.af_chamfer(rr, 8 * k), PackedColorArray([Color(0.93, 0.48, 0.23, 0.42 * sweep), Color(0.93, 0.48, 0.23, 0.08), Color(0.93, 0.48, 0.23, 0.08), Color(0.93, 0.48, 0.23, 0.08), Color(0.93, 0.48, 0.23, 0.42 * sweep), Color(0.93, 0.48, 0.23, 0.42 * sweep)]))
-			g.draw_polyline(closed(g.af_chamfer(rr, 8 * k)), GOLD, 1.2, true)
-			g.draw_colored_polygon(diamond(Vector2(rr.position.x - 2, rr.get_center().y), 4.5 * k), GOLD_HI)
-		else:
-			g.draw_polyline(closed(g.af_chamfer(rr, 8 * k)), Color(GOLD.r, GOLD.g, GOLD.b, 0.22), 1.0, true)
-		var lx = rr.position.x + 12 * k
-		var ik: String = row.get("icon", "")
-		if ic.has(ik):
-			var isz = rh - 10 * k
-			var ir = Rect2(lx, rr.get_center().y - isz / 2.0, isz, isz)
-			g.draw_colored_polygon(g.af_chamfer(ir, isz * 0.22), INK)
-			g.draw_polyline(closed(g.af_chamfer(ir, isz * 0.22)), Color(GOLD.r, GOLD.g, GOLD.b, 0.7), 1.0, true)
-			g.draw_texture_rect(ic[ik], ir.grow(-isz * 0.12), false, Color(1, 1, 1, 0.45 if off else 1.0))
-			lx += isz + 10 * k
-		elif row.has("unit"):
-			portrait(g, row.unit, Vector2(lx + 10 * k, rr.get_center().y), 12 * k, FOE, 1.0)
-			lx += 28 * k
-		var fg: Color = PARCH_DIM.darkened(0.3) if off else (GOLD_HI if hot else PARCH)
-		g.text(spaced(str(row.label).to_upper()), lx, rr.get_center().y, 13 * k, fg, "left")
-		if str(row.get("right", "")) != "":
-			g.text(str(row.right), rr.end.x - 10 * k, rr.get_center().y, 11 * k, MP_B if str(row.right).begins_with("MP") else PARCH_DIM, "right")
-		g.add_btn("cmd_%d_%s" % [i, row.id], rr, func(): g.cmd_hover = i; run_row(g, row))
-	# tooltip to the left of the highlighted command
-	if g.tips_on and g.cmd_hover < rows.size() and str(rows[g.cmd_hover].tip) != "":
-		var tip: String = rows[g.cmd_hover].tip
-		var tw = 200.0 * k
-		var lines: Array = g.wrap_words(tip, 12 * k, tw - 20 * k)
-		var th = 14 * k + lines.size() * 15 * k
-		var ty = gy + 6 * k + g.cmd_hover * (rh + 4 * k) + rh / 2.0 - th / 2.0
-		var tr = Rect2(r.position.x - tw - 8 * k, ty, tw, th)
-		g.rbox(tr, 10, Color(0.06, 0.05, 0.04, 0.92), Color.WHITE, 1.0, 3)
-		for li in lines.size():
-			g.text(str(lines[li]), tr.position.x + 10 * k, tr.position.y + 7 * k + 7.5 * k + li * 15 * k, 12 * k, PARCH, "left")
+	var order: Array = g.bf_order("blue")
+	var names: Array = []
+	for u in order: names.append(str(u.name))
+	var sub = "Order: " + " > ".join(names)
+	g.text(sub, r.position.x + 16.0 * k, r.position.y + 34.0 * k, g.fit_size(sub, 11.0 * k, w - 120.0 * k, 8.0), PARCH_DIM, "left")
+	# countdown bar
+	var frac = clampf(float(G.sel_t) / g.SELECT_MS, 0.0, 1.0)
+	var br = Rect2(r.position.x + 16.0 * k, r.end.y - 12.0 * k, w - 120.0 * k, 4.0 * k)
+	bar(g, br, frac, EMBER)
+	g.text("auto in %.1fs" % (float(G.sel_t) / 1000.0) if not g.paused else "paused", br.end.x, br.position.y - 7.0 * k, 9.0 * k, PARCH_DIM, "right")
+	var gb = Rect2(r.end.x - 92.0 * k, r.position.y + 10.0 * k, 80.0 * k, h - 20.0 * k)
+	var p = 0.5 + 0.5 * sin(t * 5.0)
+	g.draw_polygon(g.af_chamfer(gb, 8 * k), PackedColorArray([Color(0.93, 0.48, 0.23, 0.7 + 0.2 * p), Color(0.93, 0.48, 0.23, 0.7), Color(0.6, 0.28, 0.12, 0.8), Color(0.6, 0.28, 0.12, 0.8), Color(0.6, 0.28, 0.12, 0.8), Color(0.93, 0.48, 0.23, 0.7)]))
+	g.draw_polyline(closed(g.af_chamfer(gb, 8 * k)), GOLD_HI, 1.2, true)
+	g._font_override = g.FONT_TITLE
+	g.text("GO", gb.get_center().x, gb.get_center().y, 18.0 * k, PARCH)
+	g._font_override = old
 	g.restore()
-
-static func spaced(s: String) -> String:
-	# letter-spaced uppercase labels, like the Airron's Fall menu items
-	var out = ""
-	for i in s.length():
-		out += s[i]
-		if i < s.length() - 1 and s[i] != " ": out += "\u200a"
-	return out
-
-func draw_auto_panel(g) -> void:
-	var pr = panel_rect(g)
-	var r = Rect2(pr.position.x + pr.size.x * 0.25, g.SAFE_T + 74.0 * k, pr.size.x * 0.75, 66 * k)
-	g.rbox(r, 14, Color(0.08, 0.068, 0.055, 0.8), Color.WHITE, 1.2, 4)
-	var old: Font = g._font_override
-	g._font_override = g.FONT_TITLE
-	g.text("AUTO BATTLE", r.position.x + 14 * k, r.position.y + 17 * k, 12 * k, GOLD_HI, "left")
-	g._font_override = old
-	g.text("Keepers follow their Build plan", r.position.x + 14 * k, r.position.y + 34 * k, 11 * k, PARCH_DIM, "left")
-	var br = Rect2(r.position.x + 12 * k, r.position.y + 44 * k, r.size.x - 24 * k, 16 * k)
-	g.text("tap AUTO below to take command", br.get_center().x, br.get_center().y, 10 * k, GOLD, "center")
+	g.add_btn("hud_go", gb, func(): g.bf_launch())
 
 func draw_cards(g) -> void:
 	var G = g.G
@@ -386,7 +285,7 @@ func draw_cards(g) -> void:
 	for u in party:
 		var lift: float = float(raise.get(u, 0.0))
 		var r = Rect2(x, y - lift * 12.0 * k, cw, ch)
-		var hot: bool = G.active == u
+		var hot: bool = float(raise.get(u, 0.0)) > 0.5
 		if hot:
 			for i in 3:
 				g.draw_colored_polygon(g.af_chamfer(r.grow(2.0 + i * 2.5), 12 * k), Color(1.0, 0.6, 0.25, 0.07 * lift))
@@ -415,9 +314,9 @@ func draw_cards(g) -> void:
 		g.text(str(maxi(0, int(u.hp))), r.end.x - 9 * k, by + 5 * k, 12 * k, PARCH, "right")
 		bar(g, Rect2(px, by + 12 * k, bw, 4 * k), hp, HP_G if hp > 0.3 else FOE)
 		by += 20 * k
-		g.text("MP", px, by + 5 * k, 9 * k, PARCH_DIM, "left")
+		g.text("BB READY" if mp >= 1.0 else "BB", px, by + 5 * k, 9 * k, YEL if mp >= 1.0 else PARCH_DIM, "left")
 		g.text(str(int(u.gauge)), r.end.x - 9 * k, by + 5 * k, 12 * k, PARCH, "right")
-		bar(g, Rect2(px, by + 12 * k, bw, 4 * k), mp, MP_B, mp >= 1.0)
+		bar(g, Rect2(px, by + 12 * k, bw, 4 * k), mp, YEL if mp >= 1.0 else MP_B, mp >= 1.0)
 		# two small gauge slots: buffs up / ready ability
 		var sy = r.end.y - 9 * k
 		var ready = mp >= 1.0
@@ -445,7 +344,7 @@ func draw_bar(g) -> void:
 	var y: float = g.VHc - g.SAFE_B - 8.0 * k - h
 	var items = [
 		["spd", ">".repeat(g.speed), "Battle speed", func(): g.toggle_speed()],
-		["auto", "AUTO", "Auto battle", func(): g.toggle_auto()],
+		["auto", "AUTO", "Skip target select", func(): g.toggle_auto()],
 		["pause", "II", "Pause", func(): g.toggle_pause()],
 		["tips", "HIDE TIPS" if g.tips_on else "SHOW TIPS", "", func(): g.tips_on = not g.tips_on],
 	]
@@ -468,14 +367,11 @@ func draw_bar(g) -> void:
 		g.add_btn("hud_" + it[0], r, it[3])
 		x += ws[i] + 4 * k
 
-## Keyboard: arrows / W S move the highlight, Enter / Space choose, Esc / Backspace go back, A toggles AUTO.
+## Keyboard in target select: arrows / A D pick the focus, Enter / Space attack now.
 func key(g, kc: int) -> bool:
-	if not show_menu(g): return false
-	var rows = cmd_rows(g)
+	if not selecting(g): return false
 	match kc:
-		KEY_UP, KEY_W: g.cmd_hover = posmod(g.cmd_hover - 1, rows.size()); g.mouse_moved = false; return true
-		KEY_DOWN, KEY_S: g.cmd_hover = posmod(g.cmd_hover + 1, rows.size()); g.mouse_moved = false; return true
-		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE: run_row(g, rows[clampi(g.cmd_hover, 0, rows.size() - 1)]); return true
-		KEY_ESCAPE, KEY_BACKSPACE:
-			if g.G.cmd != "": run_row(g, {"id": "back"}); return true
+		KEY_LEFT, KEY_UP, KEY_A, KEY_W: g.bf_cycle_focus(-1); return true
+		KEY_RIGHT, KEY_DOWN, KEY_D, KEY_S: g.bf_cycle_focus(1); return true
+		KEY_ENTER, KEY_KP_ENTER, KEY_SPACE: g.bf_launch(); return true
 	return false
