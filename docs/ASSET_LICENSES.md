@@ -1,82 +1,25 @@
-# Riftstrike asset license ledger
+# Airron's Quest asset license list
 
-Goal: everything that ships in the Steam and iOS builds must allow use in a **paid commercial game**.
-Anything that doesn't gets marked **REPLACE-BEFORE-SHIP** here. Last reviewed 2026-11-11 (overworld layout 3).
+Every asset in this repo comes from **Airron's Fall** (Airron Kennedy's own game, repo `airronkennedy/arena-survival-game`)
+or is generated from that art by `tools/build_af_assets.py`. Nothing from earlier test builds remains: the old
+placeholder sprites, tiles, buildings, UI packs, boss sheet, 3D character renders and the old font were deleted from the repo.
+Last reviewed 2026-11-20.
 
-| Status | Meaning |
-|---|---|
-| OK | Commercial use allowed. Safe to sell on Steam / iOS as part of the game. |
-| VERIFY | Probably fine. Check the item before release (see the note). |
-| REPLACE-BEFORE-SHIP | Placeholder or unclear terms. Swap it before release. |
+| Asset | Files | Source | License / ownership |
+|---|---|---|---|
+| Keeper (hero) sprites, 42 | `assets/af/heroes/*.png` | Airron's Fall `public/assets/heroes/` | Owned by Airron Kennedy (original Airron's Fall art, AI-assisted; see the Airron's Fall ledger) |
+| Foe, elite and boss sprites, 17 | `assets/af/foes/*.png` | Airron's Fall `public/assets/foes/`, `ashling/ash-brute/ash-elite.webp`, `final-boss.png` | Owned by Airron Kennedy |
+| Area backdrops, grounds, props | `assets/af/areas/*` | Airron's Fall `public/assets/areas/` | Owned by Airron Kennedy |
+| Item and ability icons | `assets/af/icons/*` | Airron's Fall `public/assets/icons/` | Owned by Airron Kennedy |
+| Title key art, victory/defeat backdrops, app icons, favicon | `assets/af/ui/*` | Airron's Fall `src/assets/title`, `src/assets/screens`, `public/` | Owned by Airron Kennedy |
+| Chest prop | `assets/af/props/ember-chest.png` | Airron's Fall | Owned by Airron Kennedy |
+| Music ("Vigil of the Silent Stars") | `assets/af/audio/run-theme.mp3` | Airron's Fall `public/assets/run-theme.mp3` (original, synthesized in code) | Owned by Airron Kennedy |
+| Generated atlases (terrain, buildings, VFX, UI frames), silhouettes | `assets/af/gen/*`, `assets/af/sil/*` | Made by `tools/build_af_assets.py` from the art above, or drawn in code | Owned by Airron Kennedy |
+| Fonts: Cinzel, Rajdhani, Cormorant Garamond | `fonts/*.woff2` | Same subsets Airron's Fall ships | SIL Open Font License 1.1 (commercial use allowed); text in `fonts/OFL-fonts.txt` |
+| Sound effects | none (synthesized in `scripts/sfx.gd`) | Code | Owned by Airron Kennedy |
 
-**Current state: no REPLACE-BEFORE-SHIP items.** There is one VERIFY item (Tiny Swords provenance, see below).
+For the AI-assisted art terms and disclosure wording, follow `docs/ASSET_LICENSES.md` in the Airron's Fall repo.
 
-## Third-party art
-
-### Tiny Swords by Pixel Frog: every `assets/` PNG except `assets/necromancer/`
-- Source: https://pixelfrog-assets.itch.io/tiny-swords
-- Files in the repo: `assets/terrain/*`, `assets/buildings/*`, `assets/deco/*`, `assets/units/*`, `assets/fx/*`, `assets/ui/*`
-  (one-to-one copies, renamed folders only) and `assets/sil/*` (white/cyan outline silhouettes made in code from `assets/units/*`).
-- Which release: all 70 files are byte-identical (sha256) to the **original Tiny Swords release**, which used the
-  `Factions/…`, `Terrain/…`, `Deco/01-18.png` layout. On the itch page the author now offers that release as
-  **"TS_old version_CC0 Licensed"**. The same files ship in Endless Access's open-source game *Threadbare*, whose REUSE
-  manifest marks them `CC0-1.0`, and our sha256 matches theirs for all 199 files in that set.
-- License: **CC0** (old release). The newer "Tiny Swords (Free Pack)" uses the author's own terms, which also allow
-  personal and commercial projects, don't require credit (it's welcome), and forbid redistributing, reselling, or
-  repackaging the assets as an asset pack.
-- Commercial OK: **Yes.** Credit required: No (credited anyway in README and in-game). Replace before ship: No.
-- **VERIFY:** before release, download "TS_old version_CC0 Licensed" from the itch page (one click in a browser) and
-  diff it against `assets/` to confirm the CC0 provenance first-hand. The goblin troops (`Torch_Red`, `TNT_Red`,
-  `Barrel_Red`, `Dynamite`), `Goblin_House*` and `Wood_Tower_Red` only exist in the old release (goblins are in the
-  paid Enemy Pack now), so their license depends on that CC0 release. If they turn out not to be covered, swap them
-  for CC0 art or buy the Enemy Pack.
-- Not used: the paid Tiny Swords Enemy Pack and the newer Free Pack art. Nothing from those is in the repo.
-- Added for the overworld fill (2026-11-11), all from the same original release:
-  `assets/buildings/` (Castle Blue/Red/Yellow/Purple/Destroyed, House Blue/Red/Yellow/Purple/Destroyed,
-  Tower Red/Yellow/Purple/Destroyed, Goblin_House_Destroyed, Wood_Tower_Red, GoldMine_Active),
-  `assets/terrain/Tilemap_Elevation.png`, `Bridge_All.png`, `Rocks_02.png`, `Rocks_04.png`,
-  `assets/deco/06.png`, `15.png`, `16.png`, `17.png`, `18.png`.
-- Biome looks (snow, ash, bog, lava, rift and so on) are colour tints and shapes drawn in code (`scripts/world.gd`).
-  No recoloured copies of the art are shipped.
-
-### Necromancer (Free) by CreativeKind: `assets/necromancer/Necromancer.png`
-- Source: https://creativekind.itch.io/necromancer-free
-- License: free for commercial or non-commercial projects, may be modified, may not be distributed or resold as an asset.
-- Commercial OK: **Yes.** Credit: given (README + in-game credits). Replace before ship: No.
-
-## Fonts
-### Lilita One by Juan Montoreano: `fonts/LilitaOne-Regular.ttf`
-- License: SIL Open Font License 1.1 (`fonts/OFL-LilitaOne.txt`). Embedding in a game, sold or free, is allowed.
-  Keep the OFL text with the game. Commercial OK: **Yes.**
-
-## Audio
-- None. All sounds are synthesized at runtime in `scripts/sfx.gd`. Nothing to license.
-- If music or SFX files get added later, use CC0 (or equivalent) or bought commercial licenses only, and list them here.
-
-## Engine
-- Godot Engine 4.7.2, MIT license. Commercial OK: **Yes.** The Godot license text (and its third-party notices) has
-  to be included somewhere in the shipped game, for example in a credits/licenses screen.
-
-## Code and data
-- `scripts/`, `data/`, `tools/`: written for Riftstrike (owned by Airron Kennedy). The world map, area layouts and
-  encounter tables are generated by `tools/build_world_acts.py` and contain no third-party content.
-
-### Christian Paladin (Meshy + Mixamo), 2026-11-11
-- In repo: `assets/heroes/christian-paladin.png`, `assets/sil/paladin_white.png`, `assets/sil/paladin_cyan.png`
-  (256px right-facing sprite sheets: idle, run, attack; up/down swings reuse the side slash for now).
-  Raw Meshy/Mixamo FBX files are not in this repo.
-- Model: generated in Meshy Pro (account rh1xajpc@mail.grokbot.com) on 2026-11-11.
-  Meshy Pro includes a private commercial license for assets made on this plan; Meshy credit is not required.
-- Animations: Adobe Mixamo (idle, run, horizontal attack) applied to that model on 2026-11-11.
-  Mixamo animations are free to use in games with an Adobe ID, under Mixamo's terms; on-screen credit is not required.
-- Commercial OK: **Yes** (Meshy Pro private license + Mixamo terms).
-
-## Coming later (not in the repo yet)
-- **Airron (Spell Breaker) and Wiesen (Warlock)** Meshy + Mixamo models: same plan and terms as Christian's Paladin
-  once their sheets ship. Add each file here with its plan, license, and date.
-- Don't add generative-AI assets, unknown itch packs, or trademarked material without a verified commercial license.
-
-## Release checklist
-1. Confirm the Tiny Swords CC0 provenance (VERIFY above).
-2. Add the Godot license text plus the credits for Pixel Frog, CreativeKind and Lilita One (OFL) to an in-game credits screen.
-3. Re-check this ledger for anything added since 2026-11-11.
+## No Airron's Fall equivalent yet
+- Animated sprite sheets: Airron's Fall art is single-pose, so units bob, lunge and flash instead of playing frame animations.
+- Overworld buildings, bridges and terrain edges are generated from Airron's Fall ground and prop art rather than hand-drawn tiles.
