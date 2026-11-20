@@ -544,6 +544,9 @@ func foe_for(kind: String, tier: String) -> String:
 		if AfRoster.FOES.has(want) and str(AfRoster.FOES[want].tier) == "boss":
 			return want
 		return str(pick(AfRoster.FOE_ART.boss))
+	var rf: Dictionary = encounter.get("foes", {})
+	if tier == "regular" and rf.has(kind) and not (rf[kind] as Array).is_empty():
+		return str(pick(rf[kind]))
 	var table: Dictionary = AfRoster.FOE_ART[tier]
 	var k: String = kind if table.has(kind) else "torch"
 	return str(pick(table[k]))
@@ -2923,8 +2926,8 @@ var UI_LOCK := Color("#a39d90")
 ## Airron's Fall frame: a chamfered plate (top-left and bottom-right corners cut), a soft top-lit gradient,
 ## a gold hairline, and on large panels an inner rule plus corner filigree. Every screen draws through this,
 ## so all of Airron's Quest shares the Airron's Fall look.
-const AF_GOLD := Color("#d9ad62")
-const AF_GOLD_HI := Color("#f4d796")
+const AF_GOLD := AfTheme.GOLD_DARK
+const AF_GOLD_HI := AfTheme.GOLD
 func af_chamfer(r: Rect2, c: float) -> PackedVector2Array:
 	if c < 0.75:
 		return PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
@@ -3472,20 +3475,26 @@ func run_battle() -> void:
 	sfx.tone(330, 0.06, "square", 0.03)
 	stash_party_mp()
 	save_cfg()
-	if not encounter.is_empty():
+	if kingdom_battle():
+		return_to_kingdom(false)
+	elif not encounter.is_empty():
 		end_encounter_return()
 	else:
 		to_title()
 
 
 func results_primary() -> void:
-	if not encounter.is_empty():
+	if kingdom_battle():
+		return_to_kingdom(G != null and G.result == "win")
+	elif not encounter.is_empty():
 		end_encounter_return()
 	else:
 		start_fight(last_raid)
 
 
 func results_title() -> void:
+	if kingdom_battle():
+		return_to_kingdom(G != null and G.result == "win"); return
 	encounter = {}
 	to_title()
 
@@ -4213,7 +4222,7 @@ func draw_title() -> void:
 		img(ka, 0, 0, kw, kh, (VWc - kw * ks) / 2.0, (VHc - kh * ks) / 2.0, kw * ks, kh * ks)
 	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.07, 0.05, 0.04, 0.45))
 	if HUD != null: HUD.draw_embers(self, 1.0)
-	var short := VHc <= 430
+	var short := VHc <= 640
 	var vw := VWc
 	var L := clampf3(32, VHc * 0.09, 64) if short else clampf3(46, vw * 0.135, 108)
 	var pad: float = 14.0 if short else 20.0
@@ -4226,7 +4235,7 @@ func draw_title() -> void:
 	var menu_rows: int = 1 if menu_one_row else 2
 	var raid_one_row: bool = sw >= 3.0 * 130.0 + 2.0 * gap + pad * 2.0
 	var raid_rows: int = 1 if raid_one_row else 2
-	var sheet_h: float = pad * 2.0 + lab_h * 2.0 + float(menu_rows) * (mbh + gap) + float(raid_rows) * (rbh + gap) + 2.0
+	var sheet_h: float = pad * 2.0 + lab_h * 3.0 + rbh + gap + float(menu_rows) * (mbh + gap) + float(raid_rows) * (rbh + gap) + 2.0
 	var tag_h: float = 0.0 if short else 40.0
 	var hint_fs: float = clampf3(12, vw * 0.03, 15)
 	var hint_h: float = 0.0 if short else hint_fs * 2.2
@@ -4253,6 +4262,20 @@ func draw_title() -> void:
 	var iy: float = sr.position.y + pad
 	var ix: float = sr.position.x + pad
 	var iw: float = sw - pad * 2.0
+	# The adventure: the Emberhold kingdom is the main flow (QuestFlow autoload).
+	section_label("ADVENTURE  ·  the kingdom of Emberhold", ix, iy + lab_h * 0.4, short)
+	iy += lab_h
+	var qf := get_node_or_null("/root/QuestFlow")
+	var has_save: bool = qf != null and qf.has_save()
+	var aw: float = (iw - gap) / 2.0
+	var afs: float = 17.0 if short else 21.0
+	if has_save:
+		pill("k_cont", Rect2(ix, iy, aw, rbh), "Continue", "primary", afs, func(): qf.open_kingdom(), false, false, true)
+		var sure: bool = now - new_game_armed < 3000.0
+		pill("k_new", Rect2(ix + aw + gap, iy, aw, rbh), "Tap again: start over" if sure else "New Game", "danger" if sure else "soft", afs * (0.75 if sure else 1.0), func(): title_new_game())
+	else:
+		pill("k_new", Rect2(ix, iy, iw, rbh), "New Game", "primary", afs, func(): title_new_game(), false, false, true)
+	iy += rbh + gap
 	section_label("YOUR PARTY", ix, iy + lab_h * 0.4, short)
 	iy += lab_h
 	var menus := [
@@ -4261,7 +4284,7 @@ func draw_title() -> void:
 		["inv", "Inventory", "soft", func(): open_inv()],
 		["party", "Party", "soft", func(): open_party()],
 		["cmp", "Compendium", "soft", func(): open_compendium()],
-		["ow", "Overworld", "primary", func(): open_overworld()],
+		["ow", "Act I Map", "soft", func(): open_overworld()],
 	]
 	var mfs: float = 15.0 if short else 18.0
 	var row_counts: Array = [menus.size()] if menu_one_row else [3, menus.size() - 3]
@@ -4294,7 +4317,7 @@ func draw_title() -> void:
 			pill(sp2[0], r2, sp2[1], sp2[2], bfs, func(): start_fight(n2), false, false, sp2[0] == "raid1")
 	y = sr.end.y + 10.0
 	if not short:
-		var hint: String = "Build sets class, abilities and the AUTO plan  ·  Raids are quick fights  ·  Overworld explores Act I"
+		var hint: String = "New Game starts the Emberhold adventure  ·  Build sets class, abilities and the AUTO plan  ·  Raids are quick fights"
 		text(hint, cx, y + hint_fs * 0.6, fit_size(hint, hint_fs, vw - 24.0, 10.0), Color("#e9fff9"), "center", 3, Color(0, 0, 0, 0.7))
 	var cfs := 12.0 if short else 14.0
 	var cy := VHc - (4.0 if short else 10.0) - cfs
@@ -4766,6 +4789,50 @@ func _draw() -> void:
 		draw_rect(Rect2(0, 0, VWc, VHc), ca(Color(0.02, 0.015, 0.01, 0.55 * (1.0 - ui_in) * (1.0 - ui_in))))
 
 # ---------------------------------------------------------------- screens
+var new_game_armed := -10000.0
+func title_new_game() -> void:
+	var qf := get_node_or_null("/root/QuestFlow")
+	if qf == null: return
+	if qf.has_save() and now - new_game_armed >= 3000.0:
+		new_game_armed = now; sfx.tone(330, 0.06, "square", 0.03); return
+	sfx.tone(660, 0.08, "triangle", 0.04)
+	qf.new_game()
+
+## A battle the kingdom asked for (QuestFlow): that region's foes, its Airron's Fall backdrop, party HP from the kingdom.
+func start_kingdom_battle(region: String) -> void:
+	var qf := get_node_or_null("/root/QuestFlow")
+	if qf == null: return
+	var e: Dictionary = qf.encounter_for(region)
+	encounter = e
+	new_battle(3)
+	if AREAS.has(str(e.area)): battle_area = str(e.area)
+	var frac: float = qf.party_hp_frac()
+	for u in G.units:
+		if u.team == "blue": u.hp = maxi(1, int(roundf(float(u.maxhp) * frac)))
+	phase = "battle"; paused = false; screen = ""
+	begin_timeline()
+	banner.text = "AMBUSH!"
+	banner.sub = str(e.get("region", "")).capitalize() + "  ·  Lv." + str(int(e.get("level", 1)))
+	banner.color = "yellow"; banner.life = 1400.0
+	sfx.tone(392, 0.09, "square", 0.04)
+
+func kingdom_battle() -> bool:
+	var qf := get_node_or_null("/root/QuestFlow")
+	return qf != null and qf.in_kingdom_battle
+
+## Back to the kingdom with the party's remaining HP share.
+func return_to_kingdom(won: bool) -> void:
+	var qf := get_node_or_null("/root/QuestFlow")
+	var tot := 0.0
+	var left := 0.0
+	if G != null:
+		for u in G.units:
+			if u.team == "blue":
+				tot += float(u.maxhp); left += 0.0 if u.dead else float(maxi(0, u.hp))
+	stash_party_mp(); save_cfg()
+	encounter = {}
+	if qf != null: qf.finish_battle(won, left / maxf(1.0, tot))
+
 func to_title() -> void:
 	encounter = {}
 	ow_menu_open = false
@@ -5074,6 +5141,9 @@ func _ready() -> void:
 	layout()
 	build_terrain(); terrain_built = true
 	to_title()
+	var qf := get_node_or_null("/root/QuestFlow")
+	if qf != null and qf.in_kingdom_battle and qf.pending_region != "":
+		start_kingdom_battle(qf.pending_region)
 	if params.get("auto", "") == "1":
 		AUTO = true; start_fight(int(params.get("enemies", str(last_raid))))
 	if params.has("shot") and not OS.has_feature("web"): _autotest()
