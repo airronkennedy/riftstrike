@@ -1387,6 +1387,10 @@ func _build_ui() -> void:
 	mv.add_child(rm_btn)
 	gfx_btn = _button("", func(): set_gfx_low(not gfx_low))
 	mv.add_child(gfx_btn)
+	# Battle setup (scripts/target_select.gd): who the party hits when you don't tap a foe in target select
+	var tgt_btn := _button("Auto target: %s" % TargetSelect.label(), func(): pass)
+	tgt_btn.pressed.connect(func(): TargetSelect.cycle(); tgt_btn.text = "Auto target: %s" % TargetSelect.label(); _toast(str(TargetSelect.HINTS[TargetSelect.mode()])))
+	mv.add_child(tgt_btn)
 	mv.add_child(_button("Back to title", func(): save_game(); get_tree().change_scene_to_file("res://main.tscn")))
 	var cr := Label.new()
 	cr.theme_type_variation = "MutedLabel"

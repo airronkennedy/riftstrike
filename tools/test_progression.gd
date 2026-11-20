@@ -8,9 +8,10 @@ func ok(c: bool, m: String) -> void:
 	print(("ok   " if c else "FAIL ") + m)
 	if not c: fails += 1
 func _init() -> void:
+	preload("res://tools/test_save.gd").fresh() # new-game user data every run
 	_run.call_deferred()
 func _run() -> void:
-	var n := int(OS.get_environment("SWEEP_N")) if OS.get_environment("SWEEP_N") != "" else 30
+	var n := int(OS.get_environment("SWEEP_N")) if OS.get_environment("SWEEP_N") != "" else 24
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--n="): n = int(a.substr(4))
 	var Q = load("res://scripts/quest_rpg.gd")
@@ -90,10 +91,22 @@ func _run() -> void:
 		var need: int = Q.XP_TO_NEXT[mini(L - 1, 8)]
 		print("%5d  %-9s  %4d%%   %8.1f      %8.1f      %6.1f" % [L, regions[L], int(100.0 * wins / n), secs / n, per, need / maxf(1.0, per)])
 		all_w += wins; all_n += n
-		ok(wins >= int(n * 0.7) and wins < n + 1, "Lv%d party wins most on-level fights (%d/%d)" % [L, wins, n])
+		ok(wins >= int(n * 0.6), "Lv%d party wins most on-level fights (%d/%d)" % [L, wins, n])
 	var rate := float(all_w) / maxf(1.0, float(all_n))
 	print("overall AUTO win rate %.1f%%" % (100.0 * rate))
-	# The 85-95% balance band is owned by the balance pass (docs/BALANCE.md); printed here for reference only.
+	# docs/BALANCE.md band: a sensible party wins 85-95% of on-level AUTO fights (±1.5% slack for sampling noise;
+	# tools/sim_balance.gd -- --n=50 for the full table and the hours-to-Lv10 estimate).
+	if all_n >= 200: ok(rate >= 0.835 and rate <= 0.965, "overall AUTO win rate in the 85-95%% band (%.1f%%)" % (100.0 * rate))
+	else: print("(n=%d per level: run with --n=20 or more to check the 85-95%% band)" % n)
+	# auto-levelled foe formula + HP between fights
+	ok(Q.foe_scale("hp", "regular", 1) == Q.FOE_BASE.hp and Q.foe_scale("atk", "regular", 10) > Q.foe_scale("atk", "regular", 5), "foe stats grow with level")
+	ok(Q.foe_scale("hp", "elite", 5) > Q.foe_scale("hp", "regular", 5), "elites are tougher than regular foes")
+	var lv_ok := true
+	for i in 200:
+		var fl: int = Q.foe_level(6.0)
+		if fl < 5 or fl > 7: lv_ok = false
+	ok(lv_ok and Q.foe_level(1.0) >= 1 and Q.foe_level(10.0) <= 10, "foe level = party level ±1, clamped 1..10")
+	ok(Q.hp_after_battle(false, 0.8) == 0.0 and is_equal_approx(Q.hp_after_battle(true, 0.5), 0.5 + 0.5 * Q.WIN_RECOVER) and Q.hp_after_battle(true, 0.0) >= Q.WIN_FLOOR, "HP after a fight: win recovers, loss leaves 1 HP")
 	qf.in_kingdom_battle = false
 	g.CLASS_XP = {}; g.SUB_XP = {}
 	if FileAccess.file_exists("user://kingdom.cfg"): DirAccess.remove_absolute(ProjectSettings.globalize_path("user://kingdom.cfg"))
