@@ -1,0 +1,1146 @@
+extends Node2D
+## Emberhold: the starting kingdom town, its castle, one house and the Cinderreach overworld.
+## Walk with WASD / arrows, click or tap to move, or use the on-screen joystick; E / Space / Enter or the big
+## button uses the nearest door, shop, inn, sign or person. Esc opens the menu.
+## Random encounters only happen on the overworld: the danger meter fills by distance walked (scaled per region,
+## see KingdomMaps.REGIONS) and, when full, calls Encounters.start_random_battle(region_id) (scripts/encounters.gd).
+
+const TILE := 64.0
+const SPEED := 240.0
+const SAVE_PATH := "user://kingdom.cfg"
+const BAG_PATH := "user://airrons_quest.cfg" # the main game's save; the shop edits only its [inv] bag
+const PLAYER_HERO := "bramwell"
+const INN_COST := 10
+const SLOT_ICONS := {"weapon": "greatsword-slash", "armor": "iron-bark", "gloves": "heavy-hits", "amulet": "starglass-rosary"}
+const FALLBACK_ITEMS := {
+	"oak_maul": {"name": "Oak Maul", "slot": "weapon", "blurb": "Heavy wooden heft", "atk": 3, "hp": 12},
+	"trail_vest": {"name": "Trail Vest", "slot": "armor", "blurb": "Light travel padding", "def": 3, "speed": 2, "hp": 8},
+	"grip_wraps": {"name": "Grip Wraps", "slot": "gloves", "blurb": "A firmer hold on the strike", "atk": 3, "crit": 2},
+	"ember_charm": {"name": "Ember Charm", "slot": "amulet", "blurb": "A warm spark at the throat", "atk": 2, "crit": 3},
+}
+
+# ---- state
+var map: Dictionary = {}
+var rows: Array = []
+var W := 0
+var H := 0
+var player_pos := Vector2.ZERO
+var usables: Array = []   # {kind: spot|npc, pos, name, prompt, ...}
+var blocks: Array = []    # Rect2 prop footprints
+var near: Dictionary = {}
+var tap_target: Variant = null
+var tap_use: Dictionary = {}
+var cur_region := ""
+var cur_zone := ""
+var meter := 0.0
+var gold := 120
+var party_hp := 80
+var party_hp_max := 80
+var bag: Array = []
+var item_defs: Dictionary = {}
+var reduced_motion := false
+var busy := false
+var t_now := 0.0
+var title_font: Font
+var shop_mode := "buy"
+var _cam_ahead := Vector2.ZERO
+var _prev_emulate := false
+var allow_warps := true # tests switch exits off while walking scripted paths
+
+# ---- nodes
+var modulate_node: CanvasModulate
+var ground: KingdomView.Ground
+var ysort: Node2D
+var player: KingdomView.Actor
+var torch: PointLight2D
+var cam: Camera2D
+var particles: CPUParticles2D
+var ui: Control
+var loc_card: PanelContainer
+var loc_name: Label
+var hp_bar: ProgressBar
+var gold_label: Label
+var danger_row: HBoxContainer
+var danger_bar: ProgressBar
+var minimap: KingdomView.Minimap
+var menu_btn: Button
+var joystick: KingdomView.Joystick
+var use_btn: Button
+var hint: PanelContainer
+var hint_label: Label
+var banner: VBoxContainer
+var banner_title: Label
+var banner_sub: Label
+var toast: PanelContainer
+var toast_label: Label
+var dialog: PanelContainer
+var dialog_name: Label
+var dialog_text: Label
+var shop: PanelContainer
+var shop_list: VBoxContainer
+var shop_gold: Label
+var shop_tabs: Array = []
+var inn: PanelContainer
+var inn_text: Label
+var menu: PanelContainer
+var rm_btn: Button
+var iris: ColorRect
+var vignette: ColorRect
+var _light_tex: GradientTexture2D
+
+
+func _ready() -> void:
+	_prev_emulate = Input.emulate_mouse_from_touch
+	Input.emulate_mouse_from_touch = true # Controls (buttons, joystick) get taps; restored on exit
+	title_font = load("res://fonts/cinzel-700.woff2")
+	_load_items()
+	_load_save()
+	_parse_params()
+	_build_world_nodes()
+	_build_ui()
+	var e := _enc()
+	if e:
+		e.random_battle_finished.connect(_on_battle_finished)
+	var start_map: String = _saved.get("map", "town")
+	var start_at: Variant = _saved.get("pos", null)
+	load_map(start_map, start_at)
+	_show_banner(map.name, map.sub)
+	_iris_open()
+
+
+func _exit_tree() -> void:
+	Input.emulate_mouse_from_touch = _prev_emulate
+
+
+func _enc() -> Node:
+	return get_node_or_null("/root/Encounters")
+
+
+# ================================================================ data / save
+var _saved: Dictionary = {}
+
+func _load_items() -> void:
+	# Reuse the main game's item data (ITEM_DEFS in scripts/game.gd) so the shop sells real gear.
+	var gs: Script = load("res://scripts/game.gd")
+	if gs:
+		var g = gs.new()
+		if g and "ITEM_DEFS" in g:
+			item_defs = (g.ITEM_DEFS as Dictionary).duplicate(true)
+		if g:
+			g.free()
+	if item_defs.is_empty():
+		item_defs = FALLBACK_ITEMS.duplicate(true)
+
+
+func price_of(iid: String) -> int:
+	var it: Dictionary = item_defs.get(iid, {})
+	var pts := 0.0
+	for key in ["atk", "def", "armor", "speed", "crit", "mana"]:
+		pts += float(it.get(key, 0)) * 4.0
+	pts += float(it.get("hp", 0)) * 1.2
+	return int(maxf(10.0, roundf(pts / 5.0) * 5.0))
+
+
+func _load_save() -> void:
+	var cf := ConfigFile.new()
+	if cf.load(SAVE_PATH) == OK:
+		gold = int(cf.get_value("kingdom", "gold", gold))
+		party_hp_max = int(cf.get_value("kingdom", "hp_max", party_hp_max))
+		party_hp = int(cf.get_value("kingdom", "hp", party_hp_max))
+		meter = float(cf.get_value("kingdom", "meter", 0.0))
+		reduced_motion = bool(cf.get_value("kingdom", "reduced_motion", false))
+		_saved["map"] = str(cf.get_value("kingdom", "map", "town"))
+		var p = cf.get_value("kingdom", "pos", null)
+		if p is Vector2:
+			_saved["pos"] = p
+	bag = []
+	var bf := ConfigFile.new()
+	if bf.load(BAG_PATH) == OK and bf.has_section_key("inv", "bag"):
+		for iid in str(bf.get_value("inv", "bag", "")).split(",", false):
+			bag.append(iid)
+	else:
+		var gs: Script = load("res://scripts/game.gd")
+		var sb = gs.get_script_constant_map().get("STARTER_BAG", []) if gs else []
+		bag = Array(sb).duplicate()
+
+
+func save_game() -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("kingdom", "gold", gold)
+	cf.set_value("kingdom", "hp", party_hp)
+	cf.set_value("kingdom", "hp_max", party_hp_max)
+	cf.set_value("kingdom", "meter", meter)
+	cf.set_value("kingdom", "reduced_motion", reduced_motion)
+	cf.set_value("kingdom", "map", map.get("id", "town"))
+	cf.set_value("kingdom", "pos", player_pos / TILE)
+	cf.save(SAVE_PATH)
+	# Shared bag: merge into the main save so Build / Inventory see what was bought or sold.
+	var bf := ConfigFile.new()
+	bf.load(BAG_PATH)
+	bf.set_value("inv", "bag", ",".join(bag))
+	bf.save(BAG_PATH)
+
+
+func _parse_params() -> void:
+	var args: Array = Array(OS.get_cmdline_user_args())
+	if OS.has_feature("web"):
+		var q = JavaScriptBridge.eval("location.search", true)
+		if q is String:
+			args.append_array(Array((q as String).trim_prefix("?").split("&", false)))
+	for a in args:
+		var s: String = str(a).trim_prefix("--")
+		if s.begins_with("calm") or s.begins_with("reduced_motion"):
+			reduced_motion = not s.ends_with("=0")
+		elif s.begins_with("kmap="):
+			_saved["map"] = s.substr(5)
+			_saved.erase("pos")
+
+
+# ================================================================ map
+func load_map(id: String, at: Variant = null) -> void:
+	map = KingdomMaps.get_map(id)
+	if map.is_empty():
+		map = KingdomMaps.get_map("town")
+	rows = map.rows
+	H = rows.size()
+	W = (rows[0] as String).length()
+	for ch in ysort.get_children():
+		if ch != player:
+			ch.queue_free()
+	for l in get_tree().get_nodes_in_group("k_light"):
+		l.queue_free()
+	blocks.clear()
+	usables.clear()
+	for r in H:
+		for c in W:
+			var ch2 := ch_at(c, r)
+			if ch2 == "T":
+				_add_prop({"img": "tree", "x": c + 0.5, "y": r + 0.9, "s": 0.5, "flip": (c + r) % 2 == 0})
+			elif ch2 == "P":
+				_add_prop({"img": "pillar", "x": c + 0.5, "y": r + 0.85, "s": 1.0})
+	for p in map.props:
+		_add_prop(p)
+	for n in map.npcs:
+		var a := KingdomView.Actor.new()
+		a.k = self
+		a.hero = n.hero
+		a.position = Vector2(n.x, n.y) * TILE
+		a.facing = -1.0 if n.x > W / 2.0 else 1.0
+		ysort.add_child(a)
+		usables.append({"kind": "npc", "pos": a.position, "name": str(n.text).get_slice(":", 0), "prompt": "Talk", "action": "text", "text": n.text, "node": a})
+	for s in map.spots:
+		var d: Dictionary = s.duplicate()
+		d["kind"] = "spot"
+		d["pos"] = Vector2(s.x, s.y) * TILE
+		usables.append(d)
+	var start: Vector2 = at if at is Vector2 else map.start
+	player_pos = start * TILE
+	if blocked_at(player_pos):
+		player_pos = (map.start as Vector2) * TILE
+	player.position = player_pos
+	modulate_node.color = map.tint
+	torch.energy = float(map.torch)
+	_setup_particles(str(map.particles))
+	var pad := int(TILE * 2) if bool(map.encounters) else 0 # a little sea around the island; walls end the town
+	cam.limit_left = -pad
+	cam.limit_top = -pad
+	cam.limit_right = int(W * TILE) + pad
+	cam.limit_bottom = int(H * TILE) + pad
+	cam.position = player_pos
+	cam.reset_smoothing()
+	cur_region = ""
+	cur_zone = ""
+	danger_row.visible = bool(map.encounters)
+	minimap.rebuild()
+	_refresh_hud()
+
+
+func _add_prop(p: Dictionary) -> void:
+	var pr := KingdomView.Prop.new()
+	pr.k = self
+	pr.kind = str(p.img)
+	pr.s = float(p.get("s", 1.0))
+	pr.flip = bool(p.get("flip", false))
+	pr.ph = int(p.x * 3 + p.y * 7) % 7
+	pr.position = Vector2(p.x, p.y) * TILE
+	ysort.add_child(pr)
+	var d: Dictionary = KingdomView.DEFS.get(pr.kind, {})
+	if not d.is_empty() and float(d.bw) > 0.0:
+		var bw: float = float(d.bw) * pr.s
+		var bh: float = float(d.bh) * pr.s
+		blocks.append(Rect2(pr.position.x - bw / 2.0, pr.position.y - bh * 0.7, bw, bh))
+	elif pr.kind in ["throne", "shrine"] or pr.kind.begins_with("statue:"):
+		blocks.append(Rect2(pr.position.x - 40, pr.position.y - 20, 80, 24))
+	if bool(p.get("light", false)) or pr.kind == "fire":
+		var l := PointLight2D.new()
+		l.texture = _light_tex
+		l.texture_scale = 2.4
+		l.color = Color(1.0, 0.62, 0.3)
+		l.energy = 0.95
+		l.position = pr.position + Vector2(0, -30)
+		l.add_to_group("k_light")
+		add_child(l)
+
+
+func ch_at(c: int, r: int) -> String:
+	if r < 0 or r >= H or c < 0 or c >= W:
+		return "~" if map.get("id", "") == "overworld" else "#"
+	return (rows[r] as String)[c]
+
+
+func is_land(c: int, r: int) -> bool:
+	return ch_at(c, r) != "~"
+
+
+func tile_blocked(c: int, r: int) -> bool:
+	return ch_at(c, r) in ["~", "#", "T", "P"]
+
+
+func blocked_at(p: Vector2) -> bool:
+	var foot := Rect2(p.x - 12, p.y - 8, 24, 12)
+	for corner in [foot.position, Vector2(foot.end.x, foot.position.y), Vector2(foot.position.x, foot.end.y), foot.end]:
+		if tile_blocked(int(floor(corner.x / TILE)), int(floor(corner.y / TILE))):
+			return true
+	for b in blocks:
+		if (b as Rect2).intersects(foot):
+			return true
+	for u in usables:
+		if u.kind == "npc" and (u.pos as Vector2).distance_to(p) < 24.0:
+			return true
+	return false
+
+
+func region_at(p: Vector2) -> String:
+	match ch_at(int(p.x / TILE), int(p.y / TILE)):
+		"f", "T": return "forest"
+		"^", "#": return "highlands"
+		":": return "shore"
+		",": return "road"
+	return "meadow"
+
+
+func view_rect() -> Rect2:
+	var vs := get_viewport_rect().size / cam.zoom
+	return Rect2(cam.get_screen_center_position() - vs / 2.0, vs)
+
+
+# ================================================================ loop
+func _process(delta: float) -> void:
+	t_now += delta
+	_layout()
+	var moved := 0.0
+	if not busy and not _modal_open():
+		moved = _move(delta)
+	player.walking = moved > 0.01
+	player.position = player_pos
+	_update_near()
+	_update_camera(delta)
+	if moved > 0.0:
+		_after_move(moved)
+	ground.queue_redraw()
+	for n in ysort.get_children():
+		n.queue_redraw()
+	minimap.queue_redraw()
+	if not reduced_motion:
+		for l in get_tree().get_nodes_in_group("k_light"):
+			(l as PointLight2D).energy = 0.9 + 0.08 * sin(t_now * 9.0 + l.position.x) + 0.05 * sin(t_now * 23.0)
+
+
+func _input_dir() -> Vector2:
+	var d := Vector2.ZERO
+	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): d.x -= 1
+	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT): d.x += 1
+	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): d.y -= 1
+	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): d.y += 1
+	d = d.normalized()
+	if joystick and joystick.vec != Vector2.ZERO:
+		d = joystick.vec
+	return d
+
+
+func _move(delta: float) -> float:
+	var dir := _input_dir()
+	if dir != Vector2.ZERO:
+		tap_target = null
+		tap_use = {}
+	elif tap_target is Vector2:
+		var to: Vector2 = tap_target - player_pos
+		if to.length() < 6.0 or (not tap_use.is_empty() and to.length() < 60.0):
+			tap_target = null
+			if not tap_use.is_empty() and near == tap_use:
+				use(near)
+			tap_use = {}
+			return 0.0
+		dir = to.normalized()
+	if dir == Vector2.ZERO:
+		return 0.0
+	return step_move(dir * SPEED * minf(delta, 0.05))
+
+
+## Move with wall sliding; returns the distance actually moved. Public for tests.
+func step_move(d: Vector2) -> float:
+	var before := player_pos
+	if d.x != 0.0 and not blocked_at(player_pos + Vector2(d.x, 0)):
+		player_pos.x += d.x
+	if d.y != 0.0 and not blocked_at(player_pos + Vector2(0, d.y)):
+		player_pos.y += d.y
+	if absf(d.x) > 0.01:
+		player.facing = signf(d.x)
+	var moved := player_pos.distance_to(before)
+	if moved < 0.01 and tap_target != null:
+		tap_target = null # stuck: give up the tap-to-move target
+	return moved
+
+
+func _after_move(moved: float) -> void:
+	# Warps (exits) fire on contact.
+	var tile := Vector2(floor(player_pos.x / TILE), floor(player_pos.y / TILE))
+	for w in (map.warps if allow_warps else []):
+		if (w.rect as Rect2).has_point(tile + Vector2(0.5, 0.5)):
+			warp_to(str(w.to), w.at)
+			return
+	# Area labels: overworld regions and castle halls fade in as you enter them.
+	if bool(map.encounters):
+		var reg := region_at(player_pos)
+		if reg != cur_region:
+			var first := cur_region == ""
+			cur_region = reg
+			if not first and reg != "road":
+				_show_banner(KingdomMaps.REGIONS[reg].name, "", true)
+		_tick_danger(moved, reg)
+	elif map.has("zones"):
+		for z in map.zones:
+			if (z.rect as Rect2).has_point(tile + Vector2(0.5, 0.5)):
+				if z.name != cur_zone:
+					var first2 := cur_zone == ""
+					cur_zone = z.name
+					if not first2:
+						_show_banner(z.name, "", true)
+				break
+
+
+# ================================================================ encounters
+func _tick_danger(moved: float, reg: String) -> void:
+	var tiles: float = float(KingdomMaps.REGIONS[reg].tiles)
+	meter += moved / (TILE * tiles)
+	if meter >= 1.0:
+		meter = 0.0
+		_trigger_battle(reg)
+	danger_bar.value = meter * 100.0
+
+
+func _trigger_battle(reg: String) -> void:
+	if not reduced_motion:
+		var tw := danger_bar.create_tween()
+		danger_bar.pivot_offset = danger_bar.size / 2.0
+		tw.tween_property(danger_bar, "scale", Vector2(1.12, 1.4), 0.08)
+		tw.tween_property(danger_bar, "scale", Vector2.ONE, 0.2)
+	save_game() # so a battle scene that swaps scenes can return to exactly here
+	var e := _enc()
+	if e == null:
+		return
+	if e.has_battle_listener():
+		busy = true
+		tap_target = null
+	e.start_random_battle(reg)
+	if not busy:
+		_toast("Something stirs in %s..." % KingdomMaps.REGIONS[reg].name)
+
+
+func _on_battle_finished(_won: bool) -> void:
+	busy = false
+	_refresh_hud()
+
+
+# ================================================================ interact
+func _update_near() -> void:
+	var best: Dictionary = {}
+	var bd := 78.0
+	for u in usables:
+		var d: float = (u.pos as Vector2).distance_to(player_pos)
+		if d < bd:
+			bd = d
+			best = u
+	if best != near:
+		near = best
+		var has := not near.is_empty()
+		use_btn.text = str(near.prompt) if has else "Use"
+		use_btn.disabled = not has
+		if has:
+			hint_label.text = "%s  ·  %s" % [near.prompt, near.name]
+			AfTheme.pop_in(hint, reduced_motion)
+		else:
+			AfTheme.pop_out(hint, reduced_motion)
+
+
+func use(u: Dictionary) -> void:
+	if u.is_empty() or busy:
+		return
+	match str(u.action):
+		"warp":
+			warp_to(str(u.to), u.at)
+		"shop":
+			open_shop()
+		"inn":
+			open_inn()
+		"text":
+			if bool(u.get("calm", false)) and bool(map.encounters):
+				meter = 0.0
+				danger_bar.value = 0.0
+			_open_dialog(str(u.name), str(u.text))
+
+
+func warp_to(id: String, at: Variant) -> void:
+	if busy:
+		return
+	busy = true
+	tap_target = null
+	await _iris_close()
+	load_map(id, at)
+	_show_banner(map.name, map.sub)
+	await _iris_open()
+	busy = false
+	save_game()
+
+
+func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo:
+		match e.physical_keycode:
+			KEY_E, KEY_SPACE, KEY_ENTER, KEY_KP_ENTER:
+				if dialog.visible: _close(dialog)
+				elif not _modal_open(): use(near)
+				get_viewport().set_input_as_handled()
+			KEY_ESCAPE:
+				if _modal_open():
+					for p in [dialog, shop, inn, menu]:
+						_close(p)
+				elif minimap.big:
+					toggle_big_map()
+				else:
+					AfTheme.pop_in(menu, reduced_motion)
+				get_viewport().set_input_as_handled()
+			KEY_M:
+				toggle_big_map()
+	elif e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		if dialog.visible:
+			_close(dialog)
+			return
+		if busy or _modal_open():
+			return
+		# Tap / click to move. Tapping a door, person or sign walks there and uses it.
+		var wp: Vector2 = get_canvas_transform().affine_inverse() * (e as InputEventMouseButton).position
+		tap_target = wp
+		tap_use = {}
+		for u in usables:
+			if (u.pos as Vector2).distance_to(wp) < 48.0:
+				tap_target = u.pos
+				tap_use = u
+				break
+
+
+func _modal_open() -> bool:
+	return shop.visible or inn.visible or menu.visible or dialog.visible
+
+
+func _close(p: Control) -> void:
+	AfTheme.pop_out(p, reduced_motion)
+
+
+# ================================================================ shop / inn
+func open_shop() -> void:
+	shop_mode = "buy"
+	_fill_shop()
+	AfTheme.pop_in(shop, reduced_motion)
+
+
+func _fill_shop() -> void:
+	for c in shop_list.get_children():
+		c.queue_free()
+	shop_gold.text = "%d gold" % gold
+	shop_tabs[0].button_pressed = shop_mode == "buy"
+	shop_tabs[1].button_pressed = shop_mode == "sell"
+	var ids: Array = item_defs.keys() if shop_mode == "buy" else bag.duplicate()
+	if ids.is_empty():
+		var l := Label.new()
+		l.theme_type_variation = "MutedLabel"
+		l.text = "Your bag is empty."
+		shop_list.add_child(l)
+	var seen := {}
+	for iid in ids:
+		if shop_mode == "sell" and seen.has(iid):
+			continue
+		seen[iid] = true
+		var it: Dictionary = item_defs.get(iid, {"name": iid, "slot": "weapon", "blurb": ""})
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		var ic := TextureRect.new()
+		ic.texture = load("res://assets/af/icons/%s.png" % SLOT_ICONS.get(it.get("slot", "weapon"), "chest"))
+		ic.custom_minimum_size = Vector2(44, 44)
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(ic)
+		var col := VBoxContainer.new()
+		col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		col.add_theme_constant_override("separation", -2)
+		var nm := Label.new()
+		var count := bag.count(iid)
+		nm.text = str(it.get("name", iid)) + ("  x%d" % count if count > 1 else "")
+		col.add_child(nm)
+		var bl := Label.new()
+		bl.theme_type_variation = "MutedLabel"
+		bl.text = "%s · %s" % [str(it.get("slot", "")).capitalize(), _stat_text(it)]
+		bl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(bl)
+		row.add_child(col)
+		var price := price_of(iid) if shop_mode == "buy" else price_of(iid) / 2
+		var b := Button.new()
+		b.text = ("Buy %dg" if shop_mode == "buy" else "Sell %dg") % price
+		b.custom_minimum_size = Vector2(108, 48)
+		b.theme_type_variation = "PrimaryButton" if shop_mode == "buy" else ""
+		b.disabled = shop_mode == "buy" and gold < price
+		AfTheme.add_press_juice(b, func(): return reduced_motion)
+		var item_id: String = iid
+		b.pressed.connect(func():
+			if shop_mode == "buy": buy(item_id)
+			else: sell(item_id))
+		row.add_child(b)
+		shop_list.add_child(row)
+
+
+func _stat_text(it: Dictionary) -> String:
+	var parts: Array = []
+	for key in ["atk", "def", "armor", "hp", "speed", "crit", "mana"]:
+		if it.has(key):
+			parts.append("+%d %s" % [int(it[key]), key.to_upper() if key in ["atk", "def", "hp"] else key.capitalize()])
+	return " ".join(parts)
+
+
+func buy(iid: String) -> bool:
+	var p := price_of(iid)
+	if gold < p or not item_defs.has(iid):
+		return false
+	gold -= p
+	bag.append(iid)
+	save_game()
+	_fill_shop()
+	_refresh_hud()
+	_toast("Bought %s." % item_defs[iid].name)
+	return true
+
+
+func sell(iid: String) -> bool:
+	var i := bag.find(iid)
+	if i < 0:
+		return false
+	bag.remove_at(i)
+	gold += price_of(iid) / 2
+	save_game()
+	_fill_shop()
+	_refresh_hud()
+	_toast("Sold %s." % item_defs.get(iid, {"name": iid}).name)
+	return true
+
+
+func open_inn() -> void:
+	inn_text.text = "Rest at the Ember Inn for %d gold?\nRestores the party and saves your journey." % INN_COST
+	AfTheme.pop_in(inn, reduced_motion)
+
+
+func rest_at_inn() -> bool:
+	if gold < INN_COST:
+		_toast("Not enough gold.")
+		return false
+	gold -= INN_COST
+	party_hp = party_hp_max
+	meter = 0.0
+	_close(inn)
+	busy = true
+	if is_inside_tree():
+		await _iris_close()
+		await get_tree().create_timer(0.35).timeout
+		await _iris_open()
+	busy = false
+	save_game()
+	_refresh_hud()
+	_toast("The party is rested. Journey saved.")
+	return true
+
+
+func toggle_big_map() -> void:
+	minimap.big = not minimap.big
+	_layout()
+
+
+# ================================================================ camera / fx
+func _update_camera(delta: float) -> void:
+	var vs := get_viewport_rect().size
+	var dpr := _dpr()
+	var z := clampf(minf(vs.x / (12.0 * TILE * dpr), vs.y / (8.0 * TILE * dpr)), 0.6, 1.25) * dpr
+	cam.zoom = Vector2(z, z)
+	# Gentle look-ahead in the walking direction (off with reduced motion).
+	var want := Vector2.ZERO
+	if player.walking and not reduced_motion:
+		var dir := _input_dir()
+		if dir == Vector2.ZERO and tap_target is Vector2:
+			dir = ((tap_target as Vector2) - player_pos).normalized()
+		want = dir * 70.0
+	_cam_ahead = _cam_ahead.lerp(want, clampf(delta * 2.5, 0.0, 1.0))
+	cam.position = player_pos + _cam_ahead + Vector2(0, -24)
+	cam.position_smoothing_enabled = not reduced_motion
+	if particles:
+		particles.position = cam.get_screen_center_position()
+		particles.emission_rect_extents = vs / cam.zoom / 2.0
+
+
+var _dpr_cache := -1.0
+
+func _dpr() -> float:
+	if _dpr_cache > 0.0:
+		return _dpr_cache
+	_dpr_cache = 1.0
+	if OS.has_feature("web"):
+		var iw = JavaScriptBridge.eval("window.innerWidth", true)
+		if iw != null and float(iw) > 0.0:
+			_dpr_cache = clampf(get_viewport_rect().size.x / float(iw), 1.0, 4.0)
+	else:
+		_dpr_cache = clampf(DisplayServer.screen_get_scale(), 1.0, 3.0)
+	return _dpr_cache
+
+
+func _setup_particles(kind: String) -> void:
+	particles.emitting = false
+	particles.visible = not reduced_motion and kind != ""
+	if reduced_motion:
+		return
+	var grad := Gradient.new()
+	match kind:
+		"embers":
+			particles.amount = 26
+			particles.gravity = Vector2(0, -18)
+			particles.initial_velocity_min = 8.0
+			particles.initial_velocity_max = 22.0
+			particles.direction = Vector2(0.2, -1)
+			particles.color = Color(1.0, 0.6, 0.25, 0.9)
+		"dust":
+			particles.amount = 34
+			particles.gravity = Vector2(4, 2)
+			particles.initial_velocity_min = 2.0
+			particles.initial_velocity_max = 8.0
+			particles.direction = Vector2(1, 0.3)
+			particles.color = Color(1.0, 0.9, 0.75, 0.55)
+		_:
+			particles.amount = 40
+			particles.gravity = Vector2(0, -4)
+			particles.initial_velocity_min = 4.0
+			particles.initial_velocity_max = 14.0
+			particles.direction = Vector2(0, -1)
+			particles.color = Color(0.95, 0.9, 0.55, 0.8)
+	grad.set_color(0, Color(1, 1, 1, 0))
+	grad.set_color(1, Color(1, 1, 1, 0))
+	grad.add_point(0.2, Color(1, 1, 1, 1))
+	grad.add_point(0.75, Color(1, 1, 1, 0.8))
+	particles.color_ramp = grad
+	particles.restart()
+	particles.emitting = true
+
+
+func _iris_center() -> Vector2:
+	var vs := get_viewport_rect().size
+	var sp: Vector2 = get_canvas_transform() * player_pos
+	return Vector2(sp.x / maxf(1.0, vs.x), (sp.y - 30.0) / maxf(1.0, vs.y))
+
+
+func _iris_close() -> void:
+	var mat := iris.material as ShaderMaterial
+	iris.visible = true
+	mat.set_shader_parameter("use_fade", reduced_motion)
+	mat.set_shader_parameter("center", _iris_center())
+	var tw := create_tween()
+	if reduced_motion:
+		tw.tween_method(func(v: float): mat.set_shader_parameter("fade", v), 0.0, 1.0, 0.25)
+	else:
+		tw.tween_method(func(v: float): mat.set_shader_parameter("radius", v), 1.6, 0.0, 0.42).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	await tw.finished
+
+
+func _iris_open() -> void:
+	var mat := iris.material as ShaderMaterial
+	iris.visible = true
+	mat.set_shader_parameter("use_fade", reduced_motion)
+	await get_tree().process_frame
+	mat.set_shader_parameter("center", _iris_center())
+	var tw := create_tween()
+	if reduced_motion:
+		tw.tween_method(func(v: float): mat.set_shader_parameter("fade", v), 1.0, 0.0, 0.3)
+	else:
+		tw.tween_method(func(v: float): mat.set_shader_parameter("radius", v), 0.0, 1.6, 0.5).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	await tw.finished
+	iris.visible = false
+
+
+var _banner_tw: Tween
+var banner_y := 70.0 # set by _layout (below the HUD on portrait phones)
+
+func _show_banner(title: String, sub: String, small: bool = false) -> void:
+	_layout()
+	banner_title.text = title
+	banner_title.add_theme_font_size_override("font_size", 26 if small else 36)
+	banner_sub.text = sub
+	banner_sub.visible = sub != ""
+	if _banner_tw:
+		_banner_tw.kill()
+	banner.modulate.a = 0.0
+	banner.position.y = banner_y if reduced_motion else banner_y - 12.0
+	_banner_tw = create_tween()
+	_banner_tw.set_parallel(true)
+	_banner_tw.tween_property(banner, "modulate:a", 1.0, 0.5)
+	if not reduced_motion:
+		_banner_tw.tween_property(banner, "position:y", banner_y, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_banner_tw.chain().tween_interval(1.6 if small else 2.2)
+	_banner_tw.chain().tween_property(banner, "modulate:a", 0.0, 0.8)
+	loc_name.text = map.get("name", "")
+
+
+var _toast_tw: Tween
+
+func _toast(s: String) -> void:
+	toast_label.text = s
+	if _toast_tw:
+		_toast_tw.kill()
+	AfTheme.pop_in(toast, reduced_motion)
+	_toast_tw = create_tween()
+	_toast_tw.tween_interval(2.4)
+	_toast_tw.tween_callback(func(): AfTheme.pop_out(toast, reduced_motion))
+
+
+func _open_dialog(name: String, text: String) -> void:
+	dialog_name.text = name
+	dialog_text.text = text
+	AfTheme.pop_in(dialog, reduced_motion)
+
+
+func _refresh_hud() -> void:
+	hp_bar.max_value = party_hp_max
+	hp_bar.value = party_hp
+	gold_label.text = "%d g" % gold
+	danger_bar.value = meter * 100.0
+	loc_name.text = map.get("name", "")
+
+
+func set_reduced_motion(on: bool) -> void:
+	reduced_motion = on
+	rm_btn.text = "Reduced motion: %s" % ("On" if on else "Off")
+	_setup_particles(str(map.get("particles", "")))
+	save_game()
+
+
+# ================================================================ node building
+func _build_world_nodes() -> void:
+	_light_tex = GradientTexture2D.new()
+	_light_tex.fill = GradientTexture2D.FILL_RADIAL
+	_light_tex.fill_from = Vector2(0.5, 0.5)
+	_light_tex.fill_to = Vector2(1.0, 0.5)
+	_light_tex.width = 256
+	_light_tex.height = 256
+	var lg := Gradient.new()
+	lg.set_color(0, Color(1, 1, 1, 1))
+	lg.set_color(1, Color(1, 1, 1, 0))
+	_light_tex.gradient = lg
+	modulate_node = CanvasModulate.new()
+	add_child(modulate_node)
+	ground = KingdomView.Ground.new()
+	ground.k = self
+	ground.z_index = -10
+	add_child(ground)
+	ysort = Node2D.new()
+	ysort.y_sort_enabled = true
+	add_child(ysort)
+	player = KingdomView.Actor.new()
+	player.k = self
+	player.hero = PLAYER_HERO
+	player.is_player = true
+	ysort.add_child(player)
+	torch = PointLight2D.new()
+	torch.texture = _light_tex
+	torch.texture_scale = 3.2
+	torch.color = Color(1.0, 0.8, 0.55)
+	torch.position = Vector2(0, -30)
+	player.add_child(torch)
+	particles = CPUParticles2D.new()
+	particles.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
+	particles.lifetime = 6.0
+	particles.preprocess = 4.0
+	particles.scale_amount_min = 1.5
+	particles.scale_amount_max = 3.5
+	particles.z_index = 20
+	add_child(particles)
+	cam = Camera2D.new()
+	cam.position_smoothing_enabled = true
+	cam.position_smoothing_speed = 6.0
+	add_child(cam)
+	cam.make_current()
+
+
+func _panel(variation: String = "FramedPanel") -> PanelContainer:
+	var p := PanelContainer.new()
+	p.theme_type_variation = variation
+	p.visible = false
+	ui.add_child(p)
+	return p
+
+
+func _button(text: String, cb: Callable, primary: bool = false) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.custom_minimum_size = Vector2(0, 50)
+	if primary:
+		b.theme_type_variation = "PrimaryButton"
+	b.pressed.connect(cb)
+	AfTheme.add_press_juice(b, func(): return reduced_motion)
+	return b
+
+
+func _build_ui() -> void:
+	var fx := CanvasLayer.new()
+	fx.layer = 5
+	add_child(fx)
+	vignette = ColorRect.new()
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var vm := ShaderMaterial.new()
+	vm.shader = load("res://shaders/vignette.gdshader")
+	vignette.material = vm
+	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fx.add_child(vignette)
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	add_child(layer)
+	ui = Control.new()
+	ui.theme = AfTheme.get_theme()
+	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(ui)
+	# Location card: name, HP, gold, danger meter
+	loc_card = PanelContainer.new()
+	loc_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui.add_child(loc_card)
+	var lc := VBoxContainer.new()
+	lc.add_theme_constant_override("separation", 4)
+	loc_card.add_child(lc)
+	loc_name = Label.new()
+	loc_name.theme_type_variation = "HeaderLabel"
+	loc_name.add_theme_font_size_override("font_size", 18)
+	lc.add_child(loc_name)
+	var hr := HBoxContainer.new()
+	lc.add_child(hr)
+	var hl := Label.new()
+	hl.text = "HP"
+	hl.theme_type_variation = "MutedLabel"
+	hr.add_child(hl)
+	hp_bar = ProgressBar.new()
+	hp_bar.show_percentage = false
+	hp_bar.custom_minimum_size = Vector2(100, 14)
+	hp_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hp_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	hr.add_child(hp_bar)
+	gold_label = Label.new()
+	gold_label.add_theme_color_override("font_color", AfTheme.GOLD)
+	hr.add_child(gold_label)
+	danger_row = HBoxContainer.new()
+	lc.add_child(danger_row)
+	var dl := Label.new()
+	dl.text = "Danger"
+	dl.theme_type_variation = "MutedLabel"
+	danger_row.add_child(dl)
+	danger_bar = ProgressBar.new()
+	danger_bar.theme_type_variation = "DangerBar"
+	danger_bar.show_percentage = false
+	danger_bar.custom_minimum_size = Vector2(110, 14)
+	danger_bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	danger_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	danger_row.add_child(danger_bar)
+	# Minimap + menu
+	minimap = KingdomView.Minimap.new()
+	minimap.k = self
+	ui.add_child(minimap)
+	menu_btn = _button("Menu", func(): AfTheme.pop_in(menu, reduced_motion))
+	menu_btn.custom_minimum_size = Vector2(84, 44)
+	ui.add_child(menu_btn)
+	# Touch controls
+	joystick = KingdomView.Joystick.new()
+	joystick.k = self
+	joystick.visible = DisplayServer.is_touchscreen_available() or OS.has_feature("web_ios") or OS.has_feature("web_android")
+	ui.add_child(joystick)
+	use_btn = _button("Use", func(): use(near), true)
+	use_btn.add_theme_font_size_override("font_size", 22)
+	use_btn.disabled = true
+	ui.add_child(use_btn)
+	hint = _panel("ToastPanel")
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint_label = Label.new()
+	hint.add_child(hint_label)
+	# Area banner (fades in on entering a place)
+	banner = VBoxContainer.new()
+	banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner.modulate.a = 0.0
+	ui.add_child(banner)
+	banner_title = Label.new()
+	banner_title.theme_type_variation = "HeaderLabel"
+	banner_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.add_child(banner_title)
+	banner_sub = Label.new()
+	banner_sub.theme_type_variation = "FlavorLabel"
+	banner_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner.add_child(banner_sub)
+	toast = _panel("ToastPanel")
+	toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	toast_label = Label.new()
+	toast.add_child(toast_label)
+	# Dialog
+	dialog = _panel()
+	var dv := VBoxContainer.new()
+	dialog.add_child(dv)
+	dialog_name = Label.new()
+	dialog_name.theme_type_variation = "HeaderLabel"
+	dialog_name.add_theme_font_size_override("font_size", 20)
+	dv.add_child(dialog_name)
+	dialog_text = Label.new()
+	dialog_text.theme_type_variation = "FlavorLabel"
+	dialog_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dv.add_child(dialog_text)
+	var more := Label.new()
+	more.theme_type_variation = "MutedLabel"
+	more.text = "Tap or press E to close"
+	more.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	dv.add_child(more)
+	# Shop
+	shop = _panel()
+	var sv := VBoxContainer.new()
+	sv.add_theme_constant_override("separation", 8)
+	shop.add_child(sv)
+	var sh := HBoxContainer.new()
+	sv.add_child(sh)
+	var st := Label.new()
+	st.text = "General Store"
+	st.theme_type_variation = "HeaderLabel"
+	st.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sh.add_child(st)
+	shop_gold = Label.new()
+	shop_gold.add_theme_color_override("font_color", AfTheme.GOLD)
+	sh.add_child(shop_gold)
+	var tabs := HBoxContainer.new()
+	sv.add_child(tabs)
+	for m in ["buy", "sell"]:
+		var tb := _button(m.capitalize(), func(): shop_mode = m; _fill_shop())
+		tb.toggle_mode = true
+		tb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tabs.add_child(tb)
+		shop_tabs.append(tb)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sv.add_child(scroll)
+	shop_list = VBoxContainer.new()
+	shop_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	shop_list.add_theme_constant_override("separation", 8)
+	scroll.add_child(shop_list)
+	sv.add_child(_button("Leave", func(): _close(shop)))
+	# Inn
+	inn = _panel()
+	var iv := VBoxContainer.new()
+	iv.add_theme_constant_override("separation", 10)
+	inn.add_child(iv)
+	var it := Label.new()
+	it.text = "The Ember Inn"
+	it.theme_type_variation = "HeaderLabel"
+	iv.add_child(it)
+	inn_text = Label.new()
+	inn_text.theme_type_variation = "FlavorLabel"
+	inn_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	iv.add_child(inn_text)
+	var ib := HBoxContainer.new()
+	ib.add_theme_constant_override("separation", 10)
+	iv.add_child(ib)
+	var rest := _button("Rest", func(): rest_at_inn(), true)
+	rest.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ib.add_child(rest)
+	var no := _button("Not now", func(): _close(inn))
+	no.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ib.add_child(no)
+	# Menu
+	menu = _panel()
+	var mv := VBoxContainer.new()
+	mv.add_theme_constant_override("separation", 10)
+	menu.add_child(mv)
+	var mt := Label.new()
+	mt.text = "Emberhold"
+	mt.theme_type_variation = "HeaderLabel"
+	mt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mv.add_child(mt)
+	mv.add_child(_button("Resume", func(): _close(menu), true))
+	mv.add_child(_button("Save", func(): save_game(); _toast("Journey saved.")))
+	rm_btn = _button("", func(): set_reduced_motion(not reduced_motion))
+	rm_btn.text = "Reduced motion: %s" % ("On" if reduced_motion else "Off")
+	mv.add_child(rm_btn)
+	mv.add_child(_button("Back to title", func(): save_game(); get_tree().change_scene_to_file("res://main.tscn")))
+	# Transition overlay
+	var tl := CanvasLayer.new()
+	tl.layer = 20
+	add_child(tl)
+	iris = ColorRect.new()
+	iris.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var im := ShaderMaterial.new()
+	im.shader = load("res://shaders/iris.gdshader")
+	im.set_shader_parameter("radius", 0.0)
+	iris.material = im
+	iris.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tl.add_child(iris)
+
+
+func _layout() -> void:
+	var vs := get_viewport_rect().size
+	var s := clampf(_dpr() * clampf(minf(vs.x, vs.y) / _dpr() / 560.0, 0.85, 1.25), 0.85, 4.0)
+	ui.scale = Vector2(s, s)
+	var w := vs.x / s
+	var h := vs.y / s
+	ui.size = Vector2(w, h)
+	var m := 12.0
+	var portrait := h > w
+	loc_card.position = Vector2(m, m)
+	loc_card.custom_minimum_size = Vector2(minf(240.0, w * 0.5), 0)
+	loc_card.size = Vector2.ZERO
+	var mm := Vector2(150, 110) if not portrait else Vector2(minf(130.0, w * 0.34), 100)
+	if minimap.big:
+		mm = Vector2(minf(w - 2 * m, 560.0), minf(h - 140.0, 420.0))
+		minimap.position = (Vector2(w, h) - mm) / 2.0
+	else:
+		minimap.position = Vector2(w - mm.x - m, m)
+	minimap.size = mm
+	menu_btn.size = Vector2(84, 44)
+	menu_btn.position = Vector2(w - 84 - m, (m + mm.y + 8) if not minimap.big else m)
+	var touch := joystick.visible
+	var ub := 112.0 if touch else 92.0
+	use_btn.size = Vector2(ub, ub)
+	use_btn.position = Vector2(w - ub - m - 8, h - ub - m - 8)
+	var js := 150.0
+	joystick.size = Vector2(js, js)
+	joystick.position = Vector2(m + 8, h - js - m - 8)
+	hint.size = Vector2.ZERO
+	hint.position = Vector2((w - hint.size.x) / 2.0, h - hint.size.y - (ub + 36.0 if portrait else m + 10.0))
+	toast.size = Vector2.ZERO
+	toast.position = Vector2((w - toast.size.x) / 2.0, h * 0.62)
+	banner.size = Vector2(w, 0)
+	banner_y = (m + maxf(loc_card.size.y, 100.0) + 70.0) if portrait else 70.0
+	banner.position.x = 0
+	var pw := minf(w - 2 * m, 560.0)
+	dialog.custom_minimum_size = Vector2(pw, 0)
+	dialog.size = Vector2(pw, 0)
+	dialog.position = Vector2((w - pw) / 2.0, h - dialog.size.y - (ub + 28.0 if portrait else m + 4.0))
+	shop.size = Vector2(pw, minf(h - 2 * m, 520.0))
+	shop.position = (Vector2(w, h) - shop.size) / 2.0
+	inn.custom_minimum_size = Vector2(minf(pw, 440.0), 0)
+	inn.size = Vector2.ZERO
+	inn.position = (Vector2(w, h) - inn.size) / 2.0
+	menu.custom_minimum_size = Vector2(minf(pw, 340.0), 0)
+	menu.size = Vector2.ZERO
+	menu.position = (Vector2(w, h) - menu.size) / 2.0
+	(vignette.material as ShaderMaterial).set_shader_parameter("aspect", vs.x / maxf(1.0, vs.y))
+	(iris.material as ShaderMaterial).set_shader_parameter("aspect", vs.x / maxf(1.0, vs.y))

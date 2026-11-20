@@ -42,6 +42,10 @@ the Rift to the south west. `python3 tools/build_world_acts.py` rebuilds Acts II
 checks spawns, props, gates and encounter tables. Web preview helpers: `?warp=frostveil` starts in an area,
 `?gates=off` opens every story gate, `?enc=0` turns encounters off.
 
+## Emberhold kingdom (town, castle, Cinderreach overworld)
+A separate scene, `scenes/kingdom.tscn`; open it with `?kingdom=1`. It has a town with a shop, an inn, a castle and a house, a small island overworld with six landmarks, and a danger meter that calls
+`Encounters.start_random_battle(region_id)` (`scripts/encounters.gd`). See `docs/KINGDOM.md`.
+
 ## Later: Windows .exe and iOS
 Add a **Windows Desktop** or **iOS** preset in Project → Export (Godot downloads the export templates). iOS needs a Mac with Xcode and an Apple Developer account to sign and upload.
 

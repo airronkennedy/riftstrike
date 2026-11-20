@@ -12,6 +12,10 @@ boot_splash/show_image=false
 config/icon="res://assets/af/ui/icon-192.png"
 run/low_processor_mode=false
 
+[autoload]
+
+Encounters="*res://scripts/encounters.gd"
+
 [display]
 
 window/size/viewport_width=1024
