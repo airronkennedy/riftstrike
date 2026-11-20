@@ -39,7 +39,7 @@ func _run() -> void:
 	g.AUTO = false
 	g.start_fight(3)
 	for u in g.G.units:
-		# side-view timeline: only the unit whose turn it is has gained its turn regen yet
+		# party turn regen may already be applied on top of the carried bar
 		var base := 100.0 if u.name == nm else 37.0
 		if u.team == "blue" and absf(u.gauge - base) > 0.01 and absf(u.gauge - minf(100.0, base + float(u.mana_regen))) > 0.01: fails.append("start mp " + u.name + " " + str(u.gauge))
 	# AUTO turn
@@ -48,8 +48,9 @@ func _run() -> void:
 	var lead_u = null
 	for u in g.G.units:
 		if u.team == "blue" and u.name == nm: lead_u = u
-	if g.G.active != null and g.G.active.team == "blue" and g.G.mode == "select": fails.append("auto did not execute")
-	if g.G.active != null and g.G.active.team == "blue" and g.G.queue.size() != 1: fails.append("auto queue size %d" % g.G.queue.size())
+	# team turns: AUTO skips target select and the whole party strikes (scripts/combo_turn.gd)
+	if g.G.mode == "select": fails.append("auto did not execute")
+	if g.G.turnc == null or g.G.turnc.strikes.size() != g.alive("blue").size(): fails.append("whole party should strike")
 	var cast := false
 	var guard := 0
 	while guard < 4000 and g.phase == "battle" and not cast:

@@ -2,7 +2,11 @@ extends RefCounted
 # Build screen: per keeper, pick a Class and a Subclass (2 + 2 abilities, each with its own level),
 # and order the AUTO battle plan (Sequence). Data: scripts/quest_rpg.gd. Logic: game.gd set_class / set_sub / seq_of / seq_pick.
 const QuestRPG = preload("res://scripts/quest_rpg.gd")
-var tab := 0 # 0 class, 1 subclass, 2 sequence
+var tab := 0 # 0 class, 1 subclass, 2 sequence, 3 attack order
+var pick_slot := -1 # Attack Order: tapped row waiting for a second tap to swap
+var _rate_key := ""
+var _rate := 0.0
+var _drag_from := -1
 
 func open() -> void:
 	tab = 0
@@ -11,10 +15,11 @@ func key(g: Object, k: int) -> void:
 	if k == KEY_ESCAPE or k == KEY_P or k == KEY_BACKSPACE:
 		g.menu_back()
 	elif k == KEY_TAB:
-		tab = (tab + 1) % 3
+		tab = (tab + 1) % 4
 	elif k == KEY_1: tab = 0
 	elif k == KEY_2: tab = 1
 	elif k == KEY_3: tab = 2
+	elif k == KEY_4: tab = 3
 	elif k == KEY_UP or k == KEY_LEFT:
 		g.select_hero(g.char_sel - 1)
 	elif k == KEY_DOWN or k == KEY_RIGHT:
@@ -22,8 +27,11 @@ func key(g: Object, k: int) -> void:
 
 func draw(g: Object, vw: float, vh: float) -> void:
 	var short: bool = vh <= 430
-	var area: Rect2 = g.menu_sheet("bld_back", "Build", "Class, abilities and the AUTO battle plan for each keeper.",
-		func(): g.menu_back(), ["Class", "Subclass", "Sequence"], tab, func(i): tab = i, "bld_tab")
+	var area: Rect2 = g.menu_sheet("bld_back", "Build", "Class, abilities, the AUTO plan and the party's attack order.",
+		func(): g.menu_back(), ["Class", "Subclass", "Sequence", "Attack Order"], tab, func(i): tab = i, "bld_tab")
+	if tab == 3:
+		_draw_order(g, area, short)
+		return
 	var d: Rect2 = g.hero_picker("bld_hero_", area, short, func(hn, hs): return "Lv." + str(int(hs.level)) + "  " + str(hs.cls))
 	var name: String = g.selected_hero()
 	if tab == 0: _draw_class(g, name, d, short)
@@ -192,3 +200,135 @@ func _draw_seq(g: Object, name: String, d: Rect2, short: bool) -> void:
 		g.AB_SEQ.erase(name); g.seq_of(name); g.save_cfg())
 	g.text("Tap an ability to cycle your unlocked ones · tap the rule to cycle checks", d.position.x + 2.0 * bw + 26.0, by + (rh - 6.0) / 2.0,
 		g.fit_size("Tap an ability to cycle your unlocked ones · tap the rule to cycle checks", 11.0, d.size.x - 2.0 * bw - 30.0, 7.0), g.UI_MUTED, "left")
+
+# ------------------------------------------------------------------ attack order (docs/COMBO.md)
+const Combo = preload("res://scripts/combo.gd")
+const SPARK_GREEN := Color("#7fc83a")
+
+func _order_frames(g: Object, order: Array) -> Array:
+	var fr: Array = []
+	for nm in order: fr.append(Combo.frames(str(g.CHAR[nm].cls)))
+	return fr
+
+func _delays(g: Object, order: Array) -> Array:
+	var d: Array = []
+	for nm in order: d.append(float(g.HERO_DELAY.get(nm, 0.0)))
+	return d
+
+func _swap(g: Object, a: int, b: int) -> void:
+	var o: Array = g.attack_order()
+	if a < 0 or b < 0 or a >= o.size() or b >= o.size() or a == b: return
+	var t = o[a]; o[a] = o[b]; o[b] = t
+	g.set_attack_order(o)
+	g.sfx.tone(660 + b * 40, 0.05, "triangle", 0.03)
+
+## Rows (one per keeper, in attack order) with timing traits, reorder + delay controls, and a timeline that
+## shows each keeper's expected hit window (solid), its jitter range (faint), hit ticks, and spark overlaps (green).
+func _draw_order(g: Object, area: Rect2, short: bool) -> void:
+	var order: Array = g.attack_order()
+	var fr := _order_frames(g, order)
+	var dl := _delays(g, order)
+	var key := ",".join(order) + "|" + str(dl)
+	if key != _rate_key:
+		_rate_key = key
+		_rate = Combo.spark_rate(fr, dl, 80)
+	var d := area.grow(-4.0)
+	var help := "Keepers attack top to bottom, %.2fs apart. Hits from two keepers on one foe within %d ms SPARK (+50%% damage). Slow, late-hitting keepers early and fast ones after them line up. Tap two rows to swap them." % [Combo.SLOT_STAGGER / 1000.0, int(Combo.SPARK_WINDOW)]
+	g.text(help, d.position.x + 2.0, d.position.y + 8.0, g.fit_size(help, 12.0, d.size.x, 8.0), g.UI_MUTED, "left")
+	# header: expected spark rate + actions
+	var hy: float = d.position.y + 22.0
+	var rate_s := "Expected sparks: %d%% of hits" % int(roundf(_rate * 100.0))
+	var rcol: Color = SPARK_GREEN if _rate >= 0.55 else (g.UI_GOLD if _rate >= 0.35 else g.UI_INK)
+	g.text(rate_s, d.position.x + 2.0, hy + 14.0, 17.0, rcol, "left")
+	var bw := 150.0
+	g.pill("bld_ord_suggest", Rect2(d.end.x - bw * 2.0 - 10.0, hy, bw, 30.0), "Suggest order", "primary", 13.0, func():
+		var plan: Dictionary = Combo.best_plan(_order_frames(g, order))
+		var o2: Array = []
+		for i in plan.order: o2.append(order[i])
+		for j in o2.size(): g.HERO_DELAY[o2[j]] = float(plan.delays[j])
+		g.set_attack_order(o2); pick_slot = -1
+		g.sfx.tone(988, 0.08, "triangle", 0.035))
+	g.pill("bld_ord_reset", Rect2(d.end.x - bw, hy, bw, 30.0), "Reset delays", "soft", 13.0, func():
+		g.HERO_DELAY = {}; g.save_cfg(); pick_slot = -1)
+	var top: float = hy + 40.0
+	var n: int = order.size()
+	var rh: float = clampf((d.end.y - top - 30.0) / maxf(1.0, float(n)) - 6.0, 34.0, 76.0)
+	var lw: float = minf(390.0, d.size.x * 0.44) # left column: names + controls
+	var tl := Rect2(d.position.x + lw + 10.0, top, d.size.x - lw - 10.0, float(n) * (rh + 6.0) - 6.0)
+	# timeline scale
+	var tmax := 0.0
+	var wins: Array = []
+	for i in n:
+		var w: Dictionary = Combo.window(fr[i], i, dl[i])
+		wins.append(w)
+		tmax = maxf(tmax, float(w.last) + float(w.jit_end))
+	tmax = ceilf((tmax + 150.0) / 500.0) * 500.0
+	var sx := func(ms: float) -> float: return tl.position.x + tl.size.x * clampf(ms / tmax, 0.0, 1.0)
+	g.rbox(tl.grow(4.0), 10.0, g.UI_CARD, g.UI_LINE, 1.0)
+	var tick := 0.0
+	while tick <= tmax:
+		var x: float = sx.call(tick)
+		g.draw_line(Vector2(x, tl.position.y - 2.0), Vector2(x, tl.end.y + 2.0), Color(g.UI_LINE.r, g.UI_LINE.g, g.UI_LINE.b, 0.35), 1.0)
+		g.text("%.1fs" % (tick / 1000.0), x, tl.end.y + 14.0, 10.0, g.UI_MUTED)
+		tick += 500.0
+	# spark overlaps: pairwise window intersections (core windows), drawn as green bands across both lanes
+	for i in n:
+		for j in range(i + 1, n):
+			var a0: float = maxf(float(wins[i].first), float(wins[j].first)) - Combo.SPARK_WINDOW * 0.5
+			var a1: float = minf(float(wins[i].last), float(wins[j].last)) + Combo.SPARK_WINDOW * 0.5
+			if a1 <= a0: continue
+			var y0: float = top + float(i) * (rh + 6.0)
+			var y1: float = top + float(j) * (rh + 6.0) + rh
+			var band := Rect2(sx.call(a0), y0, maxf(2.0, sx.call(a1) - sx.call(a0)), y1 - y0)
+			g.draw_rect(band, Color(SPARK_GREEN.r, SPARK_GREEN.g, SPARK_GREEN.b, 0.16))
+			g.draw_rect(band, Color(SPARK_GREEN.r, SPARK_GREEN.g, SPARK_GREEN.b, 0.5), false, 1.0)
+	for i in n:
+		var nm: String = order[i]
+		var f: Dictionary = fr[i]
+		var y: float = top + float(i) * (rh + 6.0)
+		var row := Rect2(d.position.x, y, lw, rh)
+		var picked: bool = pick_slot == i
+		g.rbox(row, 12.0, g.UI_GOLD_L if picked else g.UI_CARD, g.UI_GOLD if picked else g.UI_LINE, 1.6 if picked else 1.0)
+		g.text("#%d" % (i + 1), row.position.x + 18.0, row.get_center().y, 15.0, g.UI_GOLD)
+		var cls: String = str(g.CHAR[nm].cls)
+		g.text(nm, row.position.x + 36.0, row.position.y + rh * 0.32, g.fit_size(nm, 14.0, 110.0, 9.0), g.UI_INK, "left")
+		var tr := Combo.traits(f)
+		var tag := Combo.speed_tag(f)
+		var tcol: Color = SPARK_GREEN if tag == "Fast" else (g.UI_GOLD if tag == "Steady" else Color("#c0603a"))
+		g.text(cls + " · " + str(f.style), row.position.x + 36.0, row.position.y + rh * 0.62, 10.0, g.UI_MUTED, "left")
+		if rh >= 44.0: g.text(tr, row.position.x + 36.0, row.position.y + rh * 0.86, g.fit_size(tr, 10.0, 130.0, 7.0), tcol, "left")
+		else: g.text(tag, row.end.x - 4.0 * (minf(rh - 10.0, 30.0) + 4.0) - 62.0, row.get_center().y, 10.0, tcol, "right")
+		# controls: up / down, delay - / +
+		var bs: float = minf(rh - 10.0, 30.0)
+		var bx: float = row.end.x - 4.0 * (bs + 4.0) - 56.0
+		var ii := i
+		g.pill("bld_ou_%d" % i, Rect2(bx, row.position.y + (rh - bs) / 2.0, bs, bs), "", "soft", 12.0, func(): _swap(g, ii, ii - 1); pick_slot = -1, false, i == 0, false, "", "up")
+		g.pill("bld_od_%d" % i, Rect2(bx + bs + 4.0, row.position.y + (rh - bs) / 2.0, bs, bs), "", "soft", 12.0, func(): _swap(g, ii, ii + 1); pick_slot = -1, false, i == n - 1, false, "", "down")
+		var dx: float = bx + 2.0 * (bs + 4.0) + 6.0
+		var dv: float = float(dl[i])
+		g.pill("bld_om_%d" % i, Rect2(dx, row.position.y + (rh - bs) / 2.0, bs, bs), "-", "soft", 14.0, func(): g.set_hero_delay(nm, dv - Combo.DELAY_STEP), false, dv <= 0.0)
+		g.text("+%dms" % int(dv), dx + bs + 28.0, row.get_center().y, 11.0, g.UI_GOLD if dv > 0.0 else g.UI_MUTED)
+		g.pill("bld_op_%d" % i, Rect2(dx + bs + 56.0, row.position.y + (rh - bs) / 2.0, bs, bs), "+", "soft", 14.0, func(): g.set_hero_delay(nm, dv + Combo.DELAY_STEP), false, dv >= Combo.DELAY_MAX)
+		# tap the name area: pick, then tap another row to swap (tap-to-reorder)
+		g.add_btn("bld_opick_%d" % i, Rect2(row.position.x, row.position.y, bx - row.position.x - 4.0, rh), func():
+			if pick_slot < 0: pick_slot = ii; g.sfx.tone(784, 0.04, "triangle", 0.025)
+			elif pick_slot == ii: pick_slot = -1
+			else: _swap(g, pick_slot, ii); pick_slot = -1)
+		# lane: jitter range (faint), core window (solid), hit ticks
+		var w: Dictionary = wins[i]
+		var ly: float = y + rh * 0.5
+		var lh: float = minf(16.0, rh * 0.36)
+		var j0: float = float(w.first) - float(w.jit)
+		var j1: float = float(w.last) + float(w.jit_end)
+		var accent: Color = Color("#e08a3c") if str(f.style) == "melee" else (Color("#58a8e0") if str(f.style) == "ranged" else Color("#b07ae0"))
+		var t0: float = float(i) * Combo.SLOT_STAGGER + float(dl[i])
+		g.draw_line(Vector2(sx.call(t0), ly), Vector2(sx.call(float(w.first)), ly), Color(accent.r, accent.g, accent.b, 0.45), 1.5)
+		g.draw_circle(Vector2(sx.call(t0), ly), 3.0, accent)
+		g.draw_rect(Rect2(sx.call(j0), ly - lh * 0.5 - 3.0, sx.call(j1) - sx.call(j0), lh + 6.0), Color(accent.r, accent.g, accent.b, 0.18))
+		g.draw_rect(Rect2(sx.call(float(w.first)), ly - lh * 0.5, maxf(3.0, sx.call(float(w.last)) - sx.call(float(w.first))), lh), Color(accent.r, accent.g, accent.b, 0.75))
+		for h in int(f.hits):
+			var hx: float = sx.call(float(w.first) + float(f.interval) * float(h))
+			g.draw_line(Vector2(hx, ly - lh * 0.5 - 4.0), Vector2(hx, ly + lh * 0.5 + 4.0), Color(1, 0.97, 0.9, 0.95), 2.0)
+		if sx.call(j1) < tl.end.x - 50.0: g.text(str(nm), sx.call(j1) + 6.0, ly, 10.0, g.UI_MUTED, "left")
+	var leg := "Dot = start · line = dash / windup · bar = hit window (ticks = hits) · faint = jitter · green = spark overlap · Brave Bursts hit about twice as often"
+	g.text(leg, d.position.x + 2.0, d.end.y - 6.0, g.fit_size(leg, 11.0, d.size.x, 7.0), g.UI_MUTED, "left")

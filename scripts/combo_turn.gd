@@ -18,7 +18,7 @@ var last_hitstop := -1e9
 var rng := RandomNumberGenerator.new()
 
 func start(g, side: String, order: Array, delays: Dictionary, focus) -> void:
-	team = side; clock = 0.0; strikes = []; projs = []; hist = {}; hits = 0; sparks = 0; dmg = 0; last_spark_pop = {}
+	team = side; clock = 0.0; strikes = []; projs = []; hist = {}; hits = 0; sparks = 0; dmg = 0; last_spark_pop = {}; chain = {}; spark_txt = {}
 	rng.randomize()
 	var slot := 0
 	for u in order:
@@ -176,7 +176,6 @@ func _announce(g, s: Dictionary) -> void:
 		var ab: Dictionary = g.ABILITY_DEFS[s.ab]
 		var col: Color = g.ab_color(s.ab)
 		u.gauge = 0.0
-		g.add_text(u.x, u.y - u.K.head * g.uS(u) - 34, str(ab.name), "#" + col.to_html(false), 22, 1300, true)
 		g.fx.append({"type": "aura", "unit": u, "t": 0.0, "life": 900.0, "color": col})
 		g.fx.append({"type": "ring", "x": u.x, "y": u.y - 10, "t": 0.0, "life": 520.0, "color": col})
 		g.cast_banner = {"text": "BRAVE BURST · " + str(ab.name), "sub": u.name + " · " + g.ab_effect_line(s.ab), "t": 0.0, "life": 1500.0, "color": col}
@@ -271,6 +270,22 @@ func _land(g, s: Dictionary, tm: float, i: int) -> void:
 		var d: int = maxi(1, int(roundf(cut * (Combo.SPARK_MULT if sp else 1.0))))
 		_apply(g, u, t, d, sp, crit, s, i == n - 1)
 
+## One running damage total per target this turn: re-pops on every hit (Brave Frontier's chained number).
+var chain := {}
+var spark_txt := {}
+func _chain(g, t, d: int, top: float, sp: bool) -> void:
+	var c: Dictionary = chain.get(t.id, {})
+	var sum: int = int(c.get("sum", 0)) + d
+	var tx: Dictionary = c.get("txt", {})
+	if tx.is_empty() or g.texts.find(tx) < 0:
+		tx = {"x": t.x, "y": top - 6.0, "s": "", "color": Color("#ffd36a"), "size": 20.0, "t": 0.0, "life": 1100.0, "pop": true, "still": true}
+		g.texts.append(tx)
+	tx.s = str(sum)
+	tx.t = 0.0
+	tx.size = minf(30.0, 18.0 + sqrt(float(sum)) * 0.35)
+	tx.color = Color("#d8ff7a") if sp else Color("#ffd36a")
+	chain[t.id] = {"sum": sum, "txt": tx}
+
 func _apply(g, u, t, d: int, sp: bool, crit: bool, s: Dictionary, last: bool) -> void:
 	t.hp = maxi(0, t.hp - d)
 	u.dmg += d
@@ -283,27 +298,39 @@ func _apply(g, u, t, d: int, sp: bool, crit: bool, s: Dictionary, last: bool) ->
 		if sp: sparks += 1
 	g.gain_mp(u, Combo.BB_PER_HIT + (Combo.BB_PER_SPARK if sp else 0.0))
 	g.gain_mp(t, Combo.BB_PER_TAKEN)
-	t.flash = maxf(t.flash, 90.0 if sp else 60.0)
+	t.flash = maxf(t.flash, 55.0 if sp else 35.0)
 	t.shake = maxf(t.shake, 160.0 if sp else 110.0)
 	t.kx = (1.0 if t.x >= u.x else -1.0) * (10.0 if sp else 5.0)
 	var hy: float = t.y - t.K.head * g.uS(t) * 0.55
-	var col := "#ffe066" if sp else ("#ff8a3d" if crit else "#ffffff")
-	g.add_text(t.x + rng.randf_range(-22, 22), g.stack_y(t, hy - 10.0), str(d) + ("!" if crit else ""), col, 19 if sp else (17 if crit else 14), 620, sp or crit)
+	var top: float = t.y - t.K.head * g.uS(t) - 18.0
+	# per-hit number: small, zig-zagging out from the hit point and rising (chained numbers)
+	var zig: float = (1.0 if (int(s.next) % 2) == 0 else -1.0) * rng.randf_range(22.0, 50.0)
+	var col := "#d8ff7a" if sp else ("#ff9a4a" if crit else "#fff4e0")
+	g.add_text(t.x + zig, hy + rng.randf_range(-18.0, 8.0), str(d) + ("!" if crit else ""), col, 14 if sp else (14 if crit else 11), 440, crit)
+	_chain(g, t, d, top, sp)
 	if str(s.f.style) == "melee" and not s.support:
 		g.fx.append({"type": "slash", "x": t.x + rng.randf_range(-10, 10), "y": hy + rng.randf_range(-14, 14), "t": 0.0, "life": 200.0, "dir": u.facing if int(s.next) % 2 == 0 else -u.facing})
 	g.fx.append({"type": "spark", "x": t.x - t.kx * 2, "y": hy, "t": 0.0, "life": 220.0 if sp else 150.0, "big": sp or crit, "rot": rng.randf() * 6})
 	if sp:
 		var lp: float = float(last_spark_pop.get(t.id, -1e9))
-		if clock - lp > 140.0:
+		if clock - lp > 150.0:
 			last_spark_pop[t.id] = clock
-			g.add_text(t.x, hy - 46.0, "SPARK!", "#b8ff6a", 22, 700, true)
+			# one SPARK! callout per target that re-pops (no stacked duplicates)
+			var st: Dictionary = spark_txt.get(t.id, {})
+			if st.is_empty() or g.texts.find(st) < 0:
+				st = {"x": t.x, "y": top - 40.0, "s": "SPARK!", "color": Color("#b8ff6a"), "size": 24.0, "t": 0.0, "life": 700.0, "pop": true, "still": true}
+				g.texts.append(st)
+				spark_txt[t.id] = st
+			st.t = 0.0
+			st.x = t.x + rng.randf_range(-6, 6)
 			g.fx.append({"type": "ring", "x": t.x, "y": hy + 10, "t": 0.0, "life": 300.0, "color": Color("#c8ff7a")})
 		g.fx.append({"type": "burst", "x": t.x, "y": hy, "t": 0.0, "life": 380.0, "seed": rng.randi(), "color": Color("#d8ff8a")})
 		g.shake(4.5, 120)
 		g.cam_punch = maxf(g.cam_punch, 1.0)
 		if clock - last_hitstop > 110.0:
 			last_hitstop = clock; g.hitstop = maxf(g.hitstop, 28.0)
-		g.sfx.tone(1250 + rng.randf_range(0, 300), 0.04, "triangle", 0.025, 1.4)
+		# rising chime: pitch climbs with the turn's spark count
+		g.sfx.tone(880.0 + minf(float(sparks), 30.0) * 28.0 + rng.randf_range(0, 40), 0.045, "triangle", 0.028, 1.5)
 	else:
 		g.sfx.hit()
 	if crit and not sp: g.shake(3.0, 90)

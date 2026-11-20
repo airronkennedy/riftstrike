@@ -10,7 +10,7 @@ extends RefCounted
 # ---------------------------------------------------------------- tuning
 const SPARK_WINDOW := 60.0    # ms: hits from two different units this close on one target spark
 const SPARK_MULT := 1.5       # spark damage (Brave Frontier's base spark is 150%)
-const SLOT_STAGGER := 450.0   # ms between attack-order slots
+const SLOT_STAGGER := 540.0   # ms between attack-order slots
 const DELAY_STEP := 50.0      # Build: per-keeper extra delay step
 const DELAY_MAX := 500.0
 const JIT_WINDUP := 0.15      # ± share of windup
@@ -18,7 +18,7 @@ const JIT_TRAVEL := 0.10      # ± share of travel
 const JIT_INTERVAL := 0.14    # ± share of each gap between hits
 const JIT_DASH := 0.08
 const DASH_SPEED := 1500.0    # px/s melee dash
-const NOMINAL_DASH := 330.0   # px, used by the Build preview
+const NOMINAL_DASH := 180.0   # px, average real melee dash (measured), used by the Build preview
 const RANGED_STEP := 120.0    # ms ranged/caster step-in
 const RECOVER := 140.0        # ms after the last hit before running home
 const BB_PER_HIT := 1.6       # BB gauge per hit landed
@@ -47,7 +47,7 @@ const FOE_FRAMES := {
 ## Brave Burst (a full BB gauge fires the keeper's ability from its Build plan): more hits, longer windup.
 const BB_HITS_MULT := 2.0
 const BB_HITS_ADD := 2
-const BB_WINDUP_MULT := 1.35
+const BB_WINDUP_MULT := 1.0
 const BB_INTERVAL_MULT := 0.8
 
 # ---------------------------------------------------------------- timing data
@@ -65,8 +65,8 @@ static func frames(cls: String, ability: Dictionary = {}) -> Dictionary:
 ## Readable traits for Build: "7 hits · 0.33 s · Fast".
 static func speed_tag(f: Dictionary) -> String:
 	var onset := onset_ms(f)
-	if onset < 400.0: return "Fast"
-	if onset < 620.0: return "Steady"
+	if onset < 350.0: return "Fast"
+	if onset < 600.0: return "Steady"
 	return "Slow"
 
 static func onset_ms(f: Dictionary, dash_px: float = NOMINAL_DASH) -> float:

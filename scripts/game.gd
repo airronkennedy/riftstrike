@@ -1970,6 +1970,24 @@ func bf_auto_target():
 		if best == null or f.hp < best.hp: best = f
 	return best
 
+## Build "Attack Order": party keeper names, first attacker first (HERO_ORDER filtered + anyone missing).
+func attack_order() -> Array:
+	var party: Array = party_names()
+	var out: Array = []
+	for nm in HERO_ORDER:
+		if party.find(nm) >= 0 and out.find(nm) < 0: out.append(nm)
+	for nm in party:
+		if out.find(nm) < 0: out.append(nm)
+	return out
+
+func set_attack_order(names: Array) -> void:
+	HERO_ORDER = names.duplicate()
+	save_cfg()
+
+func set_hero_delay(nm: String, ms: float) -> void:
+	HERO_DELAY[nm] = clampf(snappedf(ms, Combo.DELAY_STEP), 0.0, Combo.DELAY_MAX)
+	save_cfg()
+
 func bf_order(team: String) -> Array:
 	var us := alive(team)
 	if team == "red": return shuffled(us)
@@ -2704,7 +2722,7 @@ func draw_fx(e: Dictionary) -> void:
 				var spd := rr.randf_range(60.0, 150.0)
 				var pp := Vector2(e.x, e.y) + Vector2(cos(ang), sin(ang)) * spd * (1.0 - pow(1.0 - bk, 2.0)) + Vector2(0, 30.0 * bk * bk)
 				draw_line(pp, pp - Vector2(cos(ang), sin(ang)) * 8.0 * (1.0 - bk), ca(e.color), 2.5)
-			draw_circle(Vector2(e.x, e.y), maxf(0.01, 16.0 * (1.0 - bk)), ca(Color(1, 1, 0.85, 0.7)))
+			draw_circle(Vector2(e.x, e.y), maxf(0.01, 10.0 * (1.0 - bk)), ca(Color(1, 1, 0.85, 0.6)))
 			restore()
 		"ring":
 			var kk: float = e.t / e.life
@@ -2772,9 +2790,11 @@ func draw_projectile(p) -> void:
 
 func draw_text_fx(t: Dictionary) -> void:
 	var k: float = t.t / t.life
-	var y: float = t.y - 34 * (1 - pow(1 - k, 2))
+	var still: bool = t.get("still", false)
+	var y: float = t.y - (0.0 if still else 34 * (1 - pow(1 - k, 2)))
 	var sc: float
-	if t.pop: sc = 1.7 - k / 0.12 * 0.7 if k < 0.12 else 1.0
+	if still: sc = 1.35 - k / 0.1 * 0.35 if k < 0.1 else 1.0
+	elif t.pop: sc = 1.7 - k / 0.12 * 0.7 if k < 0.12 else 1.0
 	else: sc = 1.3 - k / 0.08 * 0.3 if k < 0.08 else 1.0
 	save(); _alpha *= 1 - (k - 0.7) / 0.3 if k > 0.7 else 1.0
 	tr_(t.x, y); scale_by(sc, sc)
@@ -4571,6 +4591,29 @@ func draw_cast_banner() -> void:
 	var al: float = 1.0 - (k - 0.8) / 0.2 if k > 0.8 else 1.0
 	var sc: float = 1.35 - k / 0.1 * 0.35 if k < 0.1 else 1.0
 	var col: Color = cast_banner.color
+	if G != null and G.bf:
+		# Brave Burst cut-in: a full-width strip across the upper field, name slides in, holds, slides out.
+		var bt: float = cast_banner.t
+		var life: float = cast_banner.life
+		var inn: float = clampf(bt / 160.0, 0.0, 1.0)
+		var outk: float = clampf((bt - (life - 220.0)) / 220.0, 0.0, 1.0)
+		var bh := 46.0
+		var by: float = SAFE_T + 30.0
+		var open_h: float = bh * (1.0 - pow(1.0 - inn, 3.0)) * (1.0 - outk)
+		if open_h < 1.0: return
+		draw_rect(Rect2(0, by - open_h / 2.0, VWc, open_h), Color(0.04, 0.03, 0.025, 0.82))
+		draw_rect(Rect2(0, by - open_h / 2.0, VWc, 1.5), Color(col.r, col.g, col.b, 0.9))
+		draw_rect(Rect2(0, by + open_h / 2.0 - 1.5, VWc, 1.5), Color(col.r, col.g, col.b, 0.9))
+		var slide: float = (1.0 - pow(1.0 - inn, 3.0)) - outk * outk
+		var tx: float = lerpf(-VWc * 0.3, VWc / 2.0, slide) + (bt * 0.02)
+		save(); _alpha *= (1.0 - outk)
+		var old: Font = _font_override
+		_font_override = FONT_TITLE
+		text(str(cast_banner.text), tx, by - 6, 20.0, col.lightened(0.25), "center", 4, Color(0, 0, 0, 0.9))
+		_font_override = old
+		text(str(cast_banner.sub), tx, by + 14, 11.0, AfTheme.INK, "center", 3, Color(0, 0, 0, 0.9))
+		restore()
+		return
 	var fs := 22.0
 	var sfs := 12.0
 	var w: float = minf(VWc - 20, maxf(text_w(str(cast_banner.text), fs) + 120, text_w(str(cast_banner.sub), sfs) + 60))

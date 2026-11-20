@@ -198,7 +198,7 @@ func draw_combo(g) -> void:
 	var a = 1.0 if age < 1100.0 else 1.0 - (age - 1100.0) / 400.0
 	var sp: int = tc.sparks if live else int(G.summary.get("sparks", 0))
 	var x: float = g.VWc - g.SAFE_R - 24.0 * k
-	var y: float = g.SAFE_T + 70.0 * k
+	var y: float = g.SAFE_T + 96.0 * k
 	var col = PARCH
 	if n >= 30: col = Color("#b8ff6a")
 	elif n >= 20: col = EMBER
@@ -226,7 +226,7 @@ func draw_summary(g) -> void:
 	var a = ain if age < 1250.0 else 1.0 - (age - 1250.0) / 350.0
 	var w = 360.0 * k
 	var h = 54.0 * k
-	var r = Rect2((g.VWc - w) / 2.0, g.VHc * 0.34 - (1.0 - ain) * 14.0, w, h)
+	var r = Rect2((g.VWc - w) / 2.0, g.SAFE_T + 14.0 * k - (1.0 - ain) * 14.0, w, h)
 	g.save(); g._alpha = a
 	g.rbox(r, 14, Color(0.07, 0.055, 0.045, 0.9), Color.WHITE, 1.2, 4)
 	var old: Font = g._font_override
