@@ -2,10 +2,11 @@ extends SceneTree
 ## Boss balance sweep (docs/BOSSES.md):
 ##   godot --headless --path . -s res://tools/sim_bosses.gd -- --n=40 [--levels=7,9] [--boss=boss_sovereign] [--modes=random,default,smart]
 ## Default levels per boss: its story recommended level (BossDefs level) and one above.
-## For each boss and party level: n AUTO fights per Attack Order: random (a shuffled order, no delays), party (the
+## For each boss and party level: n AUTO fights per Attack Order: random (a shuffled order, no delays), shuffled (a
+## shuffled order keeping the frozen auto delays, as when a player drags the order), party (the
 ## squad order as listed, no delays), default (untouched Build: the game's auto_plan) and smart (Combo.best_plan here).
-## --carry: the Sovereign starts with the HP share the party had left after a Regnant fight (sampled from the
-## Regnant runs of the same order; a loss there means a retry at full HP). --enrage=turn,step,max overrides
+## --carry: the Sovereign starts with the HP the story gives it after a Regnant win of the same order
+## (QuestRPG.hp_after_battle, then Story.phase2_hp: the Lantern rally, half the runs sparing Taren). --enrage=turn,step,max overrides
 ## QuestRPG.BOSS_ENRAGE. Prints win %, spark rate on all party hits, Breaks, phases reached, signatures and fight length.
 const C = preload("res://scripts/combo.gd")
 
@@ -96,8 +97,10 @@ func _run() -> void:
 					g.start_boss_battle(id)
 					if carry and id == "boss_sovereign":
 						var pool: Array = reg_left.get(mode, [])
-						# story: QuestFlow.finish_battle (QuestRPG.hp_after_battle) then "Pull Taren out" burns 25%
-						var f0: float = Q.hp_after_battle(true, float(pool[randi() % pool.size()])) * 0.75 if not pool.is_empty() else 0.75
+						# story: QuestFlow.finish_battle (QuestRPG.hp_after_battle), then the Lantern rally (Story.phase2_hp);
+						# half the runs spare Taren (a small HP burn), as players split on that choice
+						var f1: float = Q.hp_after_battle(true, float(pool[randi() % pool.size()])) if not pool.is_empty() else 1.0
+						var f0: float = root.get_node("Story").phase2_hp(f1, randi() % 2 == 0)
 						for u in g.G.units:
 							if u.team == "blue": u.hp = maxi(1, int(roundf(float(u.maxhp) * f0))); u.shown_hp = u.hp
 					var guard := 0

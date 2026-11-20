@@ -36,7 +36,12 @@ func _run() -> void:
 	for u in g.G.units:
 		if u.team == "red":
 			var id := str(u.K.img).trim_prefix("f_")
-			if not forest.has(id): foes_ok = false; print("  foe ", id)
+			# the forest has an 8% elite roll (QuestFlow REGION_BATTLES): that foe wears AfRoster.FOE_ART.elite art
+			# (leaper, tithe, knell, ...), so it was a 1-in-12 flake, not a leak from the dungeon pools
+			var elite_art := false
+			if str(u.tier) == "elite" and bool(g.encounter.get("elite", false)):
+				for arts in preload("res://scripts/af_roster.gd").FOE_ART.elite.values(): if (arts as Array).has(id): elite_art = true
+			if not forest.has(id) and not elite_art: foes_ok = false; print("  foe ", id, " tier ", u.tier)
 	ok(foes_ok, "forest foe set")
 	ok(g.G.ctb, "side-view timeline battle")
 	g.sfx.muted = true

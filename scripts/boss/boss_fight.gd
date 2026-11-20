@@ -372,7 +372,7 @@ func _draw_bar(g, k: float) -> void:
 	g.draw_rect(gb.grow(1), Color(0, 0, 0, 0.75))
 	var bv: float = 1.0 if broken else clampf(break_g / need, 0.0, 1.0)
 	g.draw_rect(Rect2(gb.position, Vector2(gb.size.x * bv, gb.size.y)), Color("#7fd8ff"))
-	g.text("BROKEN: next turn staggered" if broken else "BREAK  ·  sparks pierce the ward", gb.end.x + 8.0 * k, gb.get_center().y, 8.5 * k, Color("#9fd8ff") if broken else AfTheme.MUTED, "left")
+	g.text("BROKEN: +15% damage, it staggers" if broken else "BREAK  ·  sparks pierce the ward", gb.end.x + 8.0 * k, gb.get_center().y, 8.5 * k, Color("#9fd8ff") if broken else AfTheme.MUTED, "left")
 
 func _draw_intro(g, k: float) -> void:
 	var VW: float = g.VWc

@@ -14,8 +14,9 @@ extends RefCounted
 ##
 ## Mechanics that make Attack Order matter (Brave Frontier style):
 ##   ward         non-spark hits deal only ward x damage; sparked hits ignore it
-##   break_need   sparks on the boss to fill the Break gauge: a Broken boss takes +10% damage and its next turn is
-##                one weak plain act (no signature, no second act)
+##   break_need   sparks on the boss to fill the Break gauge (x TUNE "break"): a Broken boss takes +15% damage and
+##                staggers its next turn (x0.85 damage, a signature due that turn waits one turn)
+##   enrage_turn  optional: the turn the boss ENRAGES (default QuestRPG.BOSS_ENRAGE.turn), telegraphed a turn early
 ##   spark_window ms; later phases tighten it, so only a well-timed order keeps sparking
 
 ## Ids are docs/STORY.md's story fight ids (Story.start_battle / StoryData.BATTLES), so every story boss fight gets
@@ -74,6 +75,7 @@ const BOSSES := {
 		],
 	},
 	"boss_sovereign": {
+		"enrage_turn": 24,
 		"name": "The Ash Sovereign", "title": "The Thing Beneath the Throne", "art": "sovereign", "kind": "barrel",
 		"area": "unlit-throne", "tier": "boss", "tag": "FINAL BOSS II", "level": 10, "scale": 1.0, "color": "#ff8a3d",
 		"adds": [["torch", "ashling"]],
@@ -99,8 +101,8 @@ const SIGNATURES := {
 	"smother": {"name": "Smother", "telegraph": 900.0, "target": "single", "mult": 2.1,
 		"frames": {"style": "melee", "windup": 300.0, "hits": 6, "interval": 70.0, "travel": 0.0, "mult": 2.1},
 		"warn": "Mother pulls one keeper close"},
-	"final_tally": {"name": "Final Tally", "telegraph": 900.0, "target": "back", "mult": 1.0,
-		"frames": {"style": "melee", "windup": 300.0, "hits": 4, "interval": 75.0, "travel": 0.0, "mult": 1.0},
+	"final_tally": {"name": "Final Tally", "telegraph": 900.0, "target": "back", "mult": 0.8,
+		"frames": {"style": "melee", "windup": 300.0, "hits": 4, "interval": 75.0, "travel": 0.0, "mult": 0.8},
 		"warn": "The ledger names the last in line"},
 	"death_knell": {"name": "Death Knell", "telegraph": 1000.0, "target": "all", "mult": 1.1,
 		"frames": {"style": "cast", "windup": 420.0, "hits": 3, "interval": 200.0, "travel": 200.0, "mult": 1.1},
@@ -155,13 +157,15 @@ static var LINES := {
 
 ## Stat hook. new_battle() already applies the balance worker's tiers (QuestRPG.FOE_TIER["miniboss"|"boss"],
 ## FOE_SIZE, TIER_XP) through encounter.tiers / foe_ids. TUNE is an extra per-boss multiplier on top, for the boss
-## mechanics here (ward, Break, phases, signatures): 1.0 = the plain tier numbers. Tuned with tools/sim_bosses.gd.
+## mechanics here (ward, Break, phases, signatures): 1.0 = the plain tier numbers. "break" scales break_need and
+## "spark" scales the spark bonus in the boss fight (1 = Combo's +50% damage and full BB per spark, 0.25 = +12.5%), so
+## a weak Attack Order loses less to a good one. Tuned with tools/sim_bosses.gd (docs/BOSSES.md, Stats and balance).
 static var TUNE := {
-	"miniboss_matron": {"hp": 1.15, "atk": 0.99, "def": 1.0, "break": 1.5, "spark": 0.25},
-	"guardian_f1": {"hp": 0.58, "atk": 1.4, "def": 1.0, "break": 1.5, "spark": 0.2},
-	"guardian_f2": {"hp": 0.72, "atk": 1.04, "def": 1.0, "break": 1.5, "spark": 0.25},
-	"boss_regnant": {"hp": 0.65, "atk": 1.02, "def": 1.0, "break": 1.5, "spark": 0.25},
-	"boss_sovereign": {"hp": 0.86, "atk": 0.78, "def": 1.0, "break": 1.5, "spark": 0.25},
+	"miniboss_matron": {"hp": 1.06, "atk": 0.89, "def": 1.0, "break": 1.5, "spark": 0.25},
+	"guardian_f1": {"hp": 0.58, "atk": 1.35, "def": 1.0, "break": 1.5, "spark": 0.2},
+	"guardian_f2": {"hp": 0.72, "atk": 0.95, "def": 1.0, "break": 1.5, "spark": 0.25},
+	"boss_regnant": {"hp": 0.65, "atk": 0.99, "def": 1.0, "break": 1.5, "spark": 0.25},
+	"boss_sovereign": {"hp": 0.77, "atk": 0.88, "def": 1.0, "break": 1.5, "spark": 0.1},
 }
 
 static func has(id: String) -> bool:

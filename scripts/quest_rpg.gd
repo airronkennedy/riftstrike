@@ -204,6 +204,11 @@ static func hp_after_battle(won: bool, frac_left: float) -> float:
 	if not won: return 0.0
 	return maxf(WIN_FLOOR, f + (1.0 - f) * WIN_RECOVER)
 
+## Wild (region) fights only: extra foe hp/atk on top of FOE_BASE, through encounter.foe_mult (QuestFlow.encounter_for).
+## The untouched Attack Order is the suggested one (game.gd auto_plan), which made AUTO wild fights easier; this puts
+## them back at 85-95% and ~4 h to Lv10 without touching story and boss fights. static var for tools/sim_balance.gd --wild.
+static var WILD_FOE := {"hp": 1.25, "atk": 1.0}
+
 ## Rift surge in regular fights: +SURGE_STEP damage per turn after turn 3, both sides (game.gd surge_mult).
 const SURGE_STEP := 0.35
 ## Boss enrage (replaces the surge in boss fights, docs/BOSSES.md): from turn `turn` (a "about to ENRAGE" warning

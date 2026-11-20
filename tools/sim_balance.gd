@@ -5,6 +5,7 @@ extends SceneTree
 ## For each party level L: n AUTO fights (target select skipped, 1x time) against the region foes for L, levelled by
 ## QuestRPG.foe_level(L). Prints win rate, party HP left, fight length, team turns, EXP per keeper, fights to next level,
 ## and the hours-to-Lv10 estimate from QuestRPG.LOOP_OVERHEAD_S / SELECT_S. --hp starts the party at that HP share.
+## --wild=HP,ATK overrides QuestRPG.WILD_FOE (extra wild-foe stats) while tuning.
 ## --chain plays the n fights back to back like the kingdom does: HP carries over through QuestRPG.hp_after_battle
 ## and a loss sends the party to the inn (full HP for the next fight).
 const REGIONS := {1: "meadow", 2: "road", 3: "road", 4: "forest", 5: "forest", 6: "shore", 7: "shore", 8: "highlands", 9: "highlands", 10: "highlands"}
@@ -25,6 +26,9 @@ func _run() -> void:
 		elif a.begins_with("--seed="): seed(int(a.substr(7)))
 		elif a.begins_with("--hp="): hp0 = float(a.substr(5))
 		elif a == "--chain": chain = true
+		elif a.begins_with("--wild="): # QuestRPG.WILD_FOE hp,atk while tuning
+			var wp := a.substr(7).split(",")
+			load("res://scripts/quest_rpg.gd").WILD_FOE = {"hp": float(wp[0]), "atk": float(wp[1])}
 		elif a.begins_with("--tiers="): tiers = Array(a.substr(8).split(",")) # story fight, e.g. --tiers=boss,regular
 		elif a.begins_with("--region="): region = a.substr(9)
 		elif a.begins_with("--mode="): TargetSelect._mode = a.substr(7) # Auto target setting for this run (not saved)

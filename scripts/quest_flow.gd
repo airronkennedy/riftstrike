@@ -52,8 +52,11 @@ func encounter_for(region_id: String, level: int = -1) -> Dictionary:
 	var kinds: Array = (r.kinds as Array).slice(0, n)
 	if level < 1: level = QuestRPG.foe_level(1.0)
 	var elite: bool = randf() < float(r.get("elite", 0.0))
+	# foe_mult: the story's small-party scaling times QuestRPG.WILD_FOE (wild fights only, docs/BALANCE.md)
+	var fm: Dictionary = story.party_mult() if story != null else {}
+	fm = {"hp": float(fm.get("hp", 1.0)) * float(QuestRPG.WILD_FOE.hp), "atk": float(fm.get("atk", 1.0)) * float(QuestRPG.WILD_FOE.atk)}
 	return {"area": str(r.area), "kinds": kinds, "level": level, "foes": r.foes, "region": region_id, "elite": elite,
-		"auto": true, "foe_mult": story.party_mult() if story != null else {}}
+		"auto": true, "foe_mult": fm}
 
 func has_save() -> bool:
 	return FileAccess.file_exists(KINGDOM_SAVE)
