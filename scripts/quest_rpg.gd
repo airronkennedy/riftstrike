@@ -157,3 +157,27 @@ static func level_factor(keeper_lv: int, foe_lv: int) -> float:
 	var d := keeper_lv - foe_lv
 	if d > 0: return maxf(0.4, 1.0 - OVER_PENALTY * d)
 	return minf(1.3, 1.0 + UNDER_BONUS * -d)
+
+
+# ---------------------------------------------------------------- auto-levelled foes (docs/BALANCE.md)
+## Every wild fight is levelled to the party: foe level = round(average equipped class level of the party)
+## + a random -1 / 0 / +1, clamped to 1..LEVEL_CAP. Regions only choose the foe pool, the art and the elite chance.
+## A foe stat is:   stat = base × FOE_BASE[stat] × FOE_TIER[tier][stat] × (1 + FOE_GROWTH[stat] × (level - 1))
+## where base is the foe kind's own stat line (game.gd char_stats for the red team).
+const FOE_LEVEL_SPREAD := 1
+const FOE_BASE := {"hp": 1.0, "atk": 1.0, "def": 1.0, "speed": 1.0, "mana": 1.0}
+const FOE_TIER := {
+	"regular": {"hp": 1.0, "atk": 1.0, "def": 1.0, "speed": 1.0, "mana": 1.0},
+	"elite": {"hp": 2.0, "atk": 1.3, "def": 1.15, "speed": 1.08, "mana": 1.25},
+	"boss": {"hp": 3.5, "atk": 1.5, "def": 1.3, "speed": 1.1, "mana": 1.5},
+}
+const FOE_GROWTH := {"hp": 0.10, "atk": 0.07, "def": 0.05, "speed": 0.02, "mana": 0.03}
+
+
+static func foe_level(party_level: float, spread: int = FOE_LEVEL_SPREAD) -> int:
+	return clampi(int(roundf(party_level)) + randi_range(-spread, spread), 1, LEVEL_CAP)
+
+
+static func foe_scale(stat: String, tier: String, level: int) -> float:
+	var t: Dictionary = FOE_TIER.get(tier, FOE_TIER.regular)
+	return float(FOE_BASE.get(stat, 1.0)) * float(t.get(stat, 1.0)) * (1.0 + float(FOE_GROWTH.get(stat, 0.0)) * float(maxi(1, level) - 1))
