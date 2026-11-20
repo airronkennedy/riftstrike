@@ -140,6 +140,7 @@ func is_warrior_kit(kind: String) -> bool:
 # Party characters are Airron's Fall keepers (scripts/af_roster.gd). HERO_NAMES / HERO_BASE / CHAR /
 # AB_CLASS_ROWS below are the six template kits; build_af_roster() turns them into the keeper roster at startup.
 const AfRoster = preload("res://scripts/af_roster.gd")
+const QuestRPG = preload("res://scripts/quest_rpg.gd")
 var AF_HEROES: Array = AfRoster.HEROES
 var AF_FOES: Array = AfRoster.FOES.keys()
 var AF_FOE_DEFS: Dictionary = AfRoster.FOES
@@ -382,6 +383,136 @@ func build_af_roster() -> void:
 			HERO_NAMES.append(nm)
 	SQUAD = HERO_NAMES.duplicate()
 
+# ---------------------------------------------------------------- RPG layer: class change, loadout, sequences
+# Data lives in scripts/quest_rpg.gd. Class pools are shared by class; each keeper adds their signature.
+var RPG_POOL_IDS: Dictionary = {} # class -> [ability ids]
+var SIG_AB: Dictionary = {} # keeper -> signature ability id (their Airron's Fall weapon)
+var AB_LOADOUT: Dictionary = {} # keeper -> [up to LOADOUT_SLOTS ability ids]
+var AB_SEQ: Dictionary = {} # keeper -> [[ability id, condition id], ...] checked top-down when MP is full
+
+func build_rpg() -> void:
+	for cls in CLASS_DEFS.keys():
+		if not QuestRPG.CLASSES.has(cls): CLASS_DEFS.erase(cls)
+	for cls in QuestRPG.CLASS_ORDER:
+		CLASS_DEFS[cls] = QuestRPG.CLASSES[cls].duplicate(true)
+		var ids: Array = []
+		var rows: Array = QuestRPG.POOLS[cls]
+		for i in rows.size():
+			var r: Array = rows[i]
+			ABILITY_DEFS[r[0]] = {"id": r[0], "name": r[1], "blurb": r[2], "kind": r[3], "params": r[4],
+				"lv": int(r[5]), "src": "class", "owner": cls, "mp": AB_MP, "tier": i + 1}
+			ids.append(r[0])
+		RPG_POOL_IDS[cls] = ids
+	CLASS_IDS = QuestRPG.CLASS_ORDER.duplicate()
+	for h in AF_HEROES:
+		var nm: String = str(h.short)
+		var own: Array = AB_CLASS_LIST.get(nm, [])
+		if own.size() > 0 and ABILITY_DEFS.has(own[0]):
+			SIG_AB[nm] = str(own[0])
+			ABILITY_DEFS[own[0]].lv = 1
+			ABILITY_DEFS[own[0]].signature = true
+		CHAR[nm].cls = str(QuestRPG.FROM_KIT_CLASS.get(str(h.cls), "Warrior"))
+
+## Abilities this keeper may slot right now: signature + unlocked class pool + unlocked subclass pool.
+func loadout_pool(name: String) -> Array:
+	var out: Array = []
+	for id in class_ability_ids(name) + sub_ability_ids(str(CHAR[name].sub)):
+		if ab_unlocked(name, id) and out.find(id) < 0:
+			out.append(id)
+	return out
+
+func default_loadout(name: String) -> Array:
+	var pool: Array = loadout_pool(name)
+	var out: Array = []
+	for rr in QuestRPG.DEFAULT_SEQ.get(str(CHAR[name].cls), []):
+		if pool.find(rr[0]) >= 0 and out.find(rr[0]) < 0: out.append(rr[0])
+	if SIG_AB.has(name) and out.find(SIG_AB[name]) < 0: out.push_front(SIG_AB[name])
+	for id in pool:
+		if out.size() >= QuestRPG.LOADOUT_SLOTS: break
+		if out.find(id) < 0: out.append(id)
+	return out.slice(0, QuestRPG.LOADOUT_SLOTS)
+
+func default_seq(name: String) -> Array:
+	var out: Array = []
+	if SIG_AB.has(name): out.append([SIG_AB[name], "boss"])
+	for rr in QuestRPG.DEFAULT_SEQ.get(str(CHAR[name].cls), []):
+		out.append([str(rr[0]), str(rr[1])])
+	return out
+
+func loadout_of(name: String) -> Array:
+	if not CHAR.has(name): return []
+	var pool: Array = loadout_pool(name)
+	var cur: Array = AB_LOADOUT.get(name, [])
+	var out: Array = []
+	for id in cur:
+		if pool.find(id) >= 0 and out.find(id) < 0 and out.size() < QuestRPG.LOADOUT_SLOTS: out.append(str(id))
+	if out.is_empty(): out = default_loadout(name)
+	AB_LOADOUT[name] = out
+	return out
+
+## Add or remove one ability from the loadout. Returns false when the slots are full.
+func toggle_loadout(name: String, id: String) -> bool:
+	var lo: Array = loadout_of(name).duplicate()
+	var i: int = lo.find(id)
+	if i >= 0:
+		if lo.size() <= 1: return false
+		lo.remove_at(i)
+	else:
+		if lo.size() >= QuestRPG.LOADOUT_SLOTS or loadout_pool(name).find(id) < 0: return false
+		lo.append(id)
+	AB_LOADOUT[name] = lo
+	save_cfg()
+	return true
+
+func seq_of(name: String) -> Array:
+	if not AB_SEQ.has(name): AB_SEQ[name] = default_seq(name)
+	var out: Array = []
+	for rr in AB_SEQ[name]:
+		if ABILITY_DEFS.has(str(rr[0])) and QuestRPG.CONDITIONS.has(str(rr[1])): out.append([str(rr[0]), str(rr[1])])
+	AB_SEQ[name] = out
+	return out
+
+func set_class(name: String, cls: String) -> void:
+	if not RPG_POOL_IDS.has(cls) or str(CHAR[name].cls) == cls: return
+	CHAR[name].cls = cls
+	# A new class means a new pool: reset the loadout and sequence to that class's defaults.
+	AB_LOADOUT.erase(name); AB_SEQ.erase(name)
+	loadout_of(name); seq_of(name)
+	save_cfg()
+
+func seq_condition_ok(u, cond: String) -> bool:
+	var allies: Array = alive(u.team)
+	var foes: Array = alive(enemy_of(u))
+	match cond:
+		"always": return true
+		"ally_hurt", "ally_low":
+			var lim: float = 0.75 if cond == "ally_hurt" else 0.5
+			for a in allies:
+				if float(a.hp) / maxf(1.0, float(a.maxhp)) < lim: return true
+			return false
+		"self_low": return float(u.hp) / maxf(1.0, float(u.maxhp)) < 0.5
+		"foes_2": return foes.size() >= 2
+		"foes_3": return foes.size() >= 3
+		"foe_low":
+			for f in foes:
+				if float(f.hp) / maxf(1.0, float(f.maxhp)) < 0.3: return true
+			return false
+		"boss": return G != null and G.n_red == 1 and encounter.is_empty()
+		"turn_1": return G != null and G.turn <= 1
+	return false
+
+## The ability a full MP bar fires in AUTO: first rule (top-down) whose ability is slotted and whose check passes.
+## No rule passes -> basic attack and the bar stays full for next turn.
+func seq_pick(u) -> String:
+	var lo: Array = loadout_of(u.name)
+	for rr in seq_of(u.name):
+		var id: String = str(rr[0])
+		if lo.find(id) < 0 or not ab_unlocked(u.name, id): continue
+		# Heals never fire into a full-HP party, even on an "always" rule.
+		if seq_condition_ok(u, str(rr[1])) and auto_wants(u, id):
+			return id
+	return ""
+
 ## Per-unit look: the base kind's combat kit drawn with one static Airron's Fall sprite.
 const FOE_NATIVE_FACING := {"f_brute": -1}
 func art_K(base_kind: String, art: String, target_h: float) -> Dictionary:
@@ -494,6 +625,10 @@ func ab_color(id: String) -> Color:
 	return Color("#c98bff")
 
 func class_ability_ids(name: String) -> Array:
+	if CHAR.has(name) and RPG_POOL_IDS.has(str(CHAR[name].cls)):
+		var out: Array = []
+		if SIG_AB.has(name): out.append(SIG_AB[name])
+		return out + RPG_POOL_IDS[str(CHAR[name].cls)]
 	return AB_CLASS_LIST.get(name, [])
 
 func sub_ability_ids(sub: String) -> Array:
@@ -556,12 +691,12 @@ func set_auto_ab(name: String, id: String) -> void:
 	sfx.tone(988 if AB_AUTO[name] != "" else 440, 0.05, "triangle", 0.03)
 
 func equipped_class_ab(name: String) -> String:
-	validate_ab_equip(name)
-	return str(AB_EQUIP[name].cls)
+	var lo: Array = loadout_of(name)
+	return str(lo[0]) if lo.size() > 0 else ""
 
 func equipped_sub_ab(name: String) -> String:
-	validate_ab_equip(name)
-	return str(AB_EQUIP[name].sub)
+	var lo: Array = loadout_of(name)
+	return str(lo[1]) if lo.size() > 1 else ""
 
 func equip_ability(name: String, id: String) -> bool:
 	if not ABILITY_DEFS.has(id) or not ab_unlocked(name, id):
@@ -571,7 +706,7 @@ func equip_ability(name: String, id: String) -> bool:
 	var was_auto: String = auto_ab(name)
 	var slot_key: String = "cls" if str(ab.src) == "class" else "sub"
 	if str(ab.src) == "class":
-		if str(ab.owner) != name:
+		if class_ability_ids(name).find(id) < 0:
 			return false
 	else:
 		if str(ab.owner) != str(CHAR[name].sub):
@@ -701,7 +836,7 @@ func compute_hero_stats(name: String) -> Dictionary:
 	var loadout: Dictionary = CHAR[name]
 	var cls: String = loadout.cls
 	var sub: String = loadout.sub
-	if not CLASS_DEFS.has(cls): cls = "Knight"
+	if not CLASS_DEFS.has(cls): cls = "Warrior"
 	if not SUB_DEFS.has(sub): sub = "Riftblade"
 	var ability_id: String = str(loadout.get("ability", ""))
 	var ab: Dictionary = ABILITY_DEFS[ability_id] if ABILITY_DEFS.has(ability_id) else {"name": ability_id, "blurb": ""}
@@ -1086,7 +1221,7 @@ var screen := "" # "title" | "results" | "" (battle HUD)
 var paused := false
 var speed := 1
 var muted := false
-var AUTO := false
+var AUTO := true # auto battler: on by default
 var last_raid := 3
 var fx := []
 var projectiles := []
@@ -1707,15 +1842,15 @@ func toggle_queue(u) -> void:
 	u.pop = 160.0
 	sfx.tone(440 if i >= 0 else 660 + G.queue.size() * 40, 0.05, "square", 0.03)
 
-## AUTO: queue every living hero; a full MP bar fires that hero's marked auto ability, otherwise a normal attack.
+## AUTO: queue every living hero; a full MP bar fires the first ability in that hero's sequence whose rule passes, otherwise a normal attack.
 func auto_queue_turn() -> void:
 	G.queue = []
 	for u in alive("blue"):
 		G.queue.append(u)
 		u.ab_queued = ""
 		if u.gauge >= AB_MP:
-			var aid: String = auto_ab(u.name) if CHAR.has(u.name) else ""
-			if aid != "" and ABILITY_DEFS.has(aid) and (aid == u.ab_class or aid == u.ab_sub) and auto_wants(u, aid):
+			var aid: String = seq_pick(u) if CHAR.has(u.name) else ""
+			if aid != "":
 				u.ab_queued = aid
 	execute_orders()
 
@@ -2874,6 +3009,11 @@ func save_cfg() -> void:
 		if AB_AUTO.has(name):
 			cf.set_value("auto_ab", name, "-" if str(AB_AUTO[name]) == "" else str(AB_AUTO[name]))
 		cf.set_value("mp", name, int(roundf(float(HERO_MP.get(name, 0.0)))))
+		cf.set_value("ab_loadout", name, ",".join(loadout_of(name)))
+		var sq: Array = []
+		for rr in seq_of(name):
+			sq.append(str(rr[0]) + ":" + str(rr[1]))
+		cf.set_value("ab_seq", name, ",".join(sq))
 	cf.set_value("rs", "auto", AUTO)
 	cf.set_value("party", "squad", ",".join(SQUAD))
 	cf.set_value("inv", "bag", ",".join(INV))
@@ -2893,12 +3033,14 @@ func load_cfg() -> void:
 		INV = STARTER_BAG.duplicate()
 		return
 	muted = bool(cf.get_value("rs", "muted", muted))
-	AUTO = bool(cf.get_value("rs", "auto", false))
+	AUTO = bool(cf.get_value("rs", "auto", true))
 	for name in HERO_NAMES:
 		var raw = cf.get_value("loadout", name, "")
 		if typeof(raw) == TYPE_STRING and raw != "":
 			var parts: PackedStringArray = raw.split("|")
-			# Class is locked to the character; ignore any class saved by older builds.
+			# Class is changeable (Build screen); only RPG classes load.
+			if parts.size() >= 2 and RPG_POOL_IDS.has(parts[0]):
+				CHAR[name].cls = parts[0]
 			var sub := parts[1] if parts.size() >= 2 else (parts[0] if parts.size() == 1 else "")
 			if SUB_DEFS.has(sub):
 				CHAR[name].sub = sub
@@ -2929,6 +3071,16 @@ func load_cfg() -> void:
 		if typeof(aar) == TYPE_STRING and aar != "":
 			AB_AUTO[name] = "" if aar == "-" else str(aar)
 		HERO_MP[name] = clampf(float(cf.get_value("mp", name, 0)), 0.0, AB_MP)
+		var lor = cf.get_value("ab_loadout", name, "")
+		if typeof(lor) == TYPE_STRING and lor != "":
+			AB_LOADOUT[name] = Array(lor.split(","))
+		var sqr = cf.get_value("ab_seq", name, "")
+		if typeof(sqr) == TYPE_STRING and sqr != "":
+			var rules: Array = []
+			for part in sqr.split(","):
+				var kv: PackedStringArray = part.split(":")
+				if kv.size() == 2: rules.append([kv[0], kv[1]])
+			AB_SEQ[name] = rules
 		validate_ab_equip(name)
 	if cf.has_section_key("party", "squad"):
 		var sq = cf.get_value("party", "squad", "")
@@ -4640,6 +4792,7 @@ func _ready() -> void:
 	randomize()
 	build_af_roster()
 	build_abilities()
+	build_rpg()
 	sfx = preload("res://scripts/sfx.gd").new()
 	add_child(sfx)
 	WORLD = WorldScript.new()

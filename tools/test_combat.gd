@@ -134,14 +134,14 @@ func t_boss_two_actions() -> void:
 func t_auto_heal_hold() -> void:
 	setup_party(31)
 	var nm := "Halvard"
-	g.AB_EQUIP[nm].cls = "rallying_stand"
-	g.AB_AUTO[nm] = "rallying_stand"
+	g.set_class(nm, "Guardian")
+	g.AB_LOADOUT[nm] = ["g_rally"]
+	g.AB_SEQ[nm] = [["g_rally", "always"]]
 	g.new_battle(3); g.phase = "battle"; g.begin_player_turn()
 	var ln = null
 	for u in g.alive("blue"):
 		if u.name == nm: ln = u
 	if ln == null: return
-	ln.ab_class = "rallying_stand"
 	ln.gauge = 100.0
 	g.AUTO = true
 	g.auto_queue_turn()
