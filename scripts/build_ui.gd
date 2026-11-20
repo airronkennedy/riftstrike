@@ -212,7 +212,8 @@ func _order_frames(g: Object, order: Array) -> Array:
 
 func _delays(g: Object, order: Array) -> Array:
 	var d: Array = []
-	for nm in order: d.append(float(g.HERO_DELAY.get(nm, 0.0)))
+	var hd: Dictionary = g.attack_delays() # the suggested delays while the Build is untouched
+	for nm in order: d.append(float(hd.get(nm, 0.0)))
 	return d
 
 func _swap(g: Object, a: int, b: int) -> void:

@@ -60,6 +60,11 @@ Each foe stat (`QuestRPG.foe_scale`, applied in `game.gd new_battle` when `encou
 
 Elites replace one regular foe and are drawn 15% bigger (miniboss 30%, boss 50%; `FOE_SIZE`).
 
+Wild (region) fights also get `QuestRPG.WILD_FOE` = hp x1.25, atk x1.0 through `encounter.foe_mult`
+(`QuestFlow.encounter_for`, multiplied with the story's small-party `foe_mult`). It came in when the untouched Attack
+Order became the suggested one (`game.gd auto_plan`, docs/BOSSES.md): that order sparks about 45% of hits instead of
+7%, which took AUTO wild fights to 99% and 3.1 h. Story and boss fights do not use it.
+
 ### Story fights (hooks for the quest / bosses)
 An encounter dictionary (from `QuestFlow.encounter_for(region, level)` or built by hand) can carry:
 - `tiers`: per-foe tier, e.g. `["miniboss", "regular"]` or `["boss", "regular"]` (any `QuestRPG.FOE_TIER` key).
@@ -89,24 +94,26 @@ in the region a party of that level walks into. Target select is skipped (AUTO),
 
 | Party Lv | Region | Win rate | Party HP left | Fight length | EXP per keeper | Fights to next level |
 |---|---|---|---|---|---|---|
-| 1 | Meadow | 95-100% | 58-66% | 32-34 s | 30 | 9.5 |
-| 2 | Road | 83-90% | 57-63% | 38 s | 27 | 15 |
-| 3 | Road | 88-92% | 56-66% | 37-39 s | 35 | 16 |
-| 4 | Forest | 97-100% | 65% | 37 s | 48-51 | 15 |
-| 5 | Forest | 93-95% | 62-64% | 38-39 s | 51 | 20.5 |
-| 6 | Shore | 90-95% | 60-68% | 34-35 s | 64 | 20 |
-| 7 | Shore | 87-93% | 60% | 35 s | 61-71 | 23.5-27 |
-| 8 | Highlands | 88-95% | 56-60% | 40-41 s | 75-81 | 26-28 |
-| 9 | Highlands | 85-93% | 54-62% | 40-42 s | 76-85 | 29-32 |
-| 10 | Highlands | 90% | 58% | 42 s | 82-87 | - |
-| **All** | | **90.2% / 93.8% / 92.3%** (three 600-fight runs; the last on main with the battle camera) | | | | |
+| 1 | Meadow | 98% | 68% | 31 s | 29 | 9.8 |
+| 2 | Road | 98% | 64% | 36 s | 34 | 12.5 |
+| 3 | Road | 93% | 66% | 34 s | 35 | 16.5 |
+| 4 | Forest | 98% | 73% | 33 s | 45 | 16.6 |
+| 5 | Forest | 90% | 59% | 37 s | 52 | 20 |
+| 6 | Shore | 88% | 63% | 32 s | 61 | 21 |
+| 7 | Shore | 93% | 65% | 34 s | 66 | 25 |
+| 8 | Highlands | 98% | 63% | 38 s | 78 | 27 |
+| 9 | Highlands | 85% | 58% | 40 s | 83 | 29 |
+| 10 | Highlands | 90% | 59% | 39 s | 86 | - |
+| **All** | | **92.8% / 91.5%** (two 400-fight runs, seeds 1 and 2, untouched Attack Order = auto plan) | | | | |
+
+Before the auto-plan default and `WILD_FOE` (PR #12, squad order with no delays): 90.2-93.8%, 3.9-4.1 h.
 
 Played back to back like the kingdom (`--chain`: HP carries over, a loss means the inn): **86.2%**.
 Elite fights are the risky ones (60-90% by level), by design: they pay 3x EXP.
 
 Time to Lv10: one battle loop = the fight + 25 s (walking until the danger meter fills, transitions, results;
 `QuestRPG.LOOP_OVERHEAD_S`) + 2.6 s per party turn when you let the target-select window run out (`SELECT_S`).
-That is about **190 fights and 3.9-4.1 hours** of fights and walking (4.3 h back to back with losses), before town,
+That is about **200 fights and 3.85-3.91 hours** of fights and walking (4.3 h back to back with losses), before town,
 shop, castle and Build time. Tapping a foe or turning AUTO on skips the 2.6 s window, so active players are faster.
 
 ### Re-checking after a change

@@ -1446,7 +1446,20 @@ func raid_level_mult() -> Dictionary:
 func alive(team: String) -> Array:
 	return G.units.filter(func(u): return u.team == team and not u.dead)
 func enemy_of(u) -> String: return "red" if u.team == "blue" else "blue"
-func surge_mult() -> float: return 1.0 + (G.turn - 3) * 0.35 if G.turn > 3 else 1.0
+## Rift surge (regular fights): every hit from both sides gains QuestRPG.SURGE_STEP per turn after turn 3.
+## Boss fights have no surge: the boss side enrages instead (QuestRPG.boss_enrage_mult), from a telegraphed turn,
+## capped, so a weak Attack Order makes a fight longer and harder rather than a lost race. u = the attacker.
+func surge_mult(u = null) -> float:
+	if G == null: return 1.0
+	if boss != null:
+		if u == null or u.team != "red": return 1.0
+		return QuestRPG.boss_enrage_mult(G.turn, boss_enrage_turn())
+	return 1.0 + (G.turn - 3) * QuestRPG.SURGE_STEP if G.turn > 3 else 1.0
+
+## The turn a boss starts to enrage (BossDefs def "enrage_turn", else QuestRPG.BOSS_ENRAGE.turn).
+func boss_enrage_turn() -> int:
+	if boss == null: return 999
+	return int(BossDefs.get_def(str(boss.id)).get("enrage_turn", QuestRPG.BOSS_ENRAGE.turn))
 func home_facing(u) -> int: return (-1 if u.team == "blue" else 1) if not PORT else (1 if u.team == "blue" else -1)
 
 func pick_atk(u, tgt) -> Array:
@@ -1677,7 +1690,7 @@ func resolve_sync_group(group: Array) -> void:
 		var sum := 0
 		for u in units:
 			sum += u.atk
-		var dmg := mitigate_raw(sum * 3.0 * surge_mult(), t)
+		var dmg := mitigate_raw(sum * 3.0 * surge_mult(units[0]), t)
 		deal_damage(group[group.size() - 1].u, t, dmg, {"combo": true, "members": units, "n": units.size()})
 	else:
 		for h in group:
@@ -1773,7 +1786,7 @@ func apply_hit(u, t, mult: float, special: bool, is_splash: bool = false, color:
 	var crit := (ab or not special) and not is_splash and randf() < crit_p
 	# Melee damage is fixed (crits and combos are the only swings); ranged keeps a small roll.
 	var roll: float = rand(0.85, 1.15) if str(u.K.ranged) != "" else 1.0
-	var raw: float = u.atk * roll * mult * (1.5 if crit else 1.0) * surge_mult()
+	var raw: float = u.atk * roll * mult * (1.5 if crit else 1.0) * surge_mult(u)
 	deal_damage(u, t, mitigate_raw(raw, t), {"special": special, "isSplash": is_splash, "crit": crit, "color": color, "ab": ab})
 
 var combat_trace = null # Array when a headless tool wants a per-hit log (tools/combat_sim.gd); null in play.
@@ -1892,7 +1905,9 @@ func begin_player_turn() -> void:
 	tick_mods("blue")
 	apply_mana_regen("blue")
 	banner = {"text": "YOUR TURN", "sub": "Tap knights to set the attack order" if G.turn == 1 else "Turn %d" % G.turn, "t": 0.0, "life": 1000.0, "color": "blue"}
-	if G.turn == 4: banner.sub = "RIFT SURGE — damage rising!"
+	if G.turn == 4 and boss == null: banner.sub = "RIFT SURGE — damage rising!"
+	if boss != null and G.turn == boss_enrage_turn() - 1: banner.sub = "The boss is about to ENRAGE!"
+	if boss != null and G.turn == boss_enrage_turn(): banner.sub = "ENRAGED — the boss hits harder every turn"
 	sfx.tone(523, 0.08, "square", 0.04)
 
 const LAUNCH_STAGGER := 200.0
@@ -2088,7 +2103,9 @@ func bf_select() -> void:
 	G.mode = "select"; G.sel_t = SELECT_MS
 	party_select_started.emit(G.turn)
 	banner = {"text": "YOUR TURN", "sub": "Tap an enemy to focus · or let the team pick" if not AUTO else "Turn %d" % G.turn, "t": 0.0, "life": 900.0, "color": "blue"}
-	if G.turn == 4: banner.sub = "RIFT SURGE — damage rising!"
+	if G.turn == 4 and boss == null: banner.sub = "RIFT SURGE — damage rising!"
+	if boss != null and G.turn == boss_enrage_turn() - 1: banner.sub = "The boss is about to ENRAGE!"
+	if boss != null and G.turn == boss_enrage_turn(): banner.sub = "ENRAGED — the boss hits harder every turn"
 	sfx.tone(523, 0.08, "square", 0.04)
 
 func bf_focus(t) -> void:
@@ -2114,28 +2131,62 @@ func bf_auto_target():
 	return TargetSelect.pick(alive("red"))
 
 ## Build "Attack Order": party keeper names, first attacker first (HERO_ORDER filtered + anyone missing).
+## An untouched Build (no order and no delays saved) fights in the suggested order (auto_plan), so a new player
+## who never opens the Attack Order tab still gets sparks. Any edit in the tab saves a real order.
 func attack_order() -> Array:
 	var party: Array = party_names()
 	var out: Array = []
-	for nm in HERO_ORDER:
+	var src: Array = auto_plan().order if auto_order() else HERO_ORDER
+	for nm in src:
 		if party.find(nm) >= 0 and out.find(nm) < 0: out.append(nm)
 	for nm in party:
 		if out.find(nm) < 0: out.append(nm)
 	return out
 
 func set_attack_order(names: Array) -> void:
+	if auto_order(): HERO_DELAY = attack_delays() # keep the suggested delays when the player first edits the order
 	HERO_ORDER = names.duplicate()
 	save_cfg()
 
 func set_hero_delay(nm: String, ms: float) -> void:
+	if auto_order():
+		HERO_ORDER = attack_order(); HERO_DELAY = attack_delays()
 	HERO_DELAY[nm] = clampf(snappedf(ms, Combo.DELAY_STEP), 0.0, Combo.DELAY_MAX)
 	save_cfg()
+
+## True while the player has never set an Attack Order: the party uses auto_plan().
+func auto_order() -> bool:
+	return HERO_ORDER.is_empty() and HERO_DELAY.is_empty()
+
+## Per-keeper start delays (ms) for the current Attack Order (the suggested ones while auto_order()).
+func attack_delays() -> Dictionary:
+	return (auto_plan().delays as Dictionary).duplicate() if auto_order() else HERO_DELAY
+
+var _auto_plan_key := ""
+var _auto_plan := {}
+## The suggested order for the current party (Combo.best_plan on each keeper's class hit frames), cached.
+func auto_plan() -> Dictionary:
+	var party: Array = party_names()
+	var parts: Array = []
+	for nm in party: parts.append(str(nm) + ":" + str(CHAR[nm].cls) if CHAR.has(nm) else str(nm))
+	var key := ",".join(parts)
+	if key == _auto_plan_key: return _auto_plan
+	var fr: Array = []
+	for nm in party: fr.append(Combo.frames(str(CHAR[nm].cls) if CHAR.has(nm) else "Warrior"))
+	var plan: Dictionary = Combo.best_plan(fr) if fr.size() > 1 else {"order": range(fr.size()), "delays": [0.0]}
+	var order: Array = []
+	var delays := {}
+	for j in plan.order.size():
+		var nm2: String = party[plan.order[j]]
+		order.append(nm2); delays[nm2] = float(plan.delays[j]) if j < plan.delays.size() else 0.0
+	_auto_plan_key = key; _auto_plan = {"order": order, "delays": delays}
+	return _auto_plan
 
 func bf_order(team: String) -> Array:
 	var us := alive(team)
 	if team == "red": return shuffled(us)
 	var out: Array = []
-	for nm in HERO_ORDER:
+	for nm in attack_order():
 		for u in us:
 			if u.name == nm and out.find(u) < 0: out.append(u)
 	for u in us:
@@ -2152,7 +2203,7 @@ func bf_launch() -> void:
 
 ## The party's attack sequence after targeting (combo system, scripts/combo_turn.gd). focus: the locked target.
 func bf_run_party_turn(focus) -> void:
-	G.turnc.start(self, "blue", bf_order("blue"), HERO_DELAY, focus)
+	G.turnc.start(self, "blue", bf_order("blue"), attack_delays(), focus)
 	sfx.fight()
 
 func bf_enemy_turn() -> void:
@@ -2407,7 +2458,7 @@ func ability_target(u, foes: Array, mult: float):
 	var best_kill = null
 	var weakest = null
 	for f in foes:
-		var est: int = mitigate_raw(float(u.atk) * mult * surge_mult(), f)
+		var est: int = mitigate_raw(float(u.atk) * mult * surge_mult(u), f)
 		if est >= f.hp and (best_kill == null or f.hp > best_kill.hp): best_kill = f
 		if weakest == null or f.hp < weakest.hp: weakest = f
 	return best_kill if best_kill != null else weakest
@@ -3008,7 +3059,9 @@ func draw_hud() -> void:
 	outlined("Turn %d" % maxi(1, G.turn), VWc / 2, top + h * 0.28, roundf(fs * 0.85), Color.WHITE)
 	if label != "":
 		outlined(label, VWc / 2, top + h * 0.28 + fs * 1.15, roundf(minf(fs * 1.35, cw / (label.length() * 0.62))), Color("#7ff3ff") if mine else Color("#ff8a7a"))
-	if surge_mult() > 1:
+	if boss != null and G.turn >= boss_enrage_turn():
+		outlined("ENRAGE x%.2f" % QuestRPG.boss_enrage_mult(G.turn, boss_enrage_turn()), VWc / 2, top + h + 14, 11, Color("#ff6a4a"))
+	elif surge_mult() > 1:
 		outlined("SURGE x%.2f" % surge_mult(), VWc / 2, top + h + 14, 11, Color("#ffd23f"))
 
 func draw_banner() -> void:

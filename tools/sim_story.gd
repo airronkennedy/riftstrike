@@ -48,7 +48,11 @@ func fight(id: String, L: int, hp: float, keep_mp: bool = false) -> Array:
 	qf.in_kingdom_battle = true
 	var e: Dictionary = st.encounter_for(id, L)
 	g.encounter = e
+	g.boss = null
 	g.new_battle()
+	var bid := BossDefs.id_for(e) # boss fights get the BossFight layer, as game.gd does on the story path
+	if bid != "":
+		g.boss = BossFight.new(bid); g.boss.setup(g)
 	for u in g.G.units:
 		if u.team == "blue": u.hp = maxi(1, int(roundf(float(u.maxhp) * hp))); u.shown_hp = u.hp
 	g.phase = "battle"; g.screen = ""; g.AUTO = true
