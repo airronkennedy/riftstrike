@@ -53,8 +53,8 @@ func _run() -> void:
 			var s: Array = g.unlocked_sub_ids(h)
 			if c.size() > 0: g.AB_EQUIP[h].cls = c[randi() % c.size()]
 			if s.size() > 0: g.AB_EQUIP[h].sub = s[randi() % s.size()]
-		g.CHAR["Rico"].sub = g.SUB_IDS[randi() % g.SUB_IDS.size()]
-		g.CHAR["Lanning"].sub = g.SUB_IDS[randi() % g.SUB_IDS.size()]
+		g.CHAR["Grieve"].sub = g.SUB_IDS[randi() % g.SUB_IDS.size()]
+		g.CHAR["Halvard"].sub = g.SUB_IDS[randi() % g.SUB_IDS.size()]
 		g.SQUAD.shuffle()
 		g.AUTO = false
 		g.speed = 1

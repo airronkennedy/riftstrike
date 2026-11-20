@@ -1,6 +1,6 @@
 extends Node2D
-## RIFTSTRIKE — turn-based 6vN brawl. Godot port of the canvas game (game.js), kept 1:1.
-## Art: Tiny Swords by Pixel Frog (original release, free for commercial use; see docs/ASSET_LICENSES.md). Boss: Necromancer by CreativeKind.
+## Airron's Quest — auto-battler with a 5-keeper party.
+## Airron's Quest. Art: Airron's Fall (Airron Kennedy's own game art; see docs/ASSET_LICENSES.md).
 ## Everything is drawn immediate-mode in _draw(), mirroring the canvas renderer.
 
 # ---------------------------------------------------------------- world / orientation
@@ -23,48 +23,65 @@ func set_orientation(port: bool) -> void:
 	VIEW = {"x": 40.0, "y": 40.0, "w": 496.0, "h": 950.0} if port else {"x": 40.0, "y": 40.0, "w": 944.0, "h": 500.0}
 
 # ---------------------------------------------------------------- assets
+# All art is Airron's Fall art (Airron Kennedy's own game) under assets/af/, built by tools/build_af_assets.py.
+# Keys keep their old names so the drawing code is unchanged; the atlases keep the old layouts.
 var SRC := {
-	"warrior": "units/Warrior_Blue.png", "archer": "units/Archer_Blue.png", "pawn": "units/Pawn_Blue.png",
-	"torch": "units/Torch_Red.png", "tnt": "units/TNT_Red.png", "barrel": "units/Barrel_Red.png",
-	"necro": "necromancer/Necromancer.png",
-	"paladin": "heroes/christian-paladin.png",
-	"dead": "units/Dead.png", "dynamite": "fx/Dynamite.png", "arrow": "fx/Arrow.png",
-	"explosion": "fx/Explosions.png", "fire": "fx/Fire.png",
-	"flat": "terrain/Tilemap_Flat.png", "foam": "terrain/Foam.png",
-	"rocks1": "terrain/Rocks_01.png", "rocks3": "terrain/Rocks_03.png", "tree": "terrain/Tree.png",
-	"tower": "terrain/Tower_Blue.png", "ghouse": "terrain/Goblin_House.png", "sheep": "terrain/HappySheep_Idle.png",
-	# Overworld buildings and terrain for Acts II-V (Tiny Swords, original release; see docs/ASSET_LICENSES.md).
-	"tower_red": "buildings/Tower_Red.png", "tower_yellow": "buildings/Tower_Yellow.png", "tower_purple": "buildings/Tower_Purple.png",
-	"tower_ruin": "buildings/Tower_Destroyed.png", "ghouse_ruin": "buildings/Goblin_House_Destroyed.png",
-	"house_blue": "buildings/House_Blue.png", "house_red": "buildings/House_Red.png", "house_yellow": "buildings/House_Yellow.png",
-	"house_purple": "buildings/House_Purple.png", "house_ruin": "buildings/House_Destroyed.png",
-	"castle_blue": "buildings/Castle_Blue.png", "castle_red": "buildings/Castle_Red.png", "castle_yellow": "buildings/Castle_Yellow.png",
-	"castle_purple": "buildings/Castle_Purple.png", "castle_ruin": "buildings/Castle_Destroyed.png",
-	"wtower": "buildings/Wood_Tower_Red.png", "goldmine": "buildings/GoldMine_Active.png",
-	"elev": "terrain/Tilemap_Elevation.png", "bridge": "terrain/Bridge_All.png",
-	"rocks2": "terrain/Rocks_02.png", "rocks4": "terrain/Rocks_04.png",
-	"ribbonBlue": "ui/Ribbon_Blue_3Slides.png", "ribbonRed": "ui/Ribbon_Red_3Slides.png", "ribbonYellow": "ui/Ribbon_Yellow_3Slides.png",
-	"btnBlue": "ui/Button_Blue_3Slides.png", "btnBlueP": "ui/Button_Blue_3Slides_Pressed.png",
-	"btnRed": "ui/Button_Red_3Slides.png", "btnRedP": "ui/Button_Red_3Slides_Pressed.png",
-	"sq": "ui/Button_Blue.png", "sqP": "ui/Button_Blue_Pressed.png", "carved": "ui/Carved_9Slides.png", "sound": "ui/Regular_03.png",
+	"dead": "af/gen/fx_burst.png", "dynamite": "af/gen/fx_flask.png", "arrow": "af/gen/fx_bolt.png",
+	"explosion": "af/gen/fx_burst.png", "fire": "af/gen/fx_flame.png",
+	"flat": "af/gen/tilemap_flat.png", "foam": "af/gen/coast_glow.png",
+	"rocks1": "af/gen/rocks_1.png", "rocks3": "af/gen/rocks_3.png", "tree": "af/gen/tree.png",
+	"tower": "af/gen/tower_blue.png", "ghouse": "af/gen/hut.png", "sheep": "af/gen/mote_idle.png",
+	"tower_red": "af/gen/tower_red.png", "tower_yellow": "af/gen/tower_yellow.png", "tower_purple": "af/gen/tower_purple.png",
+	"tower_ruin": "af/gen/tower_ruin.png", "ghouse_ruin": "af/gen/hut_ruin.png",
+	"house_blue": "af/gen/house_blue.png", "house_red": "af/gen/house_red.png", "house_yellow": "af/gen/house_yellow.png",
+	"house_purple": "af/gen/house_purple.png", "house_ruin": "af/gen/house_ruin.png",
+	"castle_blue": "af/gen/castle_blue.png", "castle_red": "af/gen/castle_red.png", "castle_yellow": "af/gen/castle_yellow.png",
+	"castle_purple": "af/gen/castle_purple.png", "castle_ruin": "af/gen/castle_ruin.png",
+	"wtower": "af/gen/watchtower.png", "goldmine": "af/gen/mine.png",
+	"elev": "af/gen/tilemap_elevation.png", "bridge": "af/gen/bridge.png",
+	"rocks2": "af/gen/rocks_2.png", "rocks4": "af/gen/rocks_4.png",
+	"ribbonBlue": "af/gen/ui_ribbon_teal.png", "ribbonRed": "af/gen/ui_ribbon_red.png", "ribbonYellow": "af/gen/ui_ribbon_gold.png",
+	"btnBlue": "af/gen/ui_btn_ember.png", "btnBlueP": "af/gen/ui_btn_ember_p.png",
+	"btnRed": "af/gen/ui_btn_red.png", "btnRedP": "af/gen/ui_btn_red_p.png",
+	"sq": "af/gen/ui_sq.png", "sqP": "af/gen/ui_sq_p.png", "carved": "af/gen/ui_panel_9.png", "sound": "af/gen/ui_sound.png",
+	"chest": "af/props/ember-chest.png", "keyart_wide": "af/ui/title-keyart-wide.jpg", "keyart_tall": "af/ui/title-keyart-tall.jpg",
+	"victory_bg": "af/ui/victory-backdrop.jpg", "death_bg": "af/ui/death-backdrop.jpg",
 }
 var IMG := {}
 var WHITE := {}
 var CYAN := {}
 var FONT: FontFile
-
-const URL_TINY := "https://pixelfrog-assets.itch.io/tiny-swords"
-const URL_NECRO := "https://creativekind.itch.io/necromancer-free"
+var FONT_TITLE: FontFile
+var MUSIC: AudioStreamPlayer
+const GAME_TITLE := "Airron's Quest"
+# Battle grounds: one Airron's Fall area per fight (backdrop + ground tile).
+const AREAS := ["coalvein-deeps", "gallowbough-orchard", "riven-choir", "saltglass-fen", "starwreck-strand",
+	"stillmoss-cloister", "tollstone-quarry", "unlit-throne", "vespergate-sanctum"]
+var battle_area := "tollstone-quarry"
 
 func load_all() -> void:
 	for d in ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18"]:
-		SRC["deco" + d] = "deco/" + d + ".png"
+		SRC["deco" + d] = "af/gen/deco_" + d + ".png"
+	for ar in AREAS:
+		SRC["bg_" + ar] = "af/areas/area-%s-backdrop.png" % ar
+		SRC["gr_" + ar] = "af/areas/area-%s-ground.png" % ar
+	for h in AF_HEROES:
+		SRC["h_" + str(h.id)] = "af/heroes/%s.png" % h.id
+	for f in AF_FOES:
+		SRC["f_" + str(f)] = "af/foes/foe-%s.png" % f
 	for k in SRC:
 		IMG[k] = load("res://assets/" + SRC[k])
-	for k in ["warrior", "archer", "pawn", "torch", "tnt", "barrel", "necro", "paladin"]:
-		WHITE[k] = load("res://assets/sil/%s_white.png" % k)
-		CYAN[k] = load("res://assets/sil/%s_cyan.png" % k)
-	FONT = load("res://fonts/LilitaOne-Regular.ttf")
+	for h in AF_HEROES:
+		WHITE["h_" + str(h.id)] = load("res://assets/af/sil/h_%s_white.png" % h.id)
+		CYAN["h_" + str(h.id)] = load("res://assets/af/sil/h_%s_cyan.png" % h.id)
+	for f in AF_FOES:
+		WHITE["f_" + str(f)] = load("res://assets/af/sil/f_%s_white.png" % f)
+		CYAN["f_" + str(f)] = load("res://assets/af/sil/f_%s_cyan.png" % f)
+	FONT = load("res://fonts/rajdhani-700.woff2")
+	FONT_TITLE = load("res://fonts/cinzel-700.woff2")
+	for fnt in [FONT, FONT_TITLE]:
+		if fnt != null and ThemeDB.fallback_font != null:
+			fnt.fallbacks = [ThemeDB.fallback_font]
 
 # ---------------------------------------------------------------- rng helpers
 func rand(a: float, b: float) -> float: return a + randf() * (b - a)
@@ -97,21 +114,21 @@ func build_kinds() -> void:
 			"idle": {"r": 0, "n": 6, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(4, 8, 11, 5, 160)], "atkUp": [A(3, 8, 11, 5, 160)], "atkDown": [A(5, 8, 11, 5, 160)],
 			"special": "Piercing Volley"},
-		"pawn": {"img": "pawn", "f": S192, "head": 64.0, "label": "Pawn", "range": 46.0, "ranged": "",
+		"pawn": {"img": "pawn", "f": S192, "head": 64.0, "label": "Squire", "range": 46.0, "ranged": "",
 			"idle": {"r": 0, "n": 6, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(3, 6, 10, 3, 180), A(2, 6, 10, 3, 200)], "special": "Hearth Hammer"},
-		"torch": {"img": "torch", "f": S192, "head": 76.0, "label": "Torch", "range": 52.0, "ranged": "",
+		"torch": {"img": "torch", "f": S192, "head": 76.0, "label": "Skirmisher", "range": 52.0, "ranged": "",
 			"idle": {"r": 0, "n": 7, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(2, 6, 10, 3, 170)], "atkDown": [A(3, 6, 10, 3, 170)], "atkUp": [A(4, 6, 10, 3, 170)],
 			"special": "Cinder Sweep"},
-		"tnt": {"img": "tnt", "f": S192, "head": 66.0, "label": "TNT", "range": 290.0, "ranged": "dynamite",
+		"tnt": {"img": "tnt", "f": S192, "head": 66.0, "label": "Bomber", "range": 290.0, "ranged": "dynamite",
 			"idle": {"r": 0, "n": 6, "fps": 10.0}, "run": {"r": 1, "n": 6, "fps": 12.0},
 			"atk": [A(2, 7, 10, 3, 160)], "special": "Big Bang"},
-		"barrel": {"img": "barrel", "f": {"fw": 128.0, "fh": 128.0, "ax": 64.0, "ay": 101.0, "s": 1.0}, "head": 70.0, "label": "Barrel", "range": 48.0, "ranged": "",
+		"barrel": {"img": "barrel", "f": {"fw": 128.0, "fh": 128.0, "ax": 64.0, "ay": 101.0, "s": 1.0}, "head": 70.0, "label": "Bruiser", "range": 48.0, "ranged": "",
 			"idle": {"r": 4, "n": 3, "fps": 5.0}, "run": {"r": 3, "n": 6, "fps": 12.0},
 			"atk": [A(1, 6, 10, 2, 180)], "special": "Powder Keg"},
-		# 6v1 boss only: CreativeKind Necromancer (160x128 frames, faces right). Casts a soul bolt.
-		"necro": {"img": "necro", "f": {"fw": 160.0, "fh": 128.0, "ax": 82.0, "ay": 114.0, "s": 1.7}, "head": 86.0, "label": "Necromancer", "range": 360.0, "ranged": "bolt",
+		# 5v1 boss slot (ranged caster boss). Casts a soul bolt.
+		"necro": {"img": "necro", "f": {"fw": 160.0, "fh": 128.0, "ax": 82.0, "ay": 114.0, "s": 1.7}, "head": 86.0, "label": "Boss", "range": 360.0, "ranged": "bolt",
 			"idle": {"r": 0, "n": 8, "fps": 10.0}, "run": {"r": 1, "n": 8, "fps": 12.0},
 			"atk": [A(2, 13, 14, 8, 200)], "death": {"r": 6, "n": 9}, "special": "Soul Rend"},
 	}
@@ -120,9 +137,15 @@ func build_kinds() -> void:
 func is_warrior_kit(kind: String) -> bool:
 	return kind == "warrior" or kind == "paladin"
 
-var ROSTER_BLUE := [["warrior", "Airron", 360, 265], ["warrior", "Christian", 360, 395],
-	["pawn", "Lanning", 315, 185], ["pawn", "Rico", 315, 470],
-	["archer", "Weston", 205, 265], ["archer", "Wiesen", 205, 395]]
+# Party characters are Airron's Fall keepers (scripts/af_roster.gd). HERO_NAMES / HERO_BASE / CHAR /
+# AB_CLASS_ROWS below are the six template kits; build_af_roster() turns them into the keeper roster at startup.
+const AfRoster = preload("res://scripts/af_roster.gd")
+const QuestRPG = preload("res://scripts/quest_rpg.gd")
+var AF_HEROES: Array = AfRoster.HEROES
+var AF_FOES: Array = AfRoster.FOES.keys()
+var AF_FOE_DEFS: Dictionary = AfRoster.FOES
+var HERO_ART := {} # party name -> IMG key of the keeper sprite
+var HERO_INFO := {} # party name -> keeper record (title, archetype, rarity, weapon, unlocked)
 var GOB_NAMES := ["Rusk", "Kael", "Sable", "Drenn", "Voss", "Iven"]
 # Active Play squad. The character catalog can grow past this squad later.
 var HERO_NAMES := ["Airron", "Christian", "Weston", "Wiesen", "Lanning", "Rico"]
@@ -321,6 +344,210 @@ var AB_SUB_ROWS := {
 	],
 }
 
+## Turn the template kits into the Airron's Fall keeper roster. Unlocked keepers form the squad;
+## locked keepers get full data (stats, class, kit, art) so unlocking one is just flipping "unlocked".
+func build_af_roster() -> void:
+	var tmpl_rows: Dictionary = AB_CLASS_ROWS.duplicate(true)
+	var tmpl_base: Dictionary = HERO_BASE.duplicate(true)
+	AB_CLASS_ROWS = {}; HERO_BASE = {}; CHAR = {}; HERO_NAMES = []; HERO_ART = {}; HERO_INFO = {}
+	var rar := {"rare": 1.0, "legendary": 1.03, "ascendant": 1.06}
+	for h in AF_HEROES:
+		var nm: String = str(h.short)
+		HERO_ART[nm] = "h_" + str(h.id)
+		HERO_INFO[nm] = h
+		var kit: String = str(h.kit)
+		var rows: Array = []
+		for r in tmpl_rows[kit]:
+			var r2: Array = r.duplicate(true)
+			r2[0] = str(h.id) + "_" + str(r[0])
+			rows.append(r2)
+		# Signature (first) ability takes the keeper's Airron's Fall weapon name, e.g. Greatsword Slash.
+		if rows.size() > 0 and str(h.get("weapon", "")) != "":
+			var wn: Array = []
+			for part in str(h.weapon).split("-"):
+				wn.append(part.capitalize())
+			rows[0][1] = " ".join(wn)
+			rows[0][2] = "%s's signature from Airron's Fall. %s" % [str(h.short), str(rows[0][2])]
+		AB_CLASS_ROWS[nm] = rows
+		var b: Dictionary = tmpl_base[kit].duplicate()
+		if not bool(h.get("unlocked", false)):
+			# Keepers sharing a kit still differ a little (rarity + a stable per-keeper roll).
+			var hv: int = absi(hash(str(h.id)))
+			var i := 0
+			for k in ["hp", "atk", "def", "speed"]:
+				b[k] = int(roundf(float(b[k]) * float(rar.get(str(h.rarity), 1.0)) * (0.95 + float((hv >> (i * 4)) % 11) / 100.0)))
+				i += 1
+		HERO_BASE[nm] = b
+		CHAR[nm] = {"cls": str(h.cls), "sub": str(h.sub), "ability": str(rows[0][0])}
+		if bool(h.get("unlocked", false)):
+			HERO_NAMES.append(nm)
+	SQUAD = HERO_NAMES.duplicate()
+
+# ---------------------------------------------------------------- RPG layer: class change, loadout, sequences
+# Data lives in scripts/quest_rpg.gd. Class pools are shared by class; each keeper adds their signature.
+var RPG_POOL_IDS: Dictionary = {} # class -> [ability ids]
+var SIG_AB: Dictionary = {} # keeper -> signature ability id (their Airron's Fall weapon)
+var AB_LOADOUT: Dictionary = {} # keeper -> [up to LOADOUT_SLOTS ability ids]
+var AB_SEQ: Dictionary = {} # keeper -> [[ability id, condition id], ...] checked top-down when MP is full
+
+func build_rpg() -> void:
+	for cls in CLASS_DEFS.keys():
+		if not QuestRPG.CLASSES.has(cls): CLASS_DEFS.erase(cls)
+	for cls in QuestRPG.CLASS_ORDER:
+		CLASS_DEFS[cls] = QuestRPG.CLASSES[cls].duplicate(true)
+		var ids: Array = []
+		var rows: Array = QuestRPG.POOLS[cls]
+		for i in rows.size():
+			var r: Array = rows[i]
+			ABILITY_DEFS[r[0]] = {"id": r[0], "name": r[1], "blurb": r[2], "kind": r[3], "params": r[4],
+				"lv": int(r[5]), "src": "class", "owner": cls, "mp": AB_MP, "tier": i + 1}
+			ids.append(r[0])
+		RPG_POOL_IDS[cls] = ids
+	CLASS_IDS = QuestRPG.CLASS_ORDER.duplicate()
+	for h in AF_HEROES:
+		var nm: String = str(h.short)
+		var own: Array = AB_CLASS_LIST.get(nm, [])
+		if own.size() > 0 and ABILITY_DEFS.has(own[0]):
+			SIG_AB[nm] = str(own[0])
+			ABILITY_DEFS[own[0]].lv = 1
+			ABILITY_DEFS[own[0]].signature = true
+		CHAR[nm].cls = str(QuestRPG.FROM_KIT_CLASS.get(str(h.cls), "Warrior"))
+
+## Abilities this keeper may slot right now: signature + unlocked class pool + unlocked subclass pool.
+func loadout_pool(name: String) -> Array:
+	var out: Array = []
+	for id in class_ability_ids(name) + sub_ability_ids(str(CHAR[name].sub)):
+		if ab_unlocked(name, id) and out.find(id) < 0:
+			out.append(id)
+	return out
+
+func default_loadout(name: String) -> Array:
+	var pool: Array = loadout_pool(name)
+	var out: Array = []
+	for rr in QuestRPG.DEFAULT_SEQ.get(str(CHAR[name].cls), []):
+		if pool.find(rr[0]) >= 0 and out.find(rr[0]) < 0: out.append(rr[0])
+	if SIG_AB.has(name) and out.find(SIG_AB[name]) < 0: out.push_front(SIG_AB[name])
+	for id in pool:
+		if out.size() >= QuestRPG.LOADOUT_SLOTS: break
+		if out.find(id) < 0: out.append(id)
+	return out.slice(0, QuestRPG.LOADOUT_SLOTS)
+
+func default_seq(name: String) -> Array:
+	var out: Array = []
+	if SIG_AB.has(name): out.append([SIG_AB[name], "boss"])
+	for rr in QuestRPG.DEFAULT_SEQ.get(str(CHAR[name].cls), []):
+		out.append([str(rr[0]), str(rr[1])])
+	return out
+
+func loadout_of(name: String) -> Array:
+	if not CHAR.has(name): return []
+	var pool: Array = loadout_pool(name)
+	var cur: Array = AB_LOADOUT.get(name, [])
+	var out: Array = []
+	for id in cur:
+		if pool.find(id) >= 0 and out.find(id) < 0 and out.size() < QuestRPG.LOADOUT_SLOTS: out.append(str(id))
+	if out.is_empty(): out = default_loadout(name)
+	AB_LOADOUT[name] = out
+	return out
+
+## Add or remove one ability from the loadout. Returns false when the slots are full.
+func toggle_loadout(name: String, id: String) -> bool:
+	var lo: Array = loadout_of(name).duplicate()
+	var i: int = lo.find(id)
+	if i >= 0:
+		if lo.size() <= 1: return false
+		lo.remove_at(i)
+	else:
+		if lo.size() >= QuestRPG.LOADOUT_SLOTS or loadout_pool(name).find(id) < 0: return false
+		lo.append(id)
+	AB_LOADOUT[name] = lo
+	save_cfg()
+	return true
+
+func seq_of(name: String) -> Array:
+	if not AB_SEQ.has(name): AB_SEQ[name] = default_seq(name)
+	var out: Array = []
+	for rr in AB_SEQ[name]:
+		if ABILITY_DEFS.has(str(rr[0])) and QuestRPG.CONDITIONS.has(str(rr[1])): out.append([str(rr[0]), str(rr[1])])
+	AB_SEQ[name] = out
+	return out
+
+func set_class(name: String, cls: String) -> void:
+	if not RPG_POOL_IDS.has(cls) or str(CHAR[name].cls) == cls: return
+	CHAR[name].cls = cls
+	# A new class means a new pool: reset the loadout and sequence to that class's defaults.
+	AB_LOADOUT.erase(name); AB_SEQ.erase(name)
+	loadout_of(name); seq_of(name)
+	save_cfg()
+
+func seq_condition_ok(u, cond: String) -> bool:
+	var allies: Array = alive(u.team)
+	var foes: Array = alive(enemy_of(u))
+	match cond:
+		"always": return true
+		"ally_hurt", "ally_low":
+			var lim: float = 0.75 if cond == "ally_hurt" else 0.5
+			for a in allies:
+				if float(a.hp) / maxf(1.0, float(a.maxhp)) < lim: return true
+			return false
+		"self_low": return float(u.hp) / maxf(1.0, float(u.maxhp)) < 0.5
+		"foes_2": return foes.size() >= 2
+		"foes_3": return foes.size() >= 3
+		"foe_low":
+			for f in foes:
+				if float(f.hp) / maxf(1.0, float(f.maxhp)) < 0.3: return true
+			return false
+		"boss": return G != null and G.n_red == 1 and encounter.is_empty()
+		"turn_1": return G != null and G.turn <= 1
+	return false
+
+## The ability a full MP bar fires in AUTO: first rule (top-down) whose ability is slotted and whose check passes.
+## No rule passes -> basic attack and the bar stays full for next turn.
+func seq_pick(u) -> String:
+	var lo: Array = loadout_of(u.name)
+	for rr in seq_of(u.name):
+		var id: String = str(rr[0])
+		if lo.find(id) < 0 or not ab_unlocked(u.name, id): continue
+		# Heals never fire into a full-HP party, even on an "always" rule.
+		if seq_condition_ok(u, str(rr[1])) and auto_wants(u, id):
+			return id
+	return ""
+
+## Per-unit look: the base kind's combat kit drawn with one static Airron's Fall sprite.
+const FOE_NATIVE_FACING := {"f_brute": -1}
+func art_K(base_kind: String, art: String, target_h: float) -> Dictionary:
+	var K: Dictionary = KINDS[base_kind].duplicate()
+	if art == "" or not IMG.has(art) or IMG[art] == null:
+		return K
+	var tex: Texture2D = IMG[art]
+	var w := float(tex.get_width())
+	var h := float(tex.get_height())
+	K.img = art
+	K.static = true
+	K.nf = int(FOE_NATIVE_FACING.get(art, 1))
+	K.f = {"fw": w, "fh": h, "ax": w * 0.5, "ay": h * 0.97, "s": target_h / h}
+	K.head = target_h * 0.92
+	K.erase("death")
+	return K
+
+const FOE_H := {"mote": 56.0, "gnat": 46.0, "ashling": 74.0, "brute": 84.0, "chanter": 80.0, "lancer": 82.0, "pilgrim": 80.0,
+	"moth": 70.0, "elite": 100.0, "knell": 100.0, "engine": 96.0, "tithe": 100.0, "leaper": 100.0,
+	"matron": 118.0, "cardinal": 118.0, "regent": 124.0, "sovereign": 124.0}
+const HERO_H := 92.0
+func hero_K(name: String, kind: String) -> Dictionary:
+	return art_K(kind, str(HERO_ART.get(name, "")), HERO_H)
+
+## Pick the Airron's Fall foe for a battle slot: bosses for 6v1, elites for 6v2, regular foes otherwise.
+func foe_for(kind: String, tier: String) -> String:
+	if tier == "boss":
+		var want: String = str(params.get("boss", ""))
+		if AfRoster.FOES.has(want) and str(AfRoster.FOES[want].tier) == "boss":
+			return want
+		return str(pick(AfRoster.FOE_ART.boss))
+	var table: Dictionary = AfRoster.FOE_ART[tier]
+	var k: String = kind if table.has(kind) else "torch"
+	return str(pick(table[k]))
+
 func build_abilities() -> void:
 	ABILITY_DEFS = {}
 	AB_CLASS_LIST = {}
@@ -398,6 +625,10 @@ func ab_color(id: String) -> Color:
 	return Color("#c98bff")
 
 func class_ability_ids(name: String) -> Array:
+	if CHAR.has(name) and RPG_POOL_IDS.has(str(CHAR[name].cls)):
+		var out: Array = []
+		if SIG_AB.has(name): out.append(SIG_AB[name])
+		return out + RPG_POOL_IDS[str(CHAR[name].cls)]
 	return AB_CLASS_LIST.get(name, [])
 
 func sub_ability_ids(sub: String) -> Array:
@@ -460,12 +691,12 @@ func set_auto_ab(name: String, id: String) -> void:
 	sfx.tone(988 if AB_AUTO[name] != "" else 440, 0.05, "triangle", 0.03)
 
 func equipped_class_ab(name: String) -> String:
-	validate_ab_equip(name)
-	return str(AB_EQUIP[name].cls)
+	var lo: Array = loadout_of(name)
+	return str(lo[0]) if lo.size() > 0 else ""
 
 func equipped_sub_ab(name: String) -> String:
-	validate_ab_equip(name)
-	return str(AB_EQUIP[name].sub)
+	var lo: Array = loadout_of(name)
+	return str(lo[1]) if lo.size() > 1 else ""
 
 func equip_ability(name: String, id: String) -> bool:
 	if not ABILITY_DEFS.has(id) or not ab_unlocked(name, id):
@@ -475,7 +706,7 @@ func equip_ability(name: String, id: String) -> bool:
 	var was_auto: String = auto_ab(name)
 	var slot_key: String = "cls" if str(ab.src) == "class" else "sub"
 	if str(ab.src) == "class":
-		if str(ab.owner) != name:
+		if class_ability_ids(name).find(id) < 0:
 			return false
 	else:
 		if str(ab.owner) != str(CHAR[name].sub):
@@ -560,7 +791,9 @@ const WorldScript = preload("res://scripts/world.gd")
 const WorldMapUI = preload("res://scripts/world_map_ui.gd")
 const StatsUI = preload("res://scripts/stats_ui.gd")
 const CompendiumUI = preload("res://scripts/compendium.gd")
+const BuildUI = preload("res://scripts/build_ui.gd")
 var COMP = null
+var BUILD = null
 var WORLD = null
 var WMAP = null
 var STATS = null
@@ -587,7 +820,7 @@ var GOB_CLASS := {
 	"torch": {"cls": "Skirmisher", "sub": "Emberblade", "atk": 72, "def": 36, "armor": 8, "crit": 8, "mana": 6, "speed": 14},
 	"tnt": {"cls": "Bomber", "sub": "Demolitionist", "atk": 84, "def": 22, "armor": 4, "crit": 10, "mana": 4, "speed": 12},
 	"barrel": {"cls": "Bruiser", "sub": "Powderguard", "atk": 58, "def": 52, "armor": 14, "crit": 6, "mana": 5, "speed": 8},
-	"necro": {"cls": "Boss", "sub": "Necromancer", "atk": 72, "def": 40, "armor": 12, "crit": 8, "mana": 10, "speed": 10},
+	"necro": {"cls": "Boss", "sub": "Ash Boss", "atk": 72, "def": 40, "armor": 12, "crit": 8, "mana": 10, "speed": 10},
 }
 var GOB_FLAVOR := {
 	"Rusk": {"atk": 0.98, "def": 1.08}, "Kael": {"atk": 1.10, "def": 0.88}, "Sable": {"atk": 0.92, "def": 1.18},
@@ -605,7 +838,7 @@ func compute_hero_stats(name: String) -> Dictionary:
 	var loadout: Dictionary = CHAR[name]
 	var cls: String = loadout.cls
 	var sub: String = loadout.sub
-	if not CLASS_DEFS.has(cls): cls = "Knight"
+	if not CLASS_DEFS.has(cls): cls = "Warrior"
 	if not SUB_DEFS.has(sub): sub = "Riftblade"
 	var ability_id: String = str(loadout.get("ability", ""))
 	var ab: Dictionary = ABILITY_DEFS[ability_id] if ABILITY_DEFS.has(ability_id) else {"name": ability_id, "blurb": ""}
@@ -990,7 +1223,7 @@ var screen := "" # "title" | "results" | "" (battle HUD)
 var paused := false
 var speed := 1
 var muted := false
-var AUTO := false
+var AUTO := true # auto battler: on by default
 var last_raid := 3
 var fx := []
 var projectiles := []
@@ -1050,11 +1283,24 @@ func new_battle(n: int = 0) -> void:
 			u.armor = st.get("armor", 0); u.crit = st.get("crit", 10)
 			u.mana_regen = st.get("mana", 0); u.speed = st.get("speed", 12)
 			u.cls = st.cls; u.sub = st.sub; u.scale = st.scale
+			if team == "blue":
+				u.K = hero_K(u.name, kind)
+			else:
+				var tier := "regular" if (enc_on or n == 3) else ("elite" if n == 2 else "boss")
+				var fk := foe_for(kind, tier)
+				u.K = art_K(kind, "f_" + fk, float(FOE_H.get(fk, 80.0)))
+				u.name = str(AfRoster.FOES[fk].name)
 			if team == "blue" and CHAR.has(u.name):
 				u.ab_class = equipped_class_ab(u.name); u.ab_sub = equipped_sub_ab(u.name)
 			u.gauge = clampf(float(HERO_MP.get(u.name, 0.0)), 0.0, AB_MP) if team == "blue" else rand(0, 30)
 			u.facing = 1 if team == "blue" else -1; u.at = rand(0, 1000)
 			units.append(u)
+	battle_area = str(pick(AREAS))
+	var BOSS_AREA := {"The Matron of Cinders": "coalvein-deeps", "Matron of Cinders": "coalvein-deeps", "The Drowned Cardinal": "saltglass-fen",
+		"The Unlit Regnant": "unlit-throne", "The Ash Sovereign": "vespergate-sanctum"}
+	for bu in units:
+		if bu.team == "red" and BOSS_AREA.has(bu.name):
+			battle_area = str(BOSS_AREA[bu.name])
 	G = Battle.new()
 	G.units = units
 	G.n_red = n
@@ -1598,15 +1844,15 @@ func toggle_queue(u) -> void:
 	u.pop = 160.0
 	sfx.tone(440 if i >= 0 else 660 + G.queue.size() * 40, 0.05, "square", 0.03)
 
-## AUTO: queue every living hero; a full MP bar fires that hero's marked auto ability, otherwise a normal attack.
+## AUTO: queue every living hero; a full MP bar fires the first ability in that hero's sequence whose rule passes, otherwise a normal attack.
 func auto_queue_turn() -> void:
 	G.queue = []
 	for u in alive("blue"):
 		G.queue.append(u)
 		u.ab_queued = ""
 		if u.gauge >= AB_MP:
-			var aid: String = auto_ab(u.name) if CHAR.has(u.name) else ""
-			if aid != "" and ABILITY_DEFS.has(aid) and (aid == u.ab_class or aid == u.ab_sub) and auto_wants(u, aid):
+			var aid: String = seq_pick(u) if CHAR.has(u.name) else ""
+			if aid != "":
 				u.ab_queued = aid
 	execute_orders()
 
@@ -1967,25 +2213,40 @@ func build_terrain() -> void:
 		p.x = q.x; p.y = q.y
 
 func draw_terrain() -> void:
-	var ff := int(floorf(now / 110.0)) % 8
-	for r in range(ISL.r0, ISL.r1 + 1):
-		for c in range(ISL.c0, ISL.c1 + 1):
-			if r == ISL.r0 or r == ISL.r1 or c == ISL.c0 or c == ISL.c1:
-				img(IMG.foam, ((ff + c + r) % 8) * 192, 0, 192, 192, c * 64 - 64, r * 64 - 64, 192, 192)
+	# Airron's Fall area: dimmed backdrop over the whole screen, the area's ground tile on the battle field.
+	var bg: Texture2D = IMG.get("bg_" + battle_area, null)
+	var gr: Texture2D = IMG.get("gr_" + battle_area, null)
+	if bg != null:
+		img(bg, 0, 0, bg.get_width(), bg.get_height(), 0, 0, W, H, Color(0.62, 0.58, 0.56))
+	var x0 := float(ISL.c0) * 64.0
+	var y0 := float(ISL.r0) * 64.0
+	var x1 := float(ISL.c1 + 1) * 64.0
+	var y1 := float(ISL.r1 + 1) * 64.0
+	rbox(Rect2(x0 - 6, y0 - 6, x1 - x0 + 12, y1 - y0 + 12), 18.0, Color(0.08, 0.06, 0.05, 0.85))
+	if gr != null:
+		var ts := 128.0
+		var gw := float(gr.get_width())
+		var yy := y0
+		while yy < y1:
+			var th := minf(ts, y1 - yy)
+			var xx := x0
+			while xx < x1:
+				var tw := minf(ts, x1 - xx)
+				img(gr, 0, 0, gw * tw / ts, gw * th / ts, xx, yy, tw, th)
+				xx += ts
+			yy += ts
+	# soft vignette toward the field edge
+	for i in 6:
+		var k := float(i)
+		draw_rect(Rect2(x0 + k * 5, y0 + k * 5, x1 - x0 - k * 10, y1 - y0 - k * 10), ca(Color(0.05, 0.03, 0.02, 0.10)), false, 6.0)
 	for i in ROCKS.size():
-		var k: Array = ROCKS[i]
-		var f := (int(floorf(now / 140.0)) + i * 3) % 8
-		var q := mp(k[1], k[2])
-		img(IMG[k[0]], f * 128, 0, 128, 128, q.x - 64, q.y - 72, 128, 128)
-	for r in range(ISL.r0, ISL.r1 + 1):
-		for c in range(ISL.c0, ISL.c1 + 1):
-			var sx := 0 if c == ISL.c0 else (2 if c == ISL.c1 else 1)
-			var sy := 0 if r == ISL.r0 else (2 if r == ISL.r1 else 1)
-			img(IMG.flat, sx * 64, sy * 64, 64, 64, c * 64, r * 64, 64, 64)
+		var k2: Array = ROCKS[i]
+		var q := mp(k2[1], k2[2])
+		img(IMG[k2[0]], 0, 0, 128, 128, q.x - 64, q.y - 72, 128, 128)
 	for d in DECO:
 		var im: Texture2D = IMG["deco" + d[0]]
-		var q := mp(d[1], d[2])
-		img(im, 0, 0, 64, 64, roundf(q.x - 32), roundf(q.y - 64 + 10), 64, 64)
+		var q2 := mp(d[1], d[2])
+		img(im, 0, 0, 64, 64, roundf(q2.x - 32), roundf(q2.y - 64 + 10), 64, 64)
 
 # ---------------------------------------------------------------- canvas-like drawing helpers
 var _xf := Transform2D.IDENTITY
@@ -2027,17 +2288,20 @@ func fill_ellipse(cx: float, cy: float, rx: float, ry: float, col: Color) -> voi
 func stroke_ellipse(cx: float, cy: float, rx: float, ry: float, col: Color, w: float) -> void:
 	draw_polyline(ellipse_pts(cx, cy, rx, ry), ca(col), w, true)
 
+var _font_override: Font = null
 func text_w(s: String, size: float) -> float:
-	return FONT.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(roundf(size))).x
+	var F: Font = _font_override if _font_override != null else FONT
+	return F.get_string_size(s, HORIZONTAL_ALIGNMENT_LEFT, -1, int(roundf(size))).x
 ## Text with canvas semantics: textBaseline=middle, align left/center/right, optional stroke (lineWidth = lw).
 func text(s: String, x: float, y: float, size: float, col: Color, align := "center", lw := 0.0, stroke := Color("#1a0f08")) -> void:
 	var fs := int(roundf(size))
 	if fs < 1: return
+	var F: Font = _font_override if _font_override != null else FONT
 	var w := text_w(s, fs)
 	var ox := x - w / 2.0 if align == "center" else (x - w if align == "right" else x)
-	var by := y + (FONT.get_ascent(fs) - FONT.get_descent(fs)) / 2.0
-	if lw > 0: draw_string_outline(FONT, Vector2(ox, by), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(roundf(lw)), ca(stroke))
-	draw_string(FONT, Vector2(ox, by), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ca(col))
+	var by := y + (F.get_ascent(fs) - F.get_descent(fs)) / 2.0
+	if lw > 0: draw_string_outline(F, Vector2(ox, by), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(roundf(lw)), ca(stroke))
+	draw_string(F, Vector2(ox, by), s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ca(col))
 func outlined(s: String, x: float, y: float, size: float, col: Color, align := "center") -> void:
 	text(s, x, y, size, col, align, maxf(3.0, size / 5.0))
 func shadow_text(s: String, x: float, y: float, size: float, col: Color, off := 2.0, sh := Color(0, 0, 0, 0.45), align := "center") -> void:
@@ -2068,6 +2332,8 @@ func css9(tex: Texture2D, x: float, y: float, w: float, h: float, b: float) -> v
 # ---------------------------------------------------------------- unit drawing
 func unit_frame(u) -> Vector2i:
 	var K: Dictionary = u.K
+	if K.get("static", false):
+		return Vector2i(0, 0)
 	if u.act != null and u.act.stage == "atk":
 		var d: Dictionary = u.act.d
 		return Vector2i(mini(d.n - 1, int(floorf(u.act.t * d.fps / 1000.0))), d.r)
@@ -2082,6 +2348,11 @@ func draw_unit(u) -> void:
 		if u.death_t < 140:
 			var fr0 := unit_frame(u)
 			draw_frame(WHITE[K.img], f.fw, f.fh, fr0.x, fr0.y, u.x, u.y, f.ax, f.ay, uS(u) * fsc * (1 + u.death_t / 900.0), u.facing < 0, 1 - u.death_t / 200.0)
+		if K.get("static", false):
+			var al2 := maxf(0.0, 1.0 - u.death_t / 1100.0)
+			if al2 <= 0.0: return
+			draw_frame(IMG[K.img], f.fw, f.fh, 0, 0, u.x, u.y + u.death_t * 0.012, f.ax, f.ay, uS(u) * fsc * (1.0 - u.death_t / 4000.0), (u.facing * int(K.get("nf", 1))) < 0, al2, Color(0.55, 0.38, 0.32))
+			return
 		var dt: float = u.death_t - 60
 		if dt < 0: return
 		var al := maxf(0.0, 1 - (u.death_t - 1300) / 400.0) if u.death_t > 1300 else 1.0
@@ -2118,7 +2389,16 @@ func draw_unit(u) -> void:
 		save(); _alpha = 0.25 + 0.15 * sin(now / 200.0)
 		stroke_ellipse(x, y - 2, 24, 8, Color.WHITE, 2)
 		restore()
-	save(); tr_(roundf(x), roundf(y)); scale_by((-1.0 if u.facing < 0 else 1.0) / sq, sq)
+	if K.get("static", false):
+		# Static Airron's Fall sprites: breathing idle, hop while running, squash on the swing.
+		if u.anim == "run":
+			y -= absf(sin((now + u.at) / 85.0)) * 5.0
+		else:
+			sq *= 1.0 + 0.018 * sin((now + u.at) / 320.0)
+		if u.act != null and u.act.stage == "atk":
+			sq *= 1.06
+	var face: int = u.facing * int(K.get("nf", 1))
+	save(); tr_(roundf(x), roundf(y)); scale_by((-1.0 if face < 0 else 1.0) / sq, sq)
 	var sc := uS(u) * fsc
 	var sw: float = f.fw * sc
 	var sh: float = f.fh * sc
@@ -2302,11 +2582,11 @@ func draw_hud() -> void:
 		var x := 6.0 if isB else VWc - 6 - w
 		draw3(IMG.ribbonBlue if isB else IMG.ribbonRed, x, top, w, h)
 		var team_name: String
-		if isB: team_name = "SQUAD" if w > 190 else "BLUE"
+		if isB: team_name = "PARTY" if w > 190 else "YOU"
 		elif not encounter.is_empty(): team_name = "WILD"
 		elif G.n_red == 1: team_name = "BOSS"
 		elif G.n_red == 2: team_name = "ELITES" if w > 190 else "RED"
-		else: team_name = "GOBLINS" if w > 190 else "RED"
+		else: team_name = "ASHBORN" if w > 190 else "FOES"
 		outlined(team_name, x + (pad if isB else w - pad), top + h * 0.42, fs, Color.WHITE, "left" if isB else "right")
 		outlined("%d/%d" % [al, us.size()], x + (w - pad if isB else pad), top + h * 0.42, fs, Color.WHITE, "right" if isB else "left")
 		var bx := x + h * 0.6
@@ -2405,7 +2685,7 @@ func add_btn(id: String, r: Rect2, cb: Callable) -> void:
 
 func clampf3(lo: float, v: float, hi: float) -> float: return maxf(lo, minf(v, hi))
 
-## A Tiny Swords 3-slice button like .btn: border caps, text raised by padding-bottom.
+## A 3-slice button like .btn: border caps, text raised by padding-bottom.
 func ui_button(id: String, r: Rect2, label: String, red: bool, fsz: float, cap: float, cb: Callable, off := false, locked := false, pulse := false) -> void:
 	var down := pressed_id == id and not locked
 	var tex: Texture2D
@@ -2462,18 +2742,19 @@ func link_text(prefix: String, link: String, suffix: String, url: String, cx: fl
 
 # ---------------------------------------------------------------- soft menu chrome
 # One rounded, bubbly look for every menu: a cream sheet, white cards, teal pills, gold = selected / equipped.
-var UI_INK := Color("#1d3b41")
-var UI_MUTED := Color("#5e7b7f")
-var UI_SHEET := Color("#f5f0e3")
-var UI_CARD := Color("#ffffff")
-var UI_LINE := Color("#ddd5c2")
-var UI_TEAL := Color("#2a9d97")
-var UI_TEAL_D := Color("#1d7470")
-var UI_TEAL_L := Color("#d3eeeb")
-var UI_GOLD := Color("#f0b03a")
-var UI_GOLD_D := Color("#c4861b")
-var UI_GOLD_L := Color("#fff0c4")
-var UI_CORAL := Color("#e2685b")
+# Airron's Fall palette: warm ash-brown panels, cream text, ember orange primary, gold accent, sea-teal secondary.
+var UI_INK := Color("#ece3cf")
+var UI_MUTED := Color("#a89c88")
+var UI_SHEET := Color("#241f19")
+var UI_CARD := Color("#2f2820")
+var UI_LINE := Color("#4d4033")
+var UI_TEAL := Color("#e8763a")
+var UI_TEAL_D := Color("#f0a066")
+var UI_TEAL_L := Color("#4a3020")
+var UI_GOLD := Color("#ead266")
+var UI_GOLD_D := Color("#c8a94a")
+var UI_GOLD_L := Color("#3d3420")
+var UI_CORAL := Color("#d2463c")
 var UI_CORAL_D := Color("#b54b40")
 var UI_GOOD := Color("#23874d")
 var UI_GOOD_L := Color("#d3f1dd")
@@ -2503,7 +2784,7 @@ func pill_colors(kind: String) -> Array:
 	if kind == "soft": return [UI_CARD, UI_LINE, UI_INK]
 	if kind == "danger": return [UI_CORAL, UI_CORAL_D, Color.WHITE]
 	if kind == "gold": return [UI_GOLD, UI_GOLD_D, Color("#3d2706")]
-	if kind == "tealsoft": return [UI_TEAL_L, Color("#a9d6d1"), UI_TEAL_D]
+	if kind == "tealsoft": return [UI_TEAL_L, Color("#7a5236"), UI_TEAL_D]
 	return [UI_TEAL, UI_TEAL_D, Color.WHITE]
 
 ## Soft pill button. kind: primary (teal) | soft (white) | danger (coral) | gold | tealsoft.
@@ -2589,7 +2870,7 @@ func section_label(s: String, x: float, y: float, short: bool) -> void:
 ## and optional tabs (right of the title, or under it on narrow screens). Returns the content rect.
 func menu_sheet(back_id: String, title: String, helper: String, back_cb: Callable, tabs: Array = [], tab_cur: int = 0, tab_cb: Callable = Callable(), tab_id: String = "") -> Rect2:
 	var short: bool = VHc <= 430
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.03, 0.1, 0.11, 0.6))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.05, 0.04, 0.03, 0.7))
 	var m: float = 8.0 if short else 14.0
 	var panel := Rect2(m, m, VWc - m * 2.0, VHc - m * 2.0)
 	rbox(panel, 22.0 if short else 28.0, UI_SHEET, Color(1, 1, 1, 0.55), 2.0, 12.0)
@@ -2657,7 +2938,7 @@ func hero_picker(prefix: String, area: Rect2, short: bool, sub_fn: Callable) -> 
 		var r := Rect2(area.position.x, area.position.y + float(i) * (rh + gap2), lw, rh)
 		var sel: bool = i == char_sel
 		rbox(r, minf(18.0, rh / 2.0), UI_GOLD_L if sel else UI_CARD, UI_GOLD if sel else UI_LINE, 2.5 if sel else 1.5, 3.0 if sel else 0.0)
-		draw_hero_sprite(hs.kind, r.position.x + 28.0, r.end.y - 3.0, 0.34 if short else 0.42)
+		draw_hero_sprite(hs.kind, r.position.x + 28.0, r.end.y - 3.0, 0.34 if short else 0.42, hn)
 		var tx: float = r.position.x + 56.0
 		var line: String = str(sub_fn.call(hn, hs))
 		text(hn, tx, r.get_center().y - (7.0 if short else 9.0), 15.0 if short else 17.0, UI_INK, "left")
@@ -2669,7 +2950,7 @@ func hero_picker(prefix: String, area: Rect2, short: bool, sub_fn: Callable) -> 
 ## Detail header: sprite, big name, and soft chips (level, class …).
 func hero_head(name: String, st: Dictionary, x: float, y: float, w: float, short: bool, chips: Array) -> float:
 	var hh: float = 48.0 if short else 66.0
-	draw_hero_sprite(st.kind, x + 30.0, y + hh - 2.0, 0.56 if short else 0.78)
+	draw_hero_sprite(st.kind, x + 30.0, y + hh - 2.0, 0.56 if short else 0.78, name)
 	text(name, x + 74.0, y + hh * 0.32, 22.0 if short else 28.0, UI_INK, "left")
 	var cx: float = x + 74.0
 	var cfs: float = 11.0 if short else 12.0
@@ -2693,7 +2974,7 @@ func stat_rows() -> Array:
 
 ## Two-column rounded stat bars inside a soft card. Returns the height used.
 func draw_stat_block(name: String, st: Dictionary, r: Rect2, short: bool) -> void:
-	rbox(r, 18.0, Color(1, 1, 1, 0.65), UI_LINE, 1.0)
+	rbox(r, 18.0, UI_CARD, UI_LINE, 1.0)
 	var rows: Array = stat_rows()
 	var two: bool = r.size.x > 380.0
 	var pad: float = 12.0
@@ -2730,7 +3011,13 @@ func save_cfg() -> void:
 		if AB_AUTO.has(name):
 			cf.set_value("auto_ab", name, "-" if str(AB_AUTO[name]) == "" else str(AB_AUTO[name]))
 		cf.set_value("mp", name, int(roundf(float(HERO_MP.get(name, 0.0)))))
+		cf.set_value("ab_loadout", name, ",".join(loadout_of(name)))
+		var sq: Array = []
+		for rr in seq_of(name):
+			sq.append(str(rr[0]) + ":" + str(rr[1]))
+		cf.set_value("ab_seq", name, ",".join(sq))
 	cf.set_value("rs", "auto", AUTO)
+	cf.set_value("rs", "rpg_v", 1)
 	cf.set_value("party", "squad", ",".join(SQUAD))
 	cf.set_value("inv", "bag", ",".join(INV))
 	if WORLD != null:
@@ -2739,22 +3026,24 @@ func save_cfg() -> void:
 		if ow_ready:
 			cf.set_value("world", "pos", "%d|%d" % [int(ow_x), int(ow_y)])
 			cf.set_value("world", "layout", int(WORLD.data.get("tile_layout", 1)))
-	cf.save("user://riftstrike.cfg")
+	cf.save("user://airrons_quest.cfg")
 
 func load_cfg() -> void:
 	ensure_hero_data()
 	var cf := ConfigFile.new()
-	var loaded: bool = cf.load("user://riftstrike.cfg") == OK
+	var loaded: bool = cf.load("user://airrons_quest.cfg") == OK
 	if not loaded:
 		INV = STARTER_BAG.duplicate()
 		return
 	muted = bool(cf.get_value("rs", "muted", muted))
-	AUTO = bool(cf.get_value("rs", "auto", false))
+	AUTO = bool(cf.get_value("rs", "auto", true))
 	for name in HERO_NAMES:
 		var raw = cf.get_value("loadout", name, "")
 		if typeof(raw) == TYPE_STRING and raw != "":
 			var parts: PackedStringArray = raw.split("|")
-			# Class is locked to the character; ignore any class saved by older builds.
+			# Class is changeable (Build screen); only RPG classes load.
+			if parts.size() >= 2 and RPG_POOL_IDS.has(parts[0]) and int(cf.get_value("rs", "rpg_v", 0)) >= 1:
+				CHAR[name].cls = parts[0]
 			var sub := parts[1] if parts.size() >= 2 else (parts[0] if parts.size() == 1 else "")
 			if SUB_DEFS.has(sub):
 				CHAR[name].sub = sub
@@ -2785,6 +3074,16 @@ func load_cfg() -> void:
 		if typeof(aar) == TYPE_STRING and aar != "":
 			AB_AUTO[name] = "" if aar == "-" else str(aar)
 		HERO_MP[name] = clampf(float(cf.get_value("mp", name, 0)), 0.0, AB_MP)
+		var lor = cf.get_value("ab_loadout", name, "")
+		if typeof(lor) == TYPE_STRING and lor != "":
+			AB_LOADOUT[name] = Array(lor.split(","))
+		var sqr = cf.get_value("ab_seq", name, "")
+		if typeof(sqr) == TYPE_STRING and sqr != "":
+			var rules: Array = []
+			for part in sqr.split(","):
+				var kv: PackedStringArray = part.split(":")
+				if kv.size() == 2: rules.append([kv[0], kv[1]])
+			AB_SEQ[name] = rules
 		validate_ab_equip(name)
 	if cf.has_section_key("party", "squad"):
 		var sq = cf.get_value("party", "squad", "")
@@ -2842,6 +3141,12 @@ func open_inv() -> void:
 	char_bar = {}
 	char_delta_t = 0.0
 	screen = "inv"
+	sfx.tone(660, 0.06, "square", 0.035)
+
+func open_build() -> void:
+	char_sel = clampi(char_sel, 0, HERO_NAMES.size() - 1)
+	BUILD.open()
+	screen = "build"
 	sfx.tone(660, 0.06, "square", 0.035)
 
 func open_compendium() -> void:
@@ -2915,6 +3220,11 @@ func ow_open_menu_screen(which: String) -> void:
 		new_battle()
 		phase = "title"
 		open_chars()
+		menu_return = "overworld"
+	elif which == "build":
+		new_battle()
+		phase = "title"
+		open_build()
 		menu_return = "overworld"
 	sfx.tone(660, 0.06, "square", 0.035)
 
@@ -3004,7 +3314,7 @@ func apply_loadout_preview(name: String) -> void:
 			continue
 		var kind: String = st.kind
 		u.kind = kind
-		u.K = KINDS[kind]
+		u.K = hero_K(name, kind)
 		u.hp = st.hp
 		u.maxhp = st.hp
 		u.shown_hp = st.hp
@@ -3082,15 +3392,18 @@ func draw_stat_bar(x: float, y: float, w: float, h: float, label: String, value:
 		dc.a = clampf(char_delta_t / 400.0, 0.0, 1.0)
 		text(ds, bx + bw + 10.0 + text_w(shown, 14.0) + 5.0, cy, 13.0, dc, "left")
 
-func draw_hero_sprite(kind: String, x: float, y: float, scl: float) -> void:
-	var K: Dictionary = KINDS[kind]
+func draw_hero_sprite(kind: String, x: float, y: float, scl: float, name: String = "") -> void:
+	var K: Dictionary = hero_K(name, kind) if name != "" else KINDS[kind]
+	if K.get("static", false):
+		draw_frame(IMG[K.img], K.f.fw, K.f.fh, 0, 0, x, y, K.f.ax, K.f.ay, float(K.f.s) * scl, false)
+		return
 	var idle: Dictionary = K.idle
 	var fr := int(floorf(now * idle.fps / 1000.0)) % int(idle.n)
 	draw_frame(IMG[K.img], K.f.fw, K.f.fh, fr, idle.r, x, y, K.f.ax, K.f.ay, float(K.f.s) * scl, false)
 
 func draw_chars() -> void:
 	var short: bool = VHc <= 430
-	var area: Rect2 = menu_sheet("chars_back", "Characters", "Pick a hero, then swap their subclass. Class stays locked.", func(): menu_back())
+	var area: Rect2 = menu_sheet("chars_back", "Characters", "Pick a hero, then swap their subclass. Change class in Build.", func(): menu_back())
 	var d: Rect2 = hero_picker("hero_", area, short, func(hn, hs): return "Lv." + str(int(hs.level)) + "  " + str(hs.cls) + " · " + str(hs.sub))
 	var name := selected_hero()
 	var st := compute_hero_stats(name)
@@ -3104,7 +3417,7 @@ func draw_chars() -> void:
 	var stack: bool = dw < 420.0
 	var half: float = dw if stack else (dw - gap) / 2.0
 	var cr := Rect2(dx, y, half, card_h)
-	rbox(cr, 18.0, Color(1, 1, 1, 0.65), UI_LINE, 1.5)
+	rbox(cr, 18.0, UI_CARD, UI_LINE, 1.5)
 	text("CLASS", cr.position.x + 16.0, cr.position.y + (12.0 if short else 15.0), 11.0, UI_MUTED, "left")
 	chip("Locked", cr.end.x - 10.0, cr.position.y + (13.0 if short else 16.0), 10.0, Color(UI_LOCK.r, UI_LOCK.g, UI_LOCK.b, 0.22), UI_MUTED, "right")
 	text(str(st.cls), cr.position.x + 16.0, cr.position.y + (33.0 if short else 38.0), 18.0 if short else 22.0, UI_INK, "left")
@@ -3128,7 +3441,7 @@ func draw_chars() -> void:
 	y += (card_h * 2.0 + gap if stack else card_h) + gap
 	# Abilities in battle
 	var ar := Rect2(dx, y, dw, 40.0 if short else 50.0)
-	rbox(ar, ar.size.y / 2.0, Color(1, 1, 1, 0.65), UI_LINE, 1.5)
+	rbox(ar, ar.size.y / 2.0, UI_CARD, UI_LINE, 1.5)
 	var cn: String = str(ABILITY_DEFS[equipped_class_ab(name)].name) if ABILITY_DEFS.has(equipped_class_ab(name)) else "—"
 	var sn: String = str(ABILITY_DEFS[equipped_sub_ab(name)].name) if ABILITY_DEFS.has(equipped_sub_ab(name)) else "—"
 	text("IN BATTLE", ar.position.x + 18.0, ar.get_center().y, 11.0, UI_MUTED, "left")
@@ -3310,7 +3623,7 @@ func draw_party() -> void:
 		else:
 			draw_circle(Vector2(rr.position.x + 26.0, bcy), 12.0, ca(UI_TEAL_L))
 			text(str(i + 1), rr.position.x + 26.0, bcy, 13.0, UI_TEAL_D)
-		draw_hero_sprite(hs.kind, rr.position.x + 80.0, rr.end.y - 3.0, 0.34 if short else 0.44)
+		draw_hero_sprite(hs.kind, rr.position.x + 80.0, rr.end.y - 3.0, 0.34 if short else 0.44, hn)
 		var tx: float = rr.position.x + 108.0
 		text(hn, tx, bcy - (7.0 if short else 9.0), 15.0 if short else 18.0, UI_INK, "left")
 		var line: String = "Lv." + str(int(hs.level)) + "  " + str(hs.cls) + " · " + str(hs.sub)
@@ -3332,10 +3645,10 @@ func draw_party() -> void:
 			var rr2 := Rect2(right_x, bench_top + float(j) * (brow + rg), right_w, brow)
 			var sel2: bool = party_sel == PARTY_SIZE + j
 			var swap_hint: bool = party_sel >= 0 and party_sel < PARTY_SIZE
-			rbox(rr2, minf(20.0, brow / 2.0), UI_GOLD_L if sel2 else Color(1, 1, 1, 0.7), UI_GOLD if sel2 else (UI_TEAL if swap_hint else UI_LINE), 2.5 if sel2 or swap_hint else 1.5)
+			rbox(rr2, minf(20.0, brow / 2.0), UI_GOLD_L if sel2 else UI_CARD, UI_GOLD if sel2 else (UI_TEAL if swap_hint else UI_LINE), 2.5 if sel2 or swap_hint else 1.5)
 			var jdx: int = j
 			add_btn("pben_%d" % j, rr2, func(): _party_tap_bench(jdx))
-			draw_hero_sprite(hs2.kind, rr2.position.x + 30.0, rr2.end.y - 3.0, 0.34 if short else 0.44)
+			draw_hero_sprite(hs2.kind, rr2.position.x + 30.0, rr2.end.y - 3.0, 0.34 if short else 0.44, hn2)
 			var tx2: float = rr2.position.x + 60.0
 			text(hn2, tx2, rr2.get_center().y - (7.0 if short else 9.0), 15.0 if short else 18.0, UI_INK, "left")
 			var l2: String = "Lv." + str(int(hs2.level)) + "  " + str(hs2.cls)
@@ -3577,7 +3890,7 @@ func tick_overworld(dt: float) -> void:
 
 func draw_overworld() -> void:
 	# Water backdrop and a grass island with foam, houses, and a road out to the east.
-	draw_rect(Rect2(0, 0, VWc, VHc), Color("#47aba9"))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color("#1a1612"))
 	var short := VHc <= 430
 	# Fit a readable chunk of town; keep the lead easy to see on a short landscape screen.
 	# Zoomed out vs the first town build (was 460/560 tall, 0.7–1.35) so more of the region shows.
@@ -3655,11 +3968,11 @@ func draw_overworld() -> void:
 
 
 func _draw_ow_menu(short: bool) -> void:
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.02, 0.08, 0.09, 0.5))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.05, 0.04, 0.03, 0.55))
 	var items := [
 		["owm_map", "Map", "Where to go next", "map"], ["owm_party", "Party", "Pick your five", "party"],
 		["owm_inv", "Inventory", "Gear and abilities", "inv"], ["owm_stats", "Stats", "Compare heroes", "stats"],
-		["owm_chars", "Characters", "Swap subclasses", "chars"], ["owm_title", "Title", "Main screen", "title"],
+		["owm_build", "Build", "Class, abilities, plan", "build"], ["owm_chars", "Characters", "Swap subclasses", "chars"], ["owm_title", "Title", "Main screen", "title"],
 	]
 	var cols: int = 2 if VWc < 700 else 3
 	var gap: float = 10.0 if short else 14.0
@@ -3695,17 +4008,23 @@ func _draw_ow_lead() -> void:
 	var kind: String = st.kind
 	if not KINDS.has(kind):
 		kind = "warrior"
-	var K: Dictionary = KINDS[kind]
-	var anim: Dictionary = K.run if ow_anim == "run" else K.idle
-	var fr := int(floorf(ow_at * float(anim.fps) / 1000.0)) % int(anim.n)
+	var K: Dictionary = hero_K(name, kind)
+	var hop: float = absf(sin(ow_at / 85.0)) * 5.0 if ow_anim == "run" else 0.0
 	var scl: float = float(K.f.s) * 0.95
-	draw_frame(IMG[K.img], K.f.fw, K.f.fh, fr, anim.r, ow_x, ow_y, K.f.ax, K.f.ay, scl, ow_facing < 0)
+	draw_frame(IMG[K.img], K.f.fw, K.f.fh, 0, 0, ow_x, ow_y - hop, K.f.ax, K.f.ay, scl, ow_facing < 0)
 	# Soft name tag so the lead stays readable
 	text(name, ow_x, ow_y - K.head * scl - 8, 11, Color("#d6f1ff"), "center", 3, Color(0, 0, 0, 0.75))
 
 
 func draw_title() -> void:
-	draw_rect(Rect2(0, 0, VWc, VHc), Color(10 / 255.0, 25 / 255.0, 28 / 255.0, 0.5))
+	# Airron's Fall key art behind the title (cover-fit), darkened for the menus.
+	var ka: Texture2D = IMG.get("keyart_tall" if VHc > VWc else "keyart_wide", null)
+	if ka != null:
+		var kw := float(ka.get_width())
+		var kh := float(ka.get_height())
+		var ks := maxf(VWc / kw, VHc / kh)
+		img(ka, 0, 0, kw, kh, (VWc - kw * ks) / 2.0, (VHc - kh * ks) / 2.0, kw * ks, kh * ks)
+	draw_rect(Rect2(0, 0, VWc, VHc), Color(0.07, 0.05, 0.04, 0.45))
 	var short := VHc <= 430
 	var vw := VWc
 	var L := clampf3(32, VHc * 0.09, 64) if short else clampf3(46, vw * 0.135, 108)
@@ -3715,7 +4034,7 @@ func draw_title() -> void:
 	var rbh: float = 50.0 if short else 62.0
 	var gap: float = 10.0
 	var lab_h: float = 18.0 if short else 24.0
-	var menu_one_row: bool = sw >= 5.0 * 112.0 + 4.0 * gap + pad * 2.0
+	var menu_one_row: bool = sw >= 6.0 * 112.0 + 4.0 * gap + pad * 2.0
 	var menu_rows: int = 1 if menu_one_row else 2
 	var raid_one_row: bool = sw >= 3.0 * 130.0 + 2.0 * gap + pad * 2.0
 	var raid_rows: int = 1 if raid_one_row else 2
@@ -3729,14 +4048,16 @@ func draw_title() -> void:
 	# logo with layered text-shadow and bob
 	var bob := -3.0 + 3.0 * cos(now / 2400.0 * TAU)
 	var ly := y + L / 2 + bob
-	var logo := "RIFTSTRIKE"
-	text(logo, cx, ly + L * 0.12 + L * 0.06, L, Color(0, 0, 0, 0.45))
-	text(logo, cx, ly + L * 0.09, L, Color("#4a2a14"), "center", L * 0.06, Color("#4a2a14"))
-	text(logo, cx, ly + L * 0.05, L, Color("#b5641f"), "center", L * 0.06, Color("#2b1a10"))
-	text(logo, cx, ly, L, Color("#ffe27a"), "center", L * 0.06, Color("#2b1a10"))
+	var logo := GAME_TITLE.to_upper()
+	_font_override = FONT_TITLE
+	L = minf(L, (vw - 24.0) / maxf(1.0, text_w(logo, 1.0) * 1.08))
+	text(logo, cx, ly + L * 0.08, L, Color(0, 0, 0, 0.55))
+	text(logo, cx, ly + L * 0.04, L, Color("#8a3a12"), "center", L * 0.05, Color("#1a0f08"))
+	text(logo, cx, ly, L, Color("#ead266"), "center", L * 0.05, Color("#1a0f08"))
+	_font_override = null
 	y += L + 10.0
 	if not short:
-		chip("Turn-based rift brawl", cx, y + 14.0, 15.0, Color(1, 1, 1, 0.88), UI_INK, "center")
+		chip("An Airron's Fall auto-battler", cx, y + 14.0, 15.0, Color(0.1, 0.08, 0.06, 0.85), UI_GOLD, "center")
 		y += tag_h
 	# One soft sheet holding the menus and the quick raids
 	var sr := Rect2(cx - sw / 2.0, y, sw, sheet_h)
@@ -3744,9 +4065,10 @@ func draw_title() -> void:
 	var iy: float = sr.position.y + pad
 	var ix: float = sr.position.x + pad
 	var iw: float = sw - pad * 2.0
-	section_label("AIRRON'S SQUAD", ix, iy + lab_h * 0.4, short)
+	section_label("YOUR PARTY", ix, iy + lab_h * 0.4, short)
 	iy += lab_h
 	var menus := [
+		["build", "Build", "primary", func(): open_build()],
 		["chars", "Characters", "soft", func(): open_chars()],
 		["inv", "Inventory", "soft", func(): open_inv()],
 		["party", "Party", "soft", func(): open_party()],
@@ -3766,7 +4088,7 @@ func draw_title() -> void:
 	iy += float(menu_rows) * (mbh + gap)
 	section_label("QUICK RAID  ·  pick a fight", ix, iy + lab_h * 0.4, short)
 	iy += lab_h
-	var specs := [["raid3", "6v3 Raid", "tealsoft", 3], ["raid2", "6v2 Elite", "primary", 2], ["raid1", "6v1 Boss", "danger", 1]]
+	var specs := [["raid3", "5v3 Raid", "tealsoft", 3], ["raid2", "5v2 Elite", "primary", 2], ["raid1", "5v1 Boss", "danger", 1]]
 	var bfs: float = 16.0 if short else 20.0
 	if raid_one_row:
 		var rw: float = (iw - gap * 2.0) / 3.0
@@ -3784,15 +4106,11 @@ func draw_title() -> void:
 			pill(sp2[0], r2, sp2[1], sp2[2], bfs, func(): start_fight(n2), false, false, sp2[0] == "raid1")
 	y = sr.end.y + 10.0
 	if not short:
-		var hint: String = "Overworld explores Act I  ·  Raids are quick fights  ·  Hits that land together COMBO"
+		var hint: String = "Build sets class, abilities and the AUTO plan  ·  Raids are quick fights  ·  Overworld explores Act I"
 		text(hint, cx, y + hint_fs * 0.6, fit_size(hint, hint_fs, vw - 24.0, 10.0), Color("#e9fff9"), "center", 3, Color(0, 0, 0, 0.7))
 	var cfs := 12.0 if short else 14.0
 	var cy := VHc - (4.0 if short else 10.0) - cfs
-	if USE_NECRO:
-		link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, cy - cfs * 1.6, cfs, Color.WHITE, Color("#ffe27a"), true, "cr1")
-		link_text("Boss: ", "Necromancer by CreativeKind", "", URL_NECRO, cx, cy, cfs, Color.WHITE, Color("#ffe27a"), true, "cr2")
-	else:
-		link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, cy, cfs, Color.WHITE, Color("#ffe27a"), true, "cr1")
+	text("Work in progress", cx, cy, cfs, Color("#ead266"), "center", 3, Color(0, 0, 0, 0.7))
 
 func fmt_n(n: int) -> String:
 	var s := str(absi(n))
@@ -3874,9 +4192,6 @@ func draw_results() -> void:
 		pill("menu", Rect2(cx - tw / 2, y, tw, btn_h), "Title", "soft", 22, func(): results_title())
 		y += btn_h
 	y += (4 if short else 10) + 8
-	link_text("Art: ", "Tiny Swords by Pixel Frog", "", URL_TINY, cx, y, 12, UI_MUTED, UI_TEAL_D, false, "cr1")
-	if cred_lines == 2:
-		link_text("Boss: ", "Necromancer by CreativeKind", "", URL_NECRO, cx, y + 16, 12, UI_MUTED, UI_TEAL_D, false, "cr2")
 	restore()
 
 func sq_button(id: String, r: Rect2, label: String, cb: Callable, icon := false, off := false, paused_icon := false) -> void:
@@ -3941,7 +4256,7 @@ func draw_battle_ui() -> void:
 		hint_base = draw_ability_panel(short_land, by) - 4
 	if G != null and phase == "battle":
 		if AUTO: hint = "Auto-battle on · tap AUTO to take control"
-		elif sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your knights in attack order · or tap AUTO"
+		elif sel: hint = "Tap again to remove · full MP bar = ability" if n > 0 else "Tap your keepers in attack order · or tap AUTO to let your plan run"
 		else: hint = "Your knights are attacking…" if G.side == "blue" else ("The boss is attacking…" if (G.n_red == 1 and encounter.is_empty()) else "Enemies are attacking…")
 	if hint != "":
 		var hfs := 12.0 if short_land else 14.0
@@ -4204,7 +4519,7 @@ func _draw() -> void:
 		draw_overworld()
 		STATS.draw(self, VWc, VHc)
 		return
-	draw_rect(Rect2(0, 0, VWc, VHc), Color("#47aba9"))
+	draw_rect(Rect2(0, 0, VWc, VHc), Color("#1a1612"))
 	set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
 	save()
 	if shake_t > 0:
@@ -4244,6 +4559,7 @@ func _draw() -> void:
 	elif screen == "inv": draw_inv()
 	elif screen == "party": draw_party()
 	elif screen == "compendium": COMP.draw(self, VWc, VHc)
+	elif screen == "build": BUILD.draw(self, VWc, VHc)
 	elif screen == "results": draw_results()
 	elif phase == "battle" or phase == "ending": draw_battle_ui()
 
@@ -4258,18 +4574,18 @@ func start_fight(n: int) -> void:
 	new_battle(n); phase = "battle"; paused = false; screen = ""
 	begin_player_turn()
 	if G.n_red == 1:
-		banner.text = "BOSS RIFT!"; banner.sub = "6v1 — one necromancer" if USE_NECRO else "6v1 — one tyrant"
+		banner.text = "BOSS FIGHT!"; banner.sub = "5v1 — a boss of the Ash"
 	elif G.n_red == 2:
-		banner.text = "ELITE RAID"; banner.sub = "6v2 — two elites"
+		banner.text = "ELITE RAID"; banner.sub = "5v2 — two elites"
 	else:
-		banner.text = "GOBLIN RAID"; banner.sub = "6v3 — a short raid"
+		banner.text = "ASH RAID"; banner.sub = "5v3 — a short raid"
 	banner.color = "red" if G.n_red == 1 else "yellow"; banner.life = 1400.0
 
 func show_results() -> void:
 	if phase == "results": return
 	phase = "results"
 	var r := G.result
-	var raid_name := "6v1 Boss" if G.n_red == 1 else ("6v2 Elite" if G.n_red == 2 else "6v3 Raid")
+	var raid_name := "5v1 Boss" if G.n_red == 1 else ("5v2 Elite" if G.n_red == 2 else "5v3 Raid")
 	var blue: Array = G.units.filter(func(u): return u.team == "blue")
 	var red: Array = G.units.filter(func(u): return u.team == "red")
 	var b_alive := blue.filter(func(u): return not u.dead).size()
@@ -4338,6 +4654,8 @@ func toggle_pause() -> void:
 func toggle_mute() -> void:
 	muted = not muted
 	sfx.muted = muted
+	if MUSIC != null:
+		MUSIC.stream_paused = muted
 	save_cfg()
 func toggle_speed() -> void:
 	speed = 2 if speed == 1 else 1
@@ -4444,6 +4762,9 @@ func on_key(k: int) -> void:
 	if screen == "compendium":
 		COMP.key(self, k)
 		return
+	if screen == "build":
+		BUILD.key(self, k)
+		return
 	if screen == "chars" or screen == "inv" or screen == "party" or screen == "overworld":
 		if k == KEY_ESCAPE or k == KEY_P:
 			menu_back()
@@ -4488,7 +4809,9 @@ func on_key(k: int) -> void:
 # ---------------------------------------------------------------- loop
 func _ready() -> void:
 	randomize()
+	build_af_roster()
 	build_abilities()
+	build_rpg()
 	sfx = preload("res://scripts/sfx.gd").new()
 	add_child(sfx)
 	WORLD = WorldScript.new()
@@ -4497,8 +4820,20 @@ func _ready() -> void:
 	WMAP.setup(WORLD)
 	STATS = StatsUI.new()
 	COMP = CompendiumUI.new()
+	BUILD = BuildUI.new()
 	load_cfg()
 	sfx.muted = muted
+	# Airron's Fall run theme loops under the whole game (web builds start it after the first tap).
+	var mus = load("res://assets/af/audio/run-theme.mp3")
+	if mus is AudioStreamMP3:
+		mus.loop = true
+		MUSIC = AudioStreamPlayer.new()
+		MUSIC.stream = mus
+		MUSIC.volume_db = -9.0
+		add_child(MUSIC)
+		if not params.has("shot"):
+			MUSIC.play()
+		MUSIC.stream_paused = muted
 	if OS.has_feature("web"):
 		var q = JavaScriptBridge.eval("location.search", true)
 		if q is String:

@@ -43,6 +43,7 @@ func t_ranged_single_action() -> void:
 		var front = null
 		for u in g.alive("blue"):
 			if front == null or absf(u.x - boss.x) < absf(front.x - boss.x): front = u
+		front.speed = 1 # no Speed dodge, so every action must land as a hit
 		g.combat_trace = []
 		g.G.queue = []
 		g.begin_enemy_turn()
@@ -132,15 +133,15 @@ func t_boss_two_actions() -> void:
 ## AUTO keeps a heal ability banked while nobody is hurt.
 func t_auto_heal_hold() -> void:
 	setup_party(31)
-	var nm := "Lanning"
-	g.AB_EQUIP[nm].cls = "rallying_stand"
-	g.AB_AUTO[nm] = "rallying_stand"
+	var nm := "Halvard"
+	g.set_class(nm, "Guardian")
+	g.AB_LOADOUT[nm] = ["g_rally"]
+	g.AB_SEQ[nm] = [["g_rally", "always"]]
 	g.new_battle(3); g.phase = "battle"; g.begin_player_turn()
 	var ln = null
 	for u in g.alive("blue"):
 		if u.name == nm: ln = u
 	if ln == null: return
-	ln.ab_class = "rallying_stand"
 	ln.gauge = 100.0
 	g.AUTO = true
 	g.auto_queue_turn()

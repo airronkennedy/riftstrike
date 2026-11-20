@@ -18,13 +18,13 @@ func _run() -> void:
 	var nm: String = g.lead_name()
 	var cid: String = g.equipped_class_ab(nm)
 	var sid: String = g.equipped_sub_ab(nm)
-	# mark sub as auto, toggling twice clears
-	g.AB_AUTO[nm] = ""
-	g.set_auto_ab(nm, sid)
-	if g.auto_ab(nm) != sid: fails.append("set auto sub")
-	g.set_auto_ab(nm, sid)
-	if g.auto_ab(nm) != "": fails.append("toggle off")
-	g.set_auto_ab(nm, cid)
+	# sequence: an "always" rule on a slotted ability is what AUTO fires
+	g.AB_SEQ[nm] = [[sid, "always"], [cid, "always"]]
+	if g.seq_of(nm)[0][0] != sid: fails.append("seq set")
+	if not g.toggle_loadout(nm, sid) or g.loadout_of(nm).find(sid) >= 0: fails.append("loadout remove")
+	g.toggle_loadout(nm, sid)
+	if g.loadout_of(nm).find(sid) < 0: fails.append("loadout re-add")
+	g.AB_SEQ[nm] = [[cid, "always"]]
 	# MP carry: set HERO_MP and start a fight
 	for h in g.HERO_NAMES: g.HERO_MP[h] = 37.0
 	g.HERO_MP[nm] = 100.0
@@ -53,14 +53,14 @@ func _run() -> void:
 	lead_u.gauge = 64.0
 	g.run_battle()
 	if absf(float(g.HERO_MP[nm]) - 64.0) > 0.01: fails.append("run carry " + str(g.HERO_MP[nm]))
-	var cf := ConfigFile.new(); cf.load("user://riftstrike.cfg")
+	var cf := ConfigFile.new(); cf.load("user://airrons_quest.cfg")
 	if int(cf.get_value("mp", nm, -1)) != 64: fails.append("saved mp " + str(cf.get_value("mp", nm, -1)))
 	g.start_fight(2)
 	for u in g.G.units:
 		if u.team == "blue" and u.name == nm and absf(u.gauge - minf(100.0, 64.0 + float(u.mana_regen))) > 0.01: fails.append("next fight mp " + str(u.gauge))
 	# no ability marked: full MP, AUTO -> basic attack, MP not spent by ability
 	g.run_battle()
-	g.AB_AUTO[nm] = ""
+	g.AB_SEQ[nm] = [[cid, "boss"]]
 	g.HERO_MP[nm] = 100.0
 	g.start_fight(3)
 	g.AUTO = true

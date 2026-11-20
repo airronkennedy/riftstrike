@@ -1,5 +1,5 @@
 extends RefCounted
-# Riftstrike overworld: data-driven tile world, named areas, story gates, wild encounters.
+# Airron's Quest overworld: data-driven tile world, named areas, story gates, wild encounters.
 # Data: res://data/world.json (graph, rec levels, gates, flags), world_tiles.json (area/gate tile
 # rects, props), world_map.txt (one char per 64px tile), encounters.json (wild tables).
 # Drawing calls back into the game node (g.img, g.draw_frame, g.text …) during its _draw.
@@ -249,7 +249,7 @@ func _build_chunks() -> void:
 			_add_prop(pr)
 
 
-# Sprite sheet layout per prop image key (all Tiny Swords, see docs/ASSET_LICENSES.md).
+# Sprite sheet layout per prop image key (Airron's Fall art and generated atlases, see docs/ASSET_LICENSES.md).
 # fw/fh frame size, n frames on row 0, ax/ay foot anchor, bw/bh foot block at s=1 (0 = walk-through).
 const PROP_DEFS := {
 	"tower": {"fw": 128, "fh": 256, "ax": 64, "ay": 235, "bw": 97, "bh": 43, "by": 37},
