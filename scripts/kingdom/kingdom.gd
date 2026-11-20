@@ -311,6 +311,8 @@ func load_map(id: String, at: Variant = null) -> void:
 	danger_row.visible = bool(map.encounters)
 	minimap.rebuild()
 	_refresh_hud()
+	var story := get_node_or_null("/root/Story") # story NPCs, quest markers (scripts/story/story.gd)
+	if story: story.on_map_loaded(self)
 
 
 func _add_prop(p: Dictionary) -> void:
@@ -740,6 +742,9 @@ func use(u: Dictionary) -> void:
 			if u.get("kind", "") == "npc" and u.has("node"):
 				hero = (u.node as KingdomView.Actor).hero
 			_open_dialog(str(u.name), str(u.text), hero)
+		"story": # story NPCs and spots (scripts/story/story.gd)
+			var story := get_node_or_null("/root/Story")
+			if story: story.use(self, u)
 
 
 func warp_to(id: String, at: Variant) -> void:
@@ -913,7 +918,8 @@ func _dialog_advance() -> void:
 
 
 func _modal_open() -> bool:
-	return shop.visible or inn.visible or menu.visible or dialog.visible
+	var story := get_node_or_null("/root/Story")
+	return shop.visible or inn.visible or menu.visible or dialog.visible or (story != null and story.ui_open())
 
 
 func _close(p: Control) -> void:
@@ -1644,6 +1650,10 @@ func _build_ui() -> void:
 	mv.add_child(rm_btn)
 	gfx_btn = _button("", func(): cycle_gfx())
 	mv.add_child(gfx_btn)
+	# Battle setup (scripts/target_select.gd): who the party hits when you don't tap a foe in target select
+	var tgt_btn := _button("Auto target: %s" % TargetSelect.label(), func(): pass)
+	tgt_btn.pressed.connect(func(): TargetSelect.cycle(); tgt_btn.text = "Auto target: %s" % TargetSelect.label(); _toast(str(TargetSelect.HINTS[TargetSelect.mode()])))
+	mv.add_child(tgt_btn)
 	mv.add_child(_button("Back to title", func(): save_game(); get_tree().change_scene_to_file("res://main.tscn")))
 	var cr := Label.new()
 	cr.theme_type_variation = "MutedLabel"

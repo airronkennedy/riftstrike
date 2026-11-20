@@ -125,7 +125,7 @@ const LEVEL_CAP := 10
 ## EXP needed to go from level L to L+1 (index 0 = Lv1->2). Sum = 10,520 EXP for Lv10 (~180 on-level battles).
 const XP_TO_NEXT := [285, 420, 570, 750, 1045, 1280, 1660, 2090, 2420]
 ## EXP per defeated foe by tier, scaled by foe level: base * (0.75 + 0.25 * level).
-const TIER_XP := {"regular": 10, "elite": 30, "boss": 80}
+const TIER_XP := {"regular": 11, "elite": 33, "miniboss": 50, "boss": 80}
 const SUB_SHARE := 0.5      # the equipped subclass earns half of the class EXP
 const LOSS_SHARE := 0.25    # a lost or fled fight still pays a quarter for foes already beaten
 const BENCH_SHARE := 0.0    # keepers not in the party earn nothing
@@ -157,3 +157,49 @@ static func level_factor(keeper_lv: int, foe_lv: int) -> float:
 	var d := keeper_lv - foe_lv
 	if d > 0: return maxf(0.4, 1.0 - OVER_PENALTY * d)
 	return minf(1.3, 1.0 + UNDER_BONUS * -d)
+
+
+# ---------------------------------------------------------------- auto-levelled foes (docs/BALANCE.md)
+## Every wild fight is levelled to the party: foe level = round(average equipped class level of the party)
+## + a random -1 / 0 / +1, clamped to 1..LEVEL_CAP. Regions only choose the foe pool, the art and the elite chance.
+## A foe stat is:   stat = base × FOE_BASE[stat] × FOE_TIER[tier][stat] × (1 + FOE_GROWTH[stat] × (level - 1))
+## where base is the foe kind's own stat line (game.gd char_stats for the red team).
+const FOE_LEVEL_SPREAD := 1
+const FOE_BASE := {"hp": 1.8, "atk": 1.6, "def": 1.0, "speed": 1.0, "mana": 1.0}
+const FOE_TIER := {
+	"regular": {"hp": 1.0, "atk": 1.0, "def": 1.0, "speed": 1.0, "mana": 1.0},
+	"elite": {"hp": 1.5, "atk": 1.15, "def": 1.1, "speed": 1.08, "mana": 1.25},
+	# Story fights (encounter.tiers, game.gd new_battle). With one regular escort at the party's level, the default
+	# party wins ~80% of mini-boss fights and ~65-70% of final-boss fights on AUTO (docs/BALANCE.md).
+	"miniboss": {"hp": 1.7, "atk": 1.1, "def": 1.2, "speed": 1.05, "mana": 1.4},
+	"boss": {"hp": 2.2, "atk": 1.2, "def": 1.3, "speed": 1.1, "mana": 1.5},
+}
+## Drawn size per tier (elites and bosses read bigger on the field).
+const FOE_SIZE := {"regular": 1.0, "elite": 1.15, "miniboss": 1.3, "boss": 1.5}
+const FOE_GROWTH := {"hp": 0.07, "atk": 0.035, "def": 0.05, "speed": 0.02, "mana": 0.03}
+
+
+static func foe_level(party_level: float, spread: int = FOE_LEVEL_SPREAD) -> int:
+	return clampi(int(roundf(party_level)) + randi_range(-spread, spread), 1, LEVEL_CAP)
+
+
+static func foe_scale(stat: String, tier: String, level: int) -> float:
+	var t: Dictionary = FOE_TIER.get(tier, FOE_TIER.regular)
+	return float(FOE_BASE.get(stat, 1.0)) * float(t.get(stat, 1.0)) * (1.0 + float(FOE_GROWTH.get(stat, 0.0)) * float(maxi(1, level) - 1))
+
+## Time model for the 4-hour target (tools/sim_balance.gd): one battle loop = the fight itself + LOOP_OVERHEAD_S
+## (walking until the danger meter fills, iris transitions, the results screen) + SELECT_S per party turn (the
+## target-select window; tapping a foe or AUTO skips it, so this is the slow, hands-off case).
+const LOOP_OVERHEAD_S := 25.0
+const SELECT_S := 2.6
+
+## Party HP between wild fights (QuestFlow.finish_battle): a win catches the party's breath and recovers
+## WIN_RECOVER of the missing HP (never below WIN_FLOOR); a loss leaves 1 HP (rest at the inn).
+## Without this, HP carried at ~60% into the next fight and the chained win rate fell under 50% (docs/BALANCE.md).
+const WIN_RECOVER := 0.8
+const WIN_FLOOR := 0.35
+
+static func hp_after_battle(won: bool, frac_left: float) -> float:
+	var f := clampf(frac_left, 0.0, 1.0)
+	if not won: return 0.0
+	return maxf(WIN_FLOOR, f + (1.0 - f) * WIN_RECOVER)

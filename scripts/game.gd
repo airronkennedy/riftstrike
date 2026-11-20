@@ -1,4 +1,10 @@
 extends Node2D
+
+## Side-view party turn hooks (scripts/target_select.gd):
+## party_select_started(turn) when the target-select window opens; party_target_locked(focus) once the focus is final
+## (tapped, or picked by the TargetSelect setting), right before bf_run_party_turn(focus) starts the attack sequence.
+signal party_select_started(turn: int)
+signal party_target_locked(focus)
 ## Airron's Quest — auto-battler with a 5-keeper party.
 ## Airron's Quest. Art: Airron's Fall (Airron Kennedy's own game art; see docs/ASSET_LICENSES.md).
 ## Everything is drawn immediate-mode in _draw(), mirroring the canvas renderer.
@@ -345,6 +351,11 @@ var AB_SUB_ROWS := {
 }
 
 ## Turn the template kits into the Airron's Fall keeper roster. Unlocked keepers form the squad;
+## Main story party gate (scripts/story/story.gd): the hero starts alone and Wardens join as they're recruited.
+func _story_allows(id: String) -> bool:
+	var st: Node = Engine.get_main_loop().root.get_node_or_null("Story") if Engine.get_main_loop() is SceneTree else null
+	return st == null or st.allows_keeper(id)
+
 ## locked keepers get full data (stats, class, kit, art) so unlocking one is just flipping "unlocked".
 func build_af_roster() -> void:
 	var tmpl_rows: Dictionary = AB_CLASS_ROWS.duplicate(true)
@@ -379,7 +390,7 @@ func build_af_roster() -> void:
 				i += 1
 		HERO_BASE[nm] = b
 		CHAR[nm] = {"cls": str(h.cls), "sub": str(h.sub), "ability": str(rows[0][0])}
-		if bool(h.get("unlocked", false)):
+		if bool(h.get("unlocked", false)) and _story_allows(str(h.id)):
 			HERO_NAMES.append(nm)
 	SQUAD = HERO_NAMES.duplicate()
 
@@ -549,7 +560,7 @@ func foe_for(kind: String, tier: String) -> String:
 	var rf: Dictionary = encounter.get("foes", {})
 	if tier == "regular" and rf.has(kind) and not (rf[kind] as Array).is_empty():
 		return str(pick(rf[kind]))
-	var table: Dictionary = AfRoster.FOE_ART[tier]
+	var table: Dictionary = AfRoster.FOE_ART.get(tier, AfRoster.FOE_ART.elite) # miniboss: elite art unless foe_ids says
 	var k: String = kind if table.has(kind) else "torch"
 	return str(pick(table[k]))
 
@@ -1180,6 +1191,10 @@ class Act:
 	var ability := ""
 
 class Unit:
+	var home0 := Vector2.INF # formation spot before any portrait squeeze
+	var hurt := 0.0 # ms left of the hurt reaction (flinch + red tint)
+	var bsq := 1.0 # combo squash / stretch (1 = none)
+	var trail := [] # recent dash positions for afterimages
 	var tier := "regular" # foe tier: regular | elite | boss (EXP and "boss or elite" rules)
 	var tnext := 0.0 # timeline: when this unit acts next (side-view turn order)
 	var letter := "" # enemy tag A, B, C
@@ -1262,12 +1277,15 @@ class Battle:
 	var end_t := 0.0
 	var result := ""
 	var ab_focus = null
-	var ctb := false # true: side-view battle with one unit per turn on a speed timeline
+	var ctb := false # true: side-view battle layout (team turns with combos, see bf)
 	var active = null # unit whose turn it is
 	var clock := 0.0
-	var cmd := "" # manual command menu state: "" | "abilities" | "items" | "target"
-	var pending := {} # {"type": "attack"|"ability", "id": ability id}
-	var items := {"potion": 3, "ether": 2}
+	var bf := false # Brave Frontier-style team turns (scripts/combo_turn.gd)
+	var focus = null # enemy the whole party focuses (tap in target select, else TargetSelect.pick)
+	var focus_tapped := false # true: the player picked focus (kept until it dies); false: re-picked every turn
+	var sel_t := 0.0 # target-select countdown (ms)
+	var turnc = null # ComboTurn running the current team turn
+	var summary := {} # last party turn: hits, sparks, dmg
 
 # ---------------------------------------------------------------- state
 var G: Battle = null
@@ -1276,7 +1294,7 @@ var screen := "" # "title" | "results" | "" (battle HUD)
 var paused := false
 var speed := 1
 var muted := false
-var AUTO := true # auto battler: on by default
+var AUTO := false # auto-continue: skip the target-select window (battles are always automatic)
 var last_raid := 3
 var fx := []
 var projectiles := []
@@ -1286,6 +1304,18 @@ var shake_mag := 0.0
 var banner = null
 var now := 0.0
 var hitstop := 0.0
+var cam_punch := 0.0 # combo camera punch (decays)
+# Battle camera (side view): frames the fighters tightly and pushes in on the attacker during hits, sparks and
+# Brave Bursts, then eases back out. world -> screen: p * cam_s + cam_off (logical screen px, before dpr).
+var cam_c := Vector2(512, 300)
+var cam_s := 1.0
+var cam_off := Vector2.ZERO
+var cam_snap := true
+var cam_rect := Rect2() # screen area the fighters are framed into
+
+var HERO_ORDER: Array = [] # Build "Attack Order": keeper names, first attacks first
+var HERO_DELAY := {} # Build: extra ms before a keeper starts (Combo.DELAY_STEP steps)
+const SELECT_MS := 2600.0 # target-select window before the party auto-attacks
 var sync_pending := []
 var params := {}
 var sfx
@@ -1312,7 +1342,8 @@ func new_battle(n: int = 0) -> void:
 	if enc_on:
 		red = build_encounter_roster()
 		n = red.size()
-		emult = encounter.get("mult", {}) if encounter.has("mult") else WORLD.enemy_mult(int(encounter.get("level", 1)))
+		if bool(encounter.get("auto", false)): emult = {} # auto-levelled: QuestRPG.foe_scale below
+		else: emult = encounter.get("mult", {}) if encounter.has("mult") else WORLD.enemy_mult(int(encounter.get("level", 1)))
 	else:
 		last_raid = n
 		red = build_red_roster(n)
@@ -1343,12 +1374,26 @@ func new_battle(n: int = 0) -> void:
 			else:
 				var tier := "regular" if (enc_on or n == 3) else ("elite" if n == 2 else "boss")
 				if enc_on and i == 0 and bool(encounter.get("elite", false)): tier = "elite"
+				# Story hook: encounter.tiers[i] sets foe i's tier ("regular" | "elite" | "miniboss" | "boss",
+				# QuestRPG.FOE_TIER) and encounter.foe_ids[i] its AfRoster.FOES art/name; see docs/BALANCE.md.
+				var etiers: Array = encounter.get("tiers", []) if enc_on else []
+				if i < etiers.size() and QuestRPG.FOE_TIER.has(str(etiers[i])): tier = str(etiers[i])
 				u.tier = tier
-				if enc_on and tier == "elite":
-					# a wild elite: tougher than its raid cousins' regular foes, still beatable at region level
+				if enc_on and bool(encounter.get("auto", false)):
+					# Auto-levelled foe: base × tier × level growth (QuestRPG.foe_scale, docs/BALANCE.md)
+					var fl := int(encounter.get("level", 1))
+					u.maxhp = maxi(30, int(roundf(u.maxhp * QuestRPG.foe_scale("hp", tier, fl)))); u.hp = u.maxhp; u.shown_hp = u.maxhp
+					u.atk = maxi(1, int(roundf(u.atk * QuestRPG.foe_scale("atk", tier, fl))))
+					u.def = maxi(1, int(roundf(u.def * QuestRPG.foe_scale("def", tier, fl))))
+					u.speed = maxi(1, int(roundf(u.speed * QuestRPG.foe_scale("speed", tier, fl))))
+					u.mana_regen = int(roundf(u.mana_regen * QuestRPG.foe_scale("mana", tier, fl)))
+					u.scale *= float(QuestRPG.FOE_SIZE.get(tier, 1.0))
+				elif enc_on and tier == "elite":
 					u.maxhp = int(u.maxhp * 2.0); u.hp = u.maxhp; u.shown_hp = u.maxhp
 					u.atk = int(u.atk * 1.3); u.scale *= 1.15
 				var fk := foe_for(kind, tier)
+				var eids: Array = encounter.get("foe_ids", []) if enc_on else []
+				if i < eids.size() and AfRoster.FOES.has(str(eids[i])): fk = str(eids[i])
 				u.K = art_K(kind, "f_" + fk, float(FOE_H.get(fk, 80.0)))
 				u.name = str(AfRoster.FOES[fk].name)
 			if team == "blue" and CHAR.has(u.name):
@@ -1364,6 +1409,7 @@ func new_battle(n: int = 0) -> void:
 			battle_area = str(BOSS_AREA[bu.name])
 	G = Battle.new()
 	G.units = units
+	res_combo_hits = 0; res_combo_sparks = 0; res_best_combo = 0
 	G.n_red = n
 	fx = []; projectiles = []; texts = []; banner = null; cast_banner = null; screen_flash = null
 
@@ -1451,7 +1497,7 @@ func gain_mp(u, amt: float) -> void:
 	var was: float = u.gauge
 	u.gauge = minf(100.0, u.gauge + amt)
 	if u.team == "blue" and was < AB_MP and u.gauge >= AB_MP and not u.dead and phase == "battle":
-		add_text(u.x, stack_y(u, u.y - u.K.head * uS(u) - 40), "MP FULL!", "#fff27a", 14, 900, true)
+		add_text(u.x, stack_y(u, u.y - u.K.head * uS(u) - 40), "BB READY!", "#fff27a", 14, 900, true)
 		fx.append({"type": "ring", "x": u.x, "y": u.y - 10, "t": 0.0, "life": 420.0, "color": Color("#fff27a")})
 		sfx.tone(1320, 0.07, "triangle", 0.03, 1.2)
 
@@ -1473,6 +1519,7 @@ func begin_swing(u) -> void:
 
 func update_unit(u, dt: float) -> void:
 	if u.flash > 0: u.flash -= dt
+	if u.hurt > 0: u.hurt = maxf(0.0, u.hurt - dt)
 	if u.shake > 0: u.shake -= dt
 	u.kx *= pow(0.0001, dt / 1000.0)
 	u.shown_hp += (u.hp - u.shown_hp) * minf(1.0, dt / 220.0)
@@ -1822,6 +1869,7 @@ func update_projectiles(dt: float) -> void:
 func busy() -> bool:
 	if projectiles.size() > 0: return true
 	if sync_pending.size() > 0: return true
+	if G.bf and G.turnc != null and G.turnc.running: return true
 	for u in G.units:
 		if u.act != null: return true
 	return false
@@ -1898,134 +1946,239 @@ func controller(dt: float) -> void:
 		if busy(): return
 		G.queue = []; G.cur = null
 		if alive("red").is_empty() or alive("blue").is_empty(): return
-		if G.ctb: next_turn()
-		elif G.side == "blue": begin_enemy_turn()
+		if G.side == "blue": begin_enemy_turn()
 		else: begin_player_turn()
 
-# ---------------------------------------------------------------- side-view timeline (one unit per turn)
-const TL_ROUND := 8.0 # timeline units per "turn" (surge, mods and banners count turns)
-func ct_step(u) -> float:
-	var s: float = 100.0 / maxf(4.0, float(u.speed))
-	# A raid boss is one unit against five: it acts twice as often so the fight has real pressure.
-	if u.team == "red" and G.n_red == 1 and encounter.is_empty(): s *= 0.5
-	return s
+# ---------------------------------------------------------------- battle camera
+const CAM_MAX := 2.3 # never zoom tighter than this (screen px per world px)
+const CAM_PUSH := 1.12 # zoom on the attacker vs the base framing
+const CAM_PUSH_BB := 1.22
+const CAM_EASE_C := 4.5 # 1/s smoothing
+const CAM_EASE_Z := 3.6
+
+func battle_cam_rect() -> Rect2:
+	var port: bool = VHc > VWc
+	var top: float = SAFE_T + (96.0 if port else 58.0)
+	var bot: float = SAFE_B + (170.0 if port else 92.0)
+	return Rect2(SAFE_L + 8.0, top, VWc - SAFE_L - SAFE_R - 16.0, maxf(120.0, VHc - top - bot))
+
+## The fighters' bounding box (home spots, so dashes don't yank the frame).
+func battle_box() -> Rect2:
+	var lo := Vector2(1e9, 1e9)
+	var hi := Vector2(-1e9, -1e9)
+	for u in G.units:
+		if u.gone or (u.dead and u.death_t > 900.0): continue
+		var h: float = float(u.K.head) * uS(u)
+		lo = lo.min(Vector2(u.hx - 48.0, u.hy - h - 34.0))
+		hi = hi.max(Vector2(u.hx + 48.0, u.hy + 20.0))
+	if lo.x > hi.x: return Rect2(200, 150, 600, 300)
+	return Rect2(lo, hi - lo)
+
+## Where to push in: the unit striking now (and its target), harder for a Brave Burst; the party on victory.
+func cam_focus() -> Dictionary:
+	if phase == "ending" and G.result == "win":
+		var c := Vector2.ZERO
+		var n := 0
+		for u in alive("blue"):
+			c += Vector2(u.x, u.y - float(u.K.head) * uS(u) * 0.5); n += 1
+		if n > 0: return {"pos": c / n, "w": 0.75, "z": 1.16}
+		return {}
+	if not G.bf or G.turnc == null or not G.turnc.running: return {}
+	var tc = G.turnc
+	var best = null
+	for st in tc.strikes:
+		if st.u.dead or float(st.t0) > tc.clock: continue
+		if tc.clock > float(st.last) + Combo.RECOVER * 0.5: continue
+		if best == null or float(st.t0) > float(best.t0): best = st
+	if best == null: return {}
+	var u = best.u
+	var up := Vector2(u.x, u.y - float(u.K.head) * uS(u) * 0.5)
+	var bb: bool = best.ab != "" or best.foe_bb
+	var first: float = float(best.times[0]) if not best.times.is_empty() else float(best.last)
+	var tgt = best.target
+	var pos := up
+	if tgt != null and tgt != u and tc.clock >= first - 120.0:
+		pos = up.lerp(Vector2(tgt.x, tgt.y - float(tgt.K.head) * uS(tgt) * 0.5), 0.5)
+	var z: float = CAM_PUSH_BB if bb else CAM_PUSH
+	if tc.clock - tc.last_spark_t < 160.0: z += 0.05
+	return {"pos": pos, "w": 0.6 if bb else 0.45, "z": z}
+
+func battle_cam_update(dt: float) -> void:
+	if G == null or not G.ctb:
+		cam_snap = true
+		return
+	cam_rect = battle_cam_rect()
+	_fit_formation()
+	var box := battle_box()
+	var fit: float = minf(cam_rect.size.x / box.size.x, cam_rect.size.y / box.size.y)
+	fit = minf(fit, CAM_MAX)
+	var goal_c := box.get_center()
+	var goal_s := fit
+	var f := cam_focus()
+	if not f.is_empty():
+		goal_c = goal_c.lerp(f.pos, float(f.w))
+		goal_s = minf(fit * float(f.z), CAM_MAX * 1.12)
+	if cam_snap:
+		cam_c = goal_c; cam_s = goal_s; cam_snap = false
+	else:
+		cam_c = cam_c.lerp(goal_c, 1.0 - exp(-dt / 1000.0 * CAM_EASE_C))
+		cam_s = lerpf(cam_s, goal_s, 1.0 - exp(-dt / 1000.0 * CAM_EASE_Z))
+	var s_now: float = cam_s * (1.0 + 0.028 * minf(1.5, cam_punch))
+	cam_off = cam_rect.get_center() - cam_c * s_now
+
+## Phone portrait: pull the two sides together and spread them vertically so the camera can get close.
+var _form_key := ""
+func _fit_formation() -> void:
+	var port: bool = cam_rect.size.y > cam_rect.size.x * 1.1
+	var key := ("p" if port else "l") + str(G.units.size())
+	if key == _form_key: return
+	_form_key = key
+	var c := Vector2.ZERO
+	var n := 0
+	for u in G.units:
+		if u.home0 == Vector2.INF: u.home0 = Vector2(u.hx, u.hy)
+		c += u.home0; n += 1
+	if n == 0: return
+	c /= n
+	var sx: float = 0.62 if port else 1.0
+	var sy: float = 1.3 if port else 1.0
+	var busy_now: bool = G.turnc != null and G.turnc.running
+	for u in G.units:
+		u.hx = c.x + (u.home0.x - c.x) * sx
+		u.hy = c.y + (u.home0.y - c.y) * sy
+		if not busy_now: u.x = u.hx; u.y = u.hy
+
+func screen_to_world(p: Vector2) -> Vector2:
+	if G != null and G.ctb:
+		return (p - cam_off) / (cam_s * (1.0 + 0.028 * minf(1.5, cam_punch)))
+	return Vector2((p.x - OX) / vscale, (p.y - OY) / vscale)
 
 func begin_timeline() -> void:
-	G.ctb = true; G.turn = 1; G.clock = 0.0; G.items = {"potion": 3, "ether": 2}
+	# Side-view auto battle with Brave Frontier-style team turns (docs/COMBO.md).
+	G.ctb = true; G.bf = true; G.turn = 0; G.clock = 0.0
+	cam_snap = true; _form_key = ""
+	G.turnc = ComboTurn.new()
 	var li := 0
 	for u in G.units:
-		u.tnext = ct_step(u) * rand(0.15, 0.9)
 		if u.team == "red":
 			u.letter = "ABCDEFGH".substr(li, 1); li += 1
 	banner = {"text": "", "sub": "", "t": 0.0, "life": 1000.0, "color": "blue"}
-	next_turn()
+	bf_select()
 
-## The next n turns, soonest first (alive units only), without changing anything.
-func timeline_preview(n: int) -> Array:
-	var tn := {}
-	var al: Array = G.units.filter(func(x): return not x.dead)
-	for u in al: tn[u] = u.tnext
+# ---------------------------------------------------------------- team turns + combos
+## Party turn opens with a short target select: tap an enemy to focus everyone, or wait (AUTO skips it).
+func bf_select() -> void:
+	if alive("red").is_empty() or alive("blue").is_empty(): return
+	G.turn += 1; G.side = "blue"; G.active = null
+	tick_mods("blue")
+	apply_mana_regen("blue")
+	if G.focus != null and (G.focus.dead or not G.focus_tapped): G.focus = null
+	if G.focus == null: G.focus_tapped = false
+	G.mode = "select"; G.sel_t = SELECT_MS
+	party_select_started.emit(G.turn)
+	banner = {"text": "YOUR TURN", "sub": "Tap an enemy to focus · or let the team pick" if not AUTO else "Turn %d" % G.turn, "t": 0.0, "life": 900.0, "color": "blue"}
+	if G.turn == 4: banner.sub = "RIFT SURGE — damage rising!"
+	sfx.tone(523, 0.08, "square", 0.04)
+
+func bf_focus(t) -> void:
+	if G == null or not G.bf or G.mode != "select" or t == null or t.dead or t.team != "red": return
+	G.focus = t; G.focus_tapped = true
+	t.pop = 200.0
+	sfx.tone(880, 0.05, "triangle", 0.03)
+	bf_launch()
+
+func bf_cycle_focus(dir: int) -> void:
+	var foes := alive("red")
+	if foes.is_empty() or G.mode != "select": return
+	foes.sort_custom(func(a, b): return a.y < b.y)
+	var i := foes.find(G.focus)
+	G.focus = foes[posmod(i + dir, foes.size())] if i >= 0 else foes[0]
+	G.focus_tapped = true
+	G.sel_t = maxf(G.sel_t, 1200.0)
+	sfx.tone(740, 0.04, "triangle", 0.025)
+
+## Without a tapped focus the party agrees on one target (so their hits can spark), chosen by the player's
+## Auto target setting outside combat (TargetSelect: Finish Off, Biggest Threat, Elites First, Backline First).
+func bf_auto_target():
+	return TargetSelect.pick(alive("red"))
+
+## Build "Attack Order": party keeper names, first attacker first (HERO_ORDER filtered + anyone missing).
+func attack_order() -> Array:
+	var party: Array = party_names()
 	var out: Array = []
-	if al.is_empty(): return out
-	for i in n:
-		var best = null
-		for u in al:
-			if best == null or float(tn[u]) < float(tn[best]) or (float(tn[u]) == float(tn[best]) and u.speed > best.speed): best = u
-		out.append(best)
-		tn[best] = float(tn[best]) + ct_step(best)
+	for nm in HERO_ORDER:
+		if party.find(nm) >= 0 and out.find(nm) < 0: out.append(nm)
+	for nm in party:
+		if out.find(nm) < 0: out.append(nm)
 	return out
 
-func tick_unit_mods(u) -> void:
-	for i in range(u.buffs.size() - 1, -1, -1):
-		var b: Dictionary = u.buffs[i]
-		b.turns = int(b.turns) - 1
-		if int(b.turns) <= 0:
-			u.set(str(b.stat), int(u.get(str(b.stat))) - int(b.d))
-			u.buffs.remove_at(i)
+func set_attack_order(names: Array) -> void:
+	HERO_ORDER = names.duplicate()
+	save_cfg()
 
-func next_turn() -> void:
-	if alive("red").is_empty() or alive("blue").is_empty(): return
-	var nx: Array = timeline_preview(1)
-	if nx.is_empty(): return
-	var u = nx[0]
-	G.clock = u.tnext
-	u.tnext += ct_step(u)
-	G.turn = int(G.clock / TL_ROUND) + 1
-	G.active = u; G.side = u.team; G.queue = []; G.qi = 0; G.cur = null; G.ab_focus = null
-	G.cmd = ""; G.pending = {}
-	for bu in G.units: bu.ab_queued = ""
-	tick_unit_mods(u)
-	if u.mana_regen > 0: gain_mp(u, u.mana_regen)
-	u.pop = 160.0
-	if u.team == "red":
-		G.queue = [u]
-		plan_actions(G.queue)
-		G.mode = "enemyIntro"; G.gap = 320
-	else:
-		G.mode = "select"
-		cmd_hover = 0
-		sfx.tone(587, 0.05, "triangle", 0.03)
+func set_hero_delay(nm: String, ms: float) -> void:
+	HERO_DELAY[nm] = clampf(snappedf(ms, Combo.DELAY_STEP), 0.0, Combo.DELAY_MAX)
+	save_cfg()
 
-## Manual turn: the active hero acts on a chosen target (attack or a queued ability).
-func manual_execute(target) -> void:
-	var u = G.active
-	if u == null or G.mode != "select" or phase != "battle": return
-	G.queue = [u]
-	plan_actions(G.queue)
-	if target != null and u.plan != null and not target.dead and target.team != u.team: u.plan.target = target
-	G.cmd = ""
-	G.mode = "resolve"; G.side = "blue"; G.qi = 0; G.gap = LAUNCH_FIRST; G.cur = null
+func bf_order(team: String) -> Array:
+	var us := alive(team)
+	if team == "red": return shuffled(us)
+	var out: Array = []
+	for nm in HERO_ORDER:
+		for u in us:
+			if u.name == nm and out.find(u) < 0: out.append(u)
+	for u in us:
+		if out.find(u) < 0: out.append(u)
+	return out
+
+func bf_launch() -> void:
+	if G.mode != "select" or phase != "battle": return
+	G.mode = "strike"; G.side = "blue"
+	if G.focus == null or G.focus.dead:
+		G.focus = bf_auto_target(); G.focus_tapped = false
+	party_target_locked.emit(G.focus)
+	bf_run_party_turn(G.focus)
+
+## The party's attack sequence after targeting (combo system, scripts/combo_turn.gd). focus: the locked target.
+func bf_run_party_turn(focus) -> void:
+	G.turnc.start(self, "blue", bf_order("blue"), HERO_DELAY, focus)
 	sfx.fight()
 
-## Ends the active hero's turn without an attack (Defend, Items).
-func end_turn_quiet(delay: float = 420.0) -> void:
-	G.queue = []; G.cmd = ""
-	G.mode = "resolve"; G.qi = 0; G.gap = delay; G.cur = null
+func bf_enemy_turn() -> void:
+	if alive("red").is_empty() or alive("blue").is_empty(): return
+	G.side = "red"
+	tick_mods("red")
+	apply_mana_regen("red")
+	G.mode = "strike"
+	G.turnc.start(self, "red", bf_order("red"), {}, null)
+	banner = {"text": "ENEMY TURN", "sub": "", "t": 0.0, "life": 750.0, "color": "red"}
+	sfx.tone(220, 0.15, "sawtooth", 0.04, 0.8)
 
-func cmd_attack() -> void:
-	if G.mode != "select" or AUTO: return
-	G.cmd = "target"; G.pending = {"type": "attack"}
-	sfx.tone(660, 0.04, "triangle", 0.03)
+func bf_controller(dt: float) -> void:
+	match G.mode:
+		"select":
+			if paused: return
+			G.sel_t -= dt
+			if AUTO or G.sel_t <= 0.0: bf_launch()
+		"strike":
+			if G.turnc.running: return
+			if G.side == "blue":
+				var tc = G.turnc
+				G.summary = {"hits": tc.hits, "sparks": tc.sparks, "dmg": tc.dmg, "t": 0.0, "rate": float(tc.sparks) / maxf(1.0, float(tc.hits))}
+				res_combo_hits += tc.hits; res_combo_sparks += tc.sparks
+				res_best_combo = maxi(res_best_combo, tc.hits)
+			G.mode = "gap"; G.gap = 700.0 if G.side == "blue" else 420.0
+		"gap":
+			G.gap -= dt
+			if G.gap > 0.0: return
+			if alive("red").is_empty() or alive("blue").is_empty(): return
+			if G.side == "blue": bf_enemy_turn()
+			else: bf_select()
 
-func cmd_ability(id: String) -> void:
-	var u = G.active
-	if u == null or not ABILITY_DEFS.has(id) or u.gauge < AB_MP: return
-	u.ab_queued = id
-	var kind: String = str(ABILITY_DEFS[id].kind)
-	if kind == "damage_single":
-		G.cmd = "target"; G.pending = {"type": "ability", "id": id}
-	else:
-		manual_execute(null)
+var res_combo_hits := 0
+var res_combo_sparks := 0
+var res_best_combo := 0
 
-func cmd_defend() -> void:
-	var u = G.active
-	if u == null or G.mode != "select": return
-	add_mod(u, "def", 40, 1); add_mod(u, "armor", 10, 1)
-	gain_mp(u, 30)
-	add_text(u.x, u.y - u.K.head * uS(u) - 30, "DEFEND", "#9fe3ff", 17, 900, true)
-	fx.append({"type": "aura", "unit": u, "t": 0.0, "life": 800.0, "color": Color("#7fd8ff")})
-	sfx.tone(392, 0.08, "triangle", 0.04)
-	end_turn_quiet()
-
-func cmd_item(which: String) -> void:
-	var u = G.active
-	if u == null or G.mode != "select" or int(G.items.get(which, 0)) <= 0: return
-	G.items[which] = int(G.items[which]) - 1
-	if which == "potion":
-		heal_unit(lowest_ally(u), 0.35)
-	else:
-		gain_mp(u, 50)
-		add_text(u.x, u.y - u.K.head * uS(u) - 30, "+50 MP", "#7fb8ff", 17, 900, true)
-	sfx.tone(784, 0.06, "triangle", 0.03)
-	end_turn_quiet()
-
-func cmd_target(t) -> void:
-	if t == null or t.dead or t.team == "blue" or G.mode != "select" or AUTO: return
-	if G.pending.get("type", "") == "ability" and G.active != null:
-		G.active.ab_queued = str(G.pending.id)
-	manual_execute(t)
-
-var cmd_hover := 0
 var tips_on := true
 
 func toggle_queue(u) -> void:
@@ -2099,14 +2252,17 @@ func step(dt: float) -> void:
 		if hitstop > 0:
 			hitstop -= dt; dt *= 0.15
 		G.t += dt
-		if phase == "battle" and AUTO and G.mode == "select" and not paused:
+		if phase == "battle" and AUTO and G.mode == "select" and not paused and not G.bf:
 			auto_queue_turn()
 		var order := shuffled(G.units)
 		for u in order: update_unit(u, dt)
 		update_projectiles(dt)
 		flush_sync(dt)
+		if G.bf and G.turnc != null: G.turnc.update(self, dt)
+		if G.bf and G.summary.has("t"): G.summary.t = float(G.summary.t) + dt
 		if phase == "battle":
-			controller(dt)
+			if G.bf: bf_controller(dt)
+			else: controller(dt)
 			var b := alive("blue").size()
 			var r := alive("red").size()
 			if (b == 0 or r == 0) and not busy():
@@ -2133,6 +2289,7 @@ func step(dt: float) -> void:
 		texts[q].t += dt
 		if texts[q].t >= texts[q].life: texts.remove_at(q)
 	if shake_t > 0: shake_t -= dt
+	if cam_punch > 0: cam_punch = maxf(0.0, cam_punch - dt / 160.0)
 	if banner != null:
 		banner.t += dt
 		if banner.t > banner.life: banner = null
@@ -2586,13 +2743,37 @@ func draw_unit(u) -> void:
 		restore()
 	if K.get("static", false):
 		# Static Airron's Fall sprites: breathing idle, hop while running, squash on the swing.
+		var ph: float = float(hash(u.id) % 1000)
+		var hp_frac: float = float(u.hp) / maxf(1.0, float(u.maxhp))
 		if u.anim == "run":
 			y -= absf(sin((now + u.at) / 85.0)) * 5.0
+		elif phase == "ending" and ((G.result == "win" and u.team == "blue") or (G.result == "lose" and u.team == "red")):
+			# victory: staggered hops, a little stretch at the top
+			var vh: float = absf(sin((now + ph * 3.0) / 190.0))
+			y -= vh * 14.0
+			sq *= 1.0 + 0.06 * vh
 		else:
-			sq *= 1.0 + 0.018 * sin((now + u.at) / 320.0)
+			# idle: breathing + a gentle bob; wounded units breathe slower and sag
+			var rate: float = 320.0 if hp_frac > 0.3 else 520.0
+			sq *= 1.0 + (0.024 if hp_frac > 0.3 else 0.034) * sin((now + ph * 7.0) / rate)
+			y -= (1.6 * sin((now + ph * 5.0) / 460.0)) if hp_frac > 0.3 else -2.0
+		if u.hurt > 0.0:
+			var hk: float = u.hurt / 260.0
+			sq *= 1.0 - 0.07 * hk
+			x -= float(u.facing) * 5.0 * hk
 		if u.act != null and u.act.stage == "atk":
 			sq *= 1.06
+	sq *= u.bsq
 	var face: int = u.facing * int(K.get("nf", 1))
+	if not u.trail.is_empty():
+		# dash afterimages (Airron's Fall art is single-pose: speed reads through ghosts)
+		var fsc2: float = uS(u) * fsc
+		var src2 := Rect2(fr.x * f.fw, fr.y * f.fh, f.fw, f.fh)
+		for ti in u.trail.size():
+			var tp: Vector2 = u.trail[ti]
+			save(); tr_(roundf(tp.x), roundf(tp.y)); scale_by((-1.0 if face < 0 else 1.0) / sq, sq)
+			draw_texture_rect_region(WHITE[K.img], Rect2(-f.ax * fsc2, -f.ay * fsc2, f.fw * fsc2, f.fh * fsc2), src2, ca(Color(1.0, 0.72, 0.38, 0.32 * (1.0 - float(ti) / u.trail.size()))))
+			restore()
 	save(); tr_(roundf(x), roundf(y)); scale_by((-1.0 if face < 0 else 1.0) / sq, sq)
 	var sc := uS(u) * fsc
 	var sw: float = f.fw * sc
@@ -2609,6 +2790,8 @@ func draw_unit(u) -> void:
 	draw_texture_rect_region(IMG[K.img], Rect2(ox0, oy0, sw, sh), src, ca(Color.WHITE))
 	if u.flash > 0:
 		draw_texture_rect_region(WHITE[K.img], Rect2(ox0, oy0, sw, sh), src, ca(Color(1, 1, 1, minf(1.0, u.flash / 80.0))))
+	if u.hurt > 0 and u.flash <= 0:
+		draw_texture_rect_region(WHITE[K.img], Rect2(ox0, oy0, sw, sh), src, ca(Color(1.0, 0.25, 0.18, 0.35 * u.hurt / 260.0)))
 	restore()
 
 func queued_num(u) -> int:
@@ -2683,6 +2866,18 @@ func draw_fx(e: Dictionary) -> void:
 				draw_line(Vector2(cos(a), sin(a)) * r * 0.35, Vector2(cos(a), sin(a)) * r, ca(c), 4.0 if e.big else 3.0)
 			draw_circle(Vector2.ZERO, maxf(0.01, (9.0 if e.big else 6.0) * (1 - k)), ca(Color.WHITE))
 			restore()
+		"burst":
+			# spark particles: shards flying out from the hit point
+			var bk: float = e.t / e.life
+			var rr := RandomNumberGenerator.new(); rr.seed = int(e.seed)
+			save(); _alpha *= 1.0 - bk
+			for i in 10:
+				var ang := rr.randf() * TAU
+				var spd := rr.randf_range(60.0, 150.0)
+				var pp := Vector2(e.x, e.y) + Vector2(cos(ang), sin(ang)) * spd * (1.0 - pow(1.0 - bk, 2.0)) + Vector2(0, 30.0 * bk * bk)
+				draw_line(pp, pp - Vector2(cos(ang), sin(ang)) * 8.0 * (1.0 - bk), ca(e.color), 2.5)
+			draw_circle(Vector2(e.x, e.y), maxf(0.01, 10.0 * (1.0 - bk)), ca(Color(1, 1, 0.85, 0.6)))
+			restore()
 		"ring":
 			var kk: float = e.t / e.life
 			save(); _alpha *= 1 - kk
@@ -2749,12 +2944,15 @@ func draw_projectile(p) -> void:
 
 func draw_text_fx(t: Dictionary) -> void:
 	var k: float = t.t / t.life
-	var y: float = t.y - 34 * (1 - pow(1 - k, 2))
+	var still: bool = t.get("still", false)
+	var y: float = t.y - (0.0 if still else float(t.get("rise", 34.0)) * (1 - pow(1 - k, 2)))
 	var sc: float
-	if t.pop: sc = 1.7 - k / 0.12 * 0.7 if k < 0.12 else 1.0
+	if still: sc = 1.35 - k / 0.1 * 0.35 if k < 0.1 else 1.0
+	elif t.pop: sc = 1.7 - k / 0.12 * 0.7 if k < 0.12 else 1.0
 	else: sc = 1.3 - k / 0.08 * 0.3 if k < 0.08 else 1.0
 	save(); _alpha *= 1 - (k - 0.7) / 0.3 if k > 0.7 else 1.0
-	tr_(t.x, y); scale_by(sc, sc)
+	var tz: float = pow(1.0 / maxf(0.5, cam_s), 0.55) if (G != null and G.ctb and screen == "") else 1.0
+	tr_(t.x, y); scale_by(sc * tz, sc * tz)
 	var fsz := roundf(t.size * TS)
 	text(t.s, 0, 0, fsz, t.color, "center", maxf(3, fsz / 4.5))
 	restore()
@@ -3254,7 +3452,9 @@ func save_cfg() -> void:
 		for rr in seq_of(name):
 			sq.append(str(rr[0]) + ":" + str(rr[1]))
 		cf.set_value("ab_seq", name, ",".join(sq))
-	cf.set_value("rs", "auto", AUTO)
+	cf.set_value("rs", "auto_go", AUTO)
+	cf.set_value("combo", "order", ",".join(HERO_ORDER))
+	for nm in HERO_DELAY: cf.set_value("combo_delay", str(nm), int(HERO_DELAY[nm]))
 	cf.set_value("rs", "rpg_v", 2)
 	cf.set_value("party", "squad", ",".join(SQUAD))
 	cf.set_value("inv", "bag", ",".join(INV))
@@ -3276,7 +3476,12 @@ func load_cfg() -> void:
 		INV = STARTER_BAG.duplicate()
 		return
 	muted = bool(cf.get_value("rs", "muted", muted))
-	AUTO = bool(cf.get_value("rs", "auto", true))
+	AUTO = bool(cf.get_value("rs", "auto_go", false))
+	var ho: String = str(cf.get_value("combo", "order", ""))
+	HERO_ORDER = Array(ho.split(",", false)) if ho != "" else []
+	HERO_DELAY = {}
+	if cf.has_section("combo_delay"):
+		for nm in cf.get_section_keys("combo_delay"): HERO_DELAY[nm] = clampf(float(cf.get_value("combo_delay", nm, 0)), 0.0, Combo.DELAY_MAX)
 	for name in HERO_NAMES:
 		var raw = cf.get_value("loadout", name, "")
 		if typeof(raw) == TYPE_STRING and raw != "":
@@ -4541,6 +4746,36 @@ func draw_cast_banner() -> void:
 	var al: float = 1.0 - (k - 0.8) / 0.2 if k > 0.8 else 1.0
 	var sc: float = 1.35 - k / 0.1 * 0.35 if k < 0.1 else 1.0
 	var col: Color = cast_banner.color
+	if G != null and G.bf:
+		# Brave Burst cut-in: a full-width strip across the upper field, name slides in, holds, slides out.
+		var bt: float = cast_banner.t
+		var life: float = cast_banner.life
+		var inn: float = clampf(bt / 160.0, 0.0, 1.0)
+		var outk: float = clampf((bt - (life - 220.0)) / 220.0, 0.0, 1.0)
+		var bh := 56.0
+		var by: float = SAFE_T + 34.0
+		var open_h: float = bh * (1.0 - pow(1.0 - inn, 3.0)) * (1.0 - outk)
+		if open_h < 1.0: return
+		draw_rect(Rect2(0, by - open_h / 2.0, VWc, open_h), Color(0.04, 0.03, 0.025, 0.82))
+		draw_rect(Rect2(0, by - open_h / 2.0, VWc, 1.5), Color(col.r, col.g, col.b, 0.9))
+		draw_rect(Rect2(0, by + open_h / 2.0 - 1.5, VWc, 1.5), Color(col.r, col.g, col.b, 0.9))
+		var slide: float = (1.0 - pow(1.0 - inn, 3.0)) - outk * outk
+		var tx: float = lerpf(-VWc * 0.3, VWc / 2.0, slide) + (bt * 0.02)
+		save(); _alpha *= (1.0 - outk)
+		var old: Font = _font_override
+		_font_override = FONT_TITLE
+		text(str(cast_banner.text), tx, by - 6, 20.0, col.lightened(0.25), "center", 4, Color(0, 0, 0, 0.9))
+		_font_override = old
+		text(str(cast_banner.sub), tx, by + 14, 11.0, AfTheme.INK, "center", 3, Color(0, 0, 0, 0.9))
+		# caster portrait + name riding in front of the title
+		var cu = cast_banner.get("unit", null)
+		if cu != null and HUD != null:
+			var tw: float = maxf(text_w(str(cast_banner.text), 20.0), text_w(str(cast_banner.sub), 11.0))
+			var pc := Vector2(tx - tw / 2.0 - 46.0, by)
+			HUD.portrait(self, cu, pc, 30.0, col.lightened(0.2), 2.0)
+			text(str(cast_banner.get("who", "")).to_upper(), pc.x, by + 34.0, 10.0, AfTheme.GOLD, "center", 3, Color(0, 0, 0, 0.9))
+		restore()
+		return
 	var fs := 22.0
 	var sfs := 12.0
 	var w: float = minf(VWc - 20, maxf(text_w(str(cast_banner.text), fs) + 120, text_w(str(cast_banner.sub), sfs) + 60))
@@ -4784,7 +5019,11 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, VWc, VHc), Color("#1a1612"))
 	var side_view: bool = G != null and G.ctb and screen != "title"
 	if side_view: HUD.draw_backdrop(self)
-	set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
+	if side_view:
+		var cs: float = cam_s * (1.0 + 0.028 * minf(1.5, cam_punch))
+		set_xf(base * Transform2D(Vector2(cs, 0), Vector2(0, cs), cam_off))
+	else:
+		set_xf(base * Transform2D(Vector2(vscale, 0), Vector2(0, vscale), Vector2(OX, OY)))
 	save()
 	if shake_t > 0:
 		tr_((randf() - 0.5) * shake_mag * 2 * (shake_t / 240.0), (randf() - 0.5) * shake_mag * 2 * (shake_t / 240.0))
@@ -4805,9 +5044,19 @@ func _draw() -> void:
 			draw_frame(IMG[p.img], p.fw, p.fh, fr, 0, p.x, p.y, p.ax, p.ay, p.s, p.get("flip", false))
 		elif o[1] == 1: draw_unit(o[2])
 		else: draw_fx(o[2])
+	var fz: float = pow(1.0 / maxf(0.5, cam_s), 0.6) if side_view else 1.0
 	for e in fx:
-		if e.type != "sprite": draw_fx(e)
+		if e.type == "sprite": continue
+		if fz != 1.0 and e.has("x") and (e.type == "spark" or e.type == "ring" or e.type == "burst" or e.type == "slash" or e.type == "pulse"):
+			# camera zoom makes the fighters big; keep impact fx crisp instead of screen-filling
+			save(); tr_(float(e.x), float(e.y)); scale_by(fz, fz); tr_(-float(e.x), -float(e.y))
+			draw_fx(e)
+			restore()
+		else:
+			draw_fx(e)
 	for p in projectiles: draw_projectile(p)
+	if G != null and G.bf and G.turnc != null:
+		for p in G.turnc.projs: draw_projectile(p)
 	if side_view:
 		for u in G.units: HUD.unit_overlay(self, u)
 	elif G != null and phase != "title":
@@ -4853,7 +5102,7 @@ func title_new_game() -> void:
 func start_kingdom_battle(region: String) -> void:
 	var qf := get_node_or_null("/root/QuestFlow")
 	if qf == null: return
-	var e: Dictionary = qf.encounter_for(region)
+	var e: Dictionary = qf.encounter_for(region, QuestRPG.foe_level(raid_party_level()))
 	encounter = e
 	new_battle(3)
 	if AREAS.has(str(e.area)): battle_area = str(e.area)
@@ -4865,6 +5114,9 @@ func start_kingdom_battle(region: String) -> void:
 	banner.text = "AMBUSH!"
 	banner.sub = str(e.get("region", "")).capitalize() + "  ·  Lv." + str(int(e.get("level", 1)))
 	banner.color = "yellow"; banner.life = 1400.0
+	if str(e.get("banner", "")) != "": # story fights (scripts/story/story_data.gd BATTLES)
+		banner.text = str(e.banner); banner.sub = str(e.get("banner_sub", "")) + "  ·  Lv." + str(int(e.get("level", 1)))
+		banner.color = "red" if bool(e.get("boss", false)) else "yellow"; banner.life = 2000.0
 	sfx.tone(392, 0.09, "square", 0.04)
 
 func kingdom_battle() -> bool:
@@ -5065,10 +5317,10 @@ func on_release(p: Vector2) -> void:
 
 func canvas_tap(cx: float, cy: float) -> void:
 	if G == null or phase != "battle" or G.mode != "select" or paused: return
-	var wx := (cx - OX) / vscale
-	var wy := (cy - OY) / vscale
+	var wp0 := screen_to_world(Vector2(cx, cy))
+	var wx := wp0.x
+	var wy := wp0.y
 	if G.ctb:
-		if AUTO or G.active == null or G.active.team != "blue": return
 		var bt = null
 		var bd2 := 1e9
 		for e in alive("red"):
@@ -5078,7 +5330,7 @@ func canvas_tap(cx: float, cy: float) -> void:
 			var d2 := sqrt(dx2 * dx2 + dy2 * dy2 * 0.5)
 			if d2 < maxf(70.0, hh * 0.8) and d2 < bd2:
 				bd2 = d2; bt = e
-		if bt != null: cmd_target(bt)
+		if bt != null: bf_focus(bt)
 		return
 	var best = null
 	var bd := 1e9
@@ -5154,6 +5406,8 @@ func on_key(k: int) -> void:
 # ---------------------------------------------------------------- loop
 func _ready() -> void:
 	randomize()
+	var story := get_node_or_null("/root/Story")
+	if story: story.extend_items(ITEM_DEFS) # heirlooms from loyal Wardens
 	build_af_roster()
 	build_abilities()
 	build_rpg()
@@ -5219,6 +5473,7 @@ func _process(delta: float) -> void:
 	if screen == "chars" or screen == "inv": tick_char_ui(dt)
 	if screen == "overworld": tick_overworld(dt)
 	if G != null and HUD != null: HUD.update(self, dt)
+	if screen == "" or screen == "results": battle_cam_update(dt * float(speed) if not paused else 0.0)
 	var key_now := screen + "|" + (phase if screen == "" else "")
 	if key_now != ui_key:
 		ui_key = key_now; ui_in = 0.0

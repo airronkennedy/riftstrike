@@ -1,4 +1,5 @@
 extends Node
+const QuestRPG = preload("res://scripts/quest_rpg.gd")
 ## Autoload "QuestFlow": the main Airron's Quest loop between the Emberhold kingdom and the side-view battle.
 ##   title (main.tscn) -> New Game / Continue -> kingdom (scenes/kingdom.tscn)
 ##   kingdom danger meter fills -> Encounters.random_battle_requested(region) -> main.tscn runs that region's fight
@@ -8,18 +9,18 @@ const KINGDOM_SCENE := "res://scenes/kingdom.tscn"
 const MAIN_SCENE := "res://main.tscn"
 const KINGDOM_SAVE := "user://kingdom.cfg"
 
-## Region battles: Airron's Fall backdrop, foe level range, elite chance, foe art per archetype, archetype mix.
-## Levels follow the walk out of town: meadow 1-3, road 2-4, forest 3-6, shore 5-8, highlands 7-10 (docs/BALANCE.md).
+## Region battles: Airron's Fall backdrop, elite chance, foe art per archetype, archetype mix.
+## Foe levels follow the party (QuestRPG.foe_level: party level ± 1), so regions differ by foe pool and elites (docs/BALANCE.md).
 const REGION_BATTLES := {
-	"meadow": {"area": "stillmoss-cloister", "level": [1, 3], "elite": 0.0, "kinds": ["torch", "torch", "tnt"],
+	"meadow": {"area": "stillmoss-cloister", "elite": 0.0, "kinds": ["torch", "torch", "tnt"],
 		"foes": {"torch": ["ashling", "gnat"], "barrel": ["pilgrim"], "tnt": ["moth"]}},
-	"forest": {"area": "gallowbough-orchard", "level": [3, 6], "elite": 0.08, "kinds": ["torch", "barrel", "tnt"],
+	"forest": {"area": "gallowbough-orchard", "elite": 0.08, "kinds": ["torch", "barrel", "tnt"],
 		"foes": {"torch": ["mote", "gnat"], "barrel": ["brute"], "tnt": ["moth", "chanter"]}},
-	"highlands": {"area": "tollstone-quarry", "level": [7, 10], "elite": 0.25, "kinds": ["barrel", "torch", "tnt"],
+	"highlands": {"area": "tollstone-quarry", "elite": 0.25, "kinds": ["barrel", "torch", "tnt"],
 		"foes": {"torch": ["lancer"], "barrel": ["brute", "pilgrim"], "tnt": ["chanter"]}},
-	"shore": {"area": "starwreck-strand", "level": [5, 8], "elite": 0.15, "kinds": ["torch", "tnt", "torch"],
+	"shore": {"area": "starwreck-strand", "elite": 0.15, "kinds": ["torch", "tnt", "torch"],
 		"foes": {"torch": ["mote", "ashling"], "barrel": ["pilgrim"], "tnt": ["moth"]}},
-	"road": {"area": "riven-choir", "level": [2, 4], "elite": 0.0, "kinds": ["torch", "barrel", "torch"],
+	"road": {"area": "riven-choir", "elite": 0.0, "kinds": ["torch", "barrel", "torch"],
 		"foes": {"torch": ["lancer", "ashling"], "barrel": ["brute"], "tnt": ["chanter"]}},
 }
 
@@ -37,20 +38,20 @@ func _on_battle_requested(region_id: String) -> void:
 	get_tree().change_scene_to_file.call_deferred(MAIN_SCENE)
 
 ## Encounter dictionary for game.gd start_encounter().
-func encounter_for(region_id: String) -> Dictionary:
+## Regions pick the art, the foe pool and the elite chance only. The level comes from the party (auto-levelling,
+## QuestRPG.foe_level / foe_scale, docs/BALANCE.md); pass it in, or -1 to use the saved party's level.
+func encounter_for(region_id: String, level: int = -1) -> Dictionary:
+	var story := get_node_or_null("/root/Story")
+	if region_id.begins_with("story:") and story != null: # story fights: scripts/story/story_data.gd BATTLES
+		return story.encounter_for(region_id.substr(6), level)
 	var r: Dictionary = REGION_BATTLES.get(region_id, REGION_BATTLES.meadow)
 	var n := randi_range(2, 3)
+	if story != null: n = mini(n, story.max_foes()) # the hero starts alone; fights grow with the party
 	var kinds: Array = (r.kinds as Array).slice(0, n)
-	var lv: Array = r.level
-	var level := randi_range(int(lv[0]), int(lv[1]))
+	if level < 1: level = QuestRPG.foe_level(1.0)
 	var elite: bool = randf() < float(r.get("elite", 0.0))
 	return {"area": str(r.area), "kinds": kinds, "level": level, "foes": r.foes, "region": region_id, "elite": elite,
-		"mult": foe_mult(level)}
-
-## Foe stat multiplier by level (vs a level-1 regular foe). Keeps pace with class growth (docs/BALANCE.md).
-static func foe_mult(level: int) -> Dictionary:
-	var l := float(level - 1)
-	return {"hp": 0.95 + 0.10 * l, "atk": 0.95 + 0.07 * l, "def": 0.95 + 0.045 * l}
+		"auto": true}
 
 func has_save() -> bool:
 	return FileAccess.file_exists(KINGDOM_SAVE)
@@ -64,6 +65,8 @@ func party_hp_frac() -> float:
 func new_game() -> void:
 	if FileAccess.file_exists(KINGDOM_SAVE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(KINGDOM_SAVE))
+	var story := get_node_or_null("/root/Story")
+	if story != null: story.reset()
 	open_kingdom()
 
 func open_kingdom() -> void:
@@ -75,11 +78,18 @@ func finish_battle(won: bool, frac_left: float) -> void:
 	var cf := ConfigFile.new()
 	cf.load(KINGDOM_SAVE)
 	var mx := int(cf.get_value("kingdom", "hp_max", 80))
-	var hp := int(roundf(clampf(frac_left, 0.0, 1.0) * mx))
+	var hp := int(roundf(QuestRPG.hp_after_battle(won, frac_left) * mx))
 	hp = maxi(1, hp)
-	if won: hp = maxi(hp, int(mx * 0.1))
 	cf.set_value("kingdom", "hp", mini(hp, mx))
 	cf.save(KINGDOM_SAVE)
+	var story := get_node_or_null("/root/Story")
+	if story != null and pending_region.begins_with("story:"):
+		# Story fight: record the result (win / lose dialog plays back in the scene it came from).
+		story.on_battle_done(pending_region.substr(6), won)
+		var back: String = story.take_return_scene()
+		pending_region = ""; in_kingdom_battle = false
+		get_tree().change_scene_to_file.call_deferred(back)
+		return
 	var e := get_node_or_null("/root/Encounters")
 	if e != null: e.finish_random_battle(won)
 	open_kingdom()

@@ -4,6 +4,7 @@ extends SceneTree
 var g
 var fails: Array = []
 func _init() -> void:
+	preload("res://tools/test_save.gd").fresh() # new-game user data every run
 	g = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(g)
 	_run()

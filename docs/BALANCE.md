@@ -1,7 +1,8 @@
 # Airron's Quest — classes, EXP and levels
 
-All numbers live in `scripts/quest_rpg.gd` (classes, EXP table, growth) and `scripts/quest_flow.gd` (region levels,
-elite chance, foe scaling). `tools/test_progression.gd` checks the math and prints a balance sweep.
+All numbers live in `scripts/quest_rpg.gd` (classes, EXP table, growth, foe auto-levelling, boss tiers, HP between
+fights) and `scripts/quest_flow.gd` (region foe pools and elite chance). `tools/test_progression.gd` checks the math and
+the win-rate band; `tools/sim_balance.gd` prints the full balance table and the hours-to-Lv10 estimate.
 
 ## Classes and subclasses
 - 10 classes: Warrior, Guardian, Knight, Rogue, Monk, Ranger, Mage, Warlock, Cleric, Bard.
@@ -25,40 +26,98 @@ EXP to reach the next level:
 | EXP | 285 | 420 | 570 | 750 | 1045 | 1280 | 1660 | 2090 | 2420 | **10,520** |
 
 ## EXP per battle
-- Each beaten foe pays `TIER_XP x (0.75 + 0.25 x foe level)` with TIER_XP = regular 10, elite 30, boss 80.
+- Each beaten foe pays `TIER_XP x (0.75 + 0.25 x foe level)` with TIER_XP = regular 11, elite 33, miniboss 50, boss 80.
 - A win pays for every foe; a loss pays 25% for the foes already beaten; fleeing pays nothing.
 - Every keeper in the party gets that total for their **class**; their **subclass** gets half (so a subclass reaches
   Lv10 in roughly twice the time, or as fast if you swap it in as a class). The bench gets nothing.
-- Level gap: -15% per level the keeper is above the foes (floor 40%), +10% per level below (cap 130%), so grinding the
-  meadow at Lv8 is slow and pushing into higher regions is rewarded.
+- Level gap: -15% per level the keeper is above the foes (floor 40%), +10% per level below (cap 130%).
 
-## Regions (random battles)
-| Region | Foe level | Elite chance | Notes |
-|---|---|---|---|
-| Meadow | 1-3 | 0% | first steps |
-| King's Road | 2-4 | 0% | |
-| Forest | 3-6 | 8% | |
-| Shore | 5-8 | 15% | |
-| Highlands | 7-10 | 25% | |
+## Auto-levelled foes
+Wild fights are levelled to the party (`QuestRPG.foe_level`): **foe level = round(average class level of the party)
+± 1**, clamped to 1-10. Regions no longer have level bands; they pick the backdrop, the foe pool (kinds) and the elite
+chance, so the walk out of town still changes what you fight:
 
-An elite replaces one regular foe: x2 HP, x1.3 ATK, bigger, worth 3x EXP. Foe stats scale with level:
-HP x(0.95 + 0.10 per level above 1), ATK x(0.95 + 0.07), DEF x(0.95 + 0.045), keeping pace with class growth.
+| Region | Foe pool | Elite chance |
+|---|---|---|
+| Meadow | ashlings, gnats, moths | 0% |
+| King's Road | lancers, ashlings, brutes | 0% |
+| Forest | motes, gnats, brutes, moths, chanters | 8% |
+| Shore | motes, ashlings, moths | 15% |
+| Highlands | lancers, brutes, pilgrims, chanters | 25% |
 
-## The 4-hour target
-Simulated AUTO fights at 1x speed, party at level L against foes at level L (`test_progression.gd -- --n=10`):
+Each foe stat (`QuestRPG.foe_scale`, applied in `game.gd new_battle` when `encounter.auto`):
 
-| Party Lv | Region | Win rate | Battle length | EXP per keeper | Battles to next level |
+    stat = kind's base stat x FOE_BASE[stat] x FOE_TIER[tier][stat] x (1 + FOE_GROWTH[stat] x (level - 1))
+
+| | HP | ATK | DEF | Speed | Mana |
 |---|---|---|---|---|---|
-| 1 | Meadow | 100% | 39 s | 27 | 11 |
-| 3 | Road | 100% | 46 s | 33 | 17 |
-| 5 | Forest | 100% | 49 s | 50 | 21 |
-| 7 | Shore | 100% | 35 s | 58 | 29 |
-| 9 | Highlands | 100% | 62 s | 84 | 29 |
+| FOE_BASE | 1.8 | 1.6 | 1.0 | 1.0 | 1.0 |
+| FOE_GROWTH per level | +7% | +3.5% | +5% | +2% | +3% |
+| Tier: regular | x1 | x1 | x1 | x1 | x1 |
+| Tier: elite | x1.5 | x1.15 | x1.1 | x1.08 | x1.25 |
+| Tier: miniboss | x1.7 | x1.1 | x1.2 | x1.05 | x1.4 |
+| Tier: boss | x2.2 | x1.2 | x1.3 | x1.1 | x1.5 |
 
-Summed over all nine level-ups that is about **190 on-level battles** to take one class from Lv1 to Lv10.
-A battle loop is about 65-75 s at 1x (danger meter fills after ~4-16 s of walking, a ~45 s fight, transitions and the
-results screen), so ~190 battles is about 3.5 hours, plus town, shop, castle and Build time: **about 4 hours**.
-Players on 2x/3x battle speed get there faster; the curve, not the speed, is what we tune.
+Elites replace one regular foe and are drawn 15% bigger (miniboss 30%, boss 50%; `FOE_SIZE`).
 
-Open questions: on-level fights are still won 100% of the time on AUTO (difficulty can rise later without touching
-the EXP curve); bosses are not in random encounters yet (TIER_XP boss is ready for them).
+### Story fights (hooks for the quest / bosses)
+An encounter dictionary (from `QuestFlow.encounter_for(region, level)` or built by hand) can carry:
+- `tiers`: per-foe tier, e.g. `["miniboss", "regular"]` or `["boss", "regular"]` (any `QuestRPG.FOE_TIER` key).
+- `foe_ids`: per-foe `AfRoster.FOES` id for the art and name (e.g. `["matron", ""]`); empty keeps the region pick.
+- `kinds`: one archetype per foe (`torch` melee, `barrel` brute, `tnt` caster); `level`: fixed level instead of party ± 1.
+- EXP uses `TIER_XP` for the tier, so a mini-boss pays 50 and a boss 80 before the level factor.
+
+Simulated at the party's own level, AUTO, default party (`sim_balance.gd --tiers=... --levels=3,6,9`):
+
+| Fight | Lv3 | Lv6 | Lv9 |
+|---|---|---|---|
+| Mini-boss + 1 regular (forest) | 78% | 90% | 80% |
+| Final boss + 1 regular (highlands) | 70% | 70% | 63% |
+
+A boss alone is easy (it is one unit against five keepers); a boss with two highlands escorts is very hard (~35%).
+Tune with the tier rows above, not by changing the wild-fight numbers.
+
+## Party HP between fights
+The kingdom carries the party's HP from fight to fight. A win now recovers 80% of the missing HP (never below 35%;
+`QuestRPG.WIN_RECOVER` / `WIN_FLOOR`); a loss leaves 1 HP (rest at the inn). Without this, the next fight started at
+~60% HP and the back-to-back win rate fell under 50%.
+
+## The targets: 85-95% AUTO wins, about 4 hours to Lv10
+`tools/sim_balance.gd -- --n=60` plays the new-game party (Bramwell, Grieve, Halvard, Corvin, Ilsabet; default classes,
+kits, sequences and Attack Order; fresh user data) through AUTO fights at each party level, foes at party level ± 1,
+in the region a party of that level walks into. Target select is skipped (AUTO), auto target "Finish Off".
+
+| Party Lv | Region | Win rate | Party HP left | Fight length | EXP per keeper | Fights to next level |
+|---|---|---|---|---|---|---|
+| 1 | Meadow | 95-100% | 58-66% | 32-34 s | 30 | 9.5 |
+| 2 | Road | 83-90% | 57-63% | 38 s | 27 | 15 |
+| 3 | Road | 88-92% | 56-66% | 37-39 s | 35 | 16 |
+| 4 | Forest | 97-100% | 65% | 37 s | 48-51 | 15 |
+| 5 | Forest | 93-95% | 62-64% | 38-39 s | 51 | 20.5 |
+| 6 | Shore | 90-95% | 60-68% | 34-35 s | 64 | 20 |
+| 7 | Shore | 87-93% | 60% | 35 s | 61-71 | 23.5-27 |
+| 8 | Highlands | 88-95% | 56-60% | 40-41 s | 75-81 | 26-28 |
+| 9 | Highlands | 85-93% | 54-62% | 40-42 s | 76-85 | 29-32 |
+| 10 | Highlands | 90% | 58% | 42 s | 82-87 | - |
+| **All** | | **90.2% / 93.8% / 92.3%** (three 600-fight runs; the last on main with the battle camera) | | | | |
+
+Played back to back like the kingdom (`--chain`: HP carries over, a loss means the inn): **86.2%**.
+Elite fights are the risky ones (60-90% by level), by design: they pay 3x EXP.
+
+Time to Lv10: one battle loop = the fight + 25 s (walking until the danger meter fills, transitions, results;
+`QuestRPG.LOOP_OVERHEAD_S`) + 2.6 s per party turn when you let the target-select window run out (`SELECT_S`).
+That is about **190 fights and 3.9-4.1 hours** of fights and walking (4.3 h back to back with losses), before town,
+shop, castle and Build time. Tapping a foe or turning AUTO on skips the 2.6 s window, so active players are faster.
+
+### Re-checking after a change
+- `godot --headless --path . -s res://tools/test_progression.gd` (24 fights per level) asserts the 85-95% band
+  (83.5-96.5% to allow for sampling noise).
+- `godot --headless --path . -s res://tools/sim_balance.gd -- --n=60 [--chain] [--mode=threat] [--tiers=boss,regular]`
+  prints the full table and the hours estimate. Combo changes (spark rate, damage) move these numbers: re-run it.
+- Every test and the sim start from fresh user data (`tools/test_save.gd`), so results do not depend on the last
+  play session or test run on the machine.
+
+### Auto target setting
+What the party hits when you do not tap a foe in target select (Emberhold menu > "Auto target";
+`scripts/target_select.gd`). Win rate over the same sweep (n=40 per level, one seed): Finish Off 93.8%,
+Backline First 92.8%, Biggest Threat 88.2%, Elites First 88.0%. All four stay in the band; Finish Off is the default.
