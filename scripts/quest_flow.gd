@@ -25,6 +25,7 @@ const REGION_BATTLES := {
 }
 
 var pending_region := "" # set while a kingdom battle is starting or running
+var return_scene := "" # scene to go back to after the fight (the dungeon sets this; default: the kingdom)
 var in_kingdom_battle := false
 
 func _ready() -> void:
@@ -33,7 +34,7 @@ func _ready() -> void:
 		e.random_battle_requested.connect(_on_battle_requested)
 
 func _on_battle_requested(region_id: String) -> void:
-	pending_region = region_id if REGION_BATTLES.has(region_id) else "meadow"
+	pending_region = region_id if (REGION_BATTLES.has(region_id) or DungeonGate.BATTLES.has(region_id)) else "meadow"
 	in_kingdom_battle = true
 	get_tree().change_scene_to_file.call_deferred(MAIN_SCENE)
 
@@ -44,7 +45,7 @@ func encounter_for(region_id: String, level: int = -1) -> Dictionary:
 	var story := get_node_or_null("/root/Story")
 	if region_id.begins_with("story:") and story != null: # story fights: scripts/story/story_data.gd BATTLES
 		return story.encounter_for(region_id.substr(6), level)
-	var r: Dictionary = REGION_BATTLES.get(region_id, REGION_BATTLES.meadow)
+	var r: Dictionary = REGION_BATTLES.get(region_id, DungeonGate.BATTLES.get(region_id, REGION_BATTLES.meadow))
 	var n := randi_range(2, 3)
 	if story != null: n = mini(n, story.max_foes()) # the hero starts alone; fights grow with the party
 	var kinds: Array = (r.kinds as Array).slice(0, n)
@@ -63,6 +64,7 @@ func party_hp_frac() -> float:
 	return clampf(float(cf.get_value("kingdom", "hp", mx)) / mx, 0.05, 1.0)
 
 func new_game() -> void:
+	return_scene = ""
 	if FileAccess.file_exists(KINGDOM_SAVE):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(KINGDOM_SAVE))
 	var story := get_node_or_null("/root/Story")
@@ -71,7 +73,9 @@ func new_game() -> void:
 
 func open_kingdom() -> void:
 	pending_region = ""; in_kingdom_battle = false
-	get_tree().change_scene_to_file.call_deferred(KINGDOM_SCENE)
+	var to := return_scene if return_scene != "" else KINGDOM_SCENE
+	return_scene = ""
+	get_tree().change_scene_to_file.call_deferred(to)
 
 ## frac_left: the party's share of HP left after the fight (0..1). A loss leaves 1 HP: rest at the inn.
 func finish_battle(won: bool, frac_left: float) -> void:
