@@ -44,7 +44,7 @@ const D := {
 		["caldric", "Barrow Watch, was it? Do try not to get lost out there. The graves would miss you."],
 		["narr", "Ser Caldric Morn, Knight of the Cinder Gate, sweeps out of the hall. His cape is very good."],
 		["orlan", "Every champion needs a lantern. Here: the Kindling Lantern. It holds a spark, and it never burns the hand that carries it."],
-		["orlan", "Now. How will you take my charge, Ser Bramwell?"],
+		["orlan", "So, Ser Bramwell. How will you take my charge?"],
 	], "choices": [
 		{"t": "Swear the Oath. For Emberhold.", "do": ["set:c1_oath", "item:warden_mail"], "next": "king_oath"},
 		{"t": "Name my price. Heroes eat too.", "do": ["set:c1_price", "gold:200"], "next": "king_price"},
