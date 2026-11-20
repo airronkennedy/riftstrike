@@ -28,6 +28,10 @@ const CAST := {
 	"halvard": {"name": "Halvard", "art": "halvard", "title": "Warden of the Forge"},
 	"corvin": {"name": "Corvin", "art": "corvin", "title": "Warden of the Star"},
 	"ilsabet": {"name": "Ilsabet", "art": "ilsabet", "title": "Warden of the Tide"},
+	"folk_liris": {"name": "Liris", "art": "liris", "title": "Innkeeper's daughter"},
+	"folk_tovik": {"name": "Tovik", "art": "tovik", "title": "Smith's apprentice"},
+	"folk_ismer": {"name": "Old Ismer", "art": "ismer", "title": "Town chronicler"},
+	"folk_twen": {"name": "Twen", "art": "twen", "title": "Drover"},
 	"matron": {"name": "Matron of Cinders", "art": "foe:matron"},
 	"cardinal": {"name": "The Drowned Cardinal", "art": "foe:cardinal"},
 	"regnant": {"name": "The Unlit Regnant", "art": "foe:regent"},
@@ -49,20 +53,20 @@ const ACTS := {
 ## Main story steps in order. A step is done when its flag is set; the objective is the first visible step not done.
 ## target: {map, x, y} in tiles (kingdom maps) or {npc: id} (looked up in NPCS). rec: recommended party level.
 const STEPS := [
-	{"id": "s_prologue", "act": "P", "title": "A Summons at the Gate", "text": "Vellin the gate-serjeant is waving you down.", "hint": "Walk up to him and tap him (or press E) to talk.", "target": {"npc": "vellin"}},
-	{"id": "s_king", "act": "I", "title": "The King's Summons", "text": "Go north through town to Castle Emberhold and speak with King Orlan.", "hint": "The castle gate is at the top of the main road.", "target": {"npc": "orlan"}},
-	{"id": "s_maera", "act": "I", "title": "Aunt Maera", "text": "Visit Aunt Maera at your house before you set out.", "hint": "Bramwell's House is on the west side of town.", "target": {"npc": "maera"}},
-	{"id": "got_grieve", "act": "II", "title": "The Wardfire of Roots", "text": "Find the Warden at Gloamwood Heart, in the western forest.", "hint": "Leave town by the south road, then head west.", "rec": 2, "target": {"npc": "grieve"}},
-	{"id": "got_halvard", "act": "II", "title": "The Wardfire of the Forge", "text": "Find the Warden at Coalvein Cave, in the north of the isle.", "hint": "Follow the King's Road north from the town gate.", "rec": 3, "target": {"npc": "halvard"}},
-	{"id": "got_corvin", "act": "II", "title": "The Wardfire of the Star", "text": "Find the Warden at Cliff Overlook, on the eastern heights.", "hint": "Cross the Ashen Heights through the pass in the ridge.", "rec": 5, "target": {"npc": "corvin"}},
-	{"id": "got_ilsabet", "act": "II", "title": "The Wardfire of the Tide", "text": "Find the Warden at the Drowned Steps, on the south shore.", "hint": "Follow the road south from the town gate to the sea.", "rec": 6, "target": {"npc": "ilsabet"}},
-	{"id": "s_return", "act": "III", "title": "Four Sparks", "text": "Bring the four sparks home to King Orlan.", "hint": "He's on the Ember Throne in Castle Emberhold.", "rec": 7, "target": {"npc": "orlan"}},
-	{"id": "s_kindling", "act": "III", "title": "Kindling Night", "text": "Join the king at the plaza in front of the castle gate.", "hint": "The whole town is there. Talk to the king to begin.", "rec": 7, "target": {"npc": "orlan_plaza"}},
-	{"id": "s_bastion", "act": "IV", "title": "The Sunken Bastion", "text": "Follow Taren into the Sunken Bastion, the ruin east of Emberhold.", "hint": "Take the road east from the town gate to the ruin.", "rec": 8, "target": {"map": "overworld", "x": 32.0, "y": 21.4}},
-	{"id": "bastion_f1", "act": "IV", "title": "The Drowned Gate", "text": "Get past the guardian of the first floor.", "hint": "", "rec": 8, "target": {"map": "overworld", "x": 32.0, "y": 21.4}},
-	{"id": "bastion_f2", "act": "IV", "title": "The Reliquary Halls", "text": "Get past the guardian of the second floor.", "hint": "", "rec": 9, "target": {"map": "overworld", "x": 32.0, "y": 21.4}},
-	{"id": "boss2_won", "act": "IV", "title": "The Unlit Throne", "text": "Face Taren at the bottom of the Bastion.", "hint": "Heal up first. This is the end of the road.", "rec": 10, "target": {"map": "overworld", "x": 32.0, "y": 21.4}},
-	{"id": "s_ending", "act": "E", "title": "The Heart-Coal", "text": "Decide the fate of the Heart-Coal.", "hint": "", "target": {}},
+	{"id": "s_prologue", "act": "P", "title": "A Summons at the Gate", "text": "Vellin the gate-serjeant is waving you down.", "hint": "He's on the main road, just inside the south gate. Walk up to him and tap him (or press E).", "target": {"npc": "vellin"}},
+	{"id": "s_king", "act": "I", "title": "The King's Summons", "text": "Go north through town to Castle Emberhold and speak with King Orlan.", "hint": "Walk up the main road. The castle gate is at the top; the throne is at the far end of the hall.", "target": {"npc": "orlan"}},
+	{"id": "s_maera", "act": "I", "title": "Aunt Maera", "text": "Visit Aunt Maera at your house before you set out.", "hint": "Your house is the cottage on the west side of the square, left of the main road.", "target": {"npc": "maera"}},
+	{"id": "got_grieve", "act": "II", "title": "The Wardfire of Roots", "text": "Find the Warden of Roots under the great willow at Gloamwood Heart, in the western forest.", "hint": "Leave town by the south gate, then follow the road west into the Gloamwood.", "retry": "Grieve is waiting under the willow. Talk to him to fight again.", "rec": 2, "target": {"npc": "grieve"}},
+	{"id": "got_halvard", "act": "II", "title": "The Wardfire of the Forge", "text": "Find the Warden of the Forge at Coalvein Cave, in the north-east hills.", "hint": "Take the King's Road north from town, then the fork east into the Ashen Heights.", "retry": "Halvard is waiting at the cave mouth. Talk to him to fight again.", "rec": 3, "target": {"npc": "halvard"}},
+	{"id": "got_corvin", "act": "II", "title": "The Wardfire of the Star", "text": "Find the Warden of the Star at Cliff Overlook, on the east coast.", "hint": "Take the north road's east fork to its end, then keep east to the cliffs.", "retry": "Corvin is waiting on the cliff. Talk to him to hunt the Engine again.", "rec": 5, "target": {"npc": "corvin"}},
+	{"id": "got_ilsabet", "act": "II", "title": "The Wardfire of the Tide", "text": "Find the Warden of the Tide at the Drowned Steps, on the south shore.", "hint": "Take the King's Road south from town all the way down to the sea.", "retry": "Ilsabet is waiting on the Steps. Talk to her to face the Cardinal again.", "rec": 6, "target": {"npc": "ilsabet"}},
+	{"id": "s_return", "act": "III", "title": "Four Sparks", "text": "Bring the four sparks home to King Orlan.", "hint": "Go back to Emberhold and north into the castle. He's on the Ember Throne.", "rec": 7, "target": {"npc": "orlan"}},
+	{"id": "s_kindling", "boss": true, "act": "III", "title": "Kindling Night", "text": "Join the king at the plaza in front of the castle gate.", "hint": "The plaza is right in front of the castle gate. Talk to the king to begin.", "rec": 7, "target": {"npc": "orlan_plaza"}},
+	{"id": "s_bastion", "boss": true, "act": "IV", "title": "The Sunken Bastion", "text": "Follow Taren into the Sunken Bastion, the ruin east of Emberhold.", "hint": "Leave town by the south gate and follow the road east to the end. Use the ruin to go down.", "rec": 8, "target": {"map": "overworld", "x": 32.0, "y": 21.4}},
+	{"id": "bastion_f1", "act": "IV", "title": "The Drowned Gate", "text": "Get past the guardian of the Drowned Gate, the Bastion's first floor.", "hint": "Go back to the Sunken Bastion ruin, east of town, and go down again.", "rec": 8, "target": {"map": "overworld", "x": 32.0, "y": 21.4}},
+	{"id": "bastion_f2", "act": "IV", "title": "The Reliquary Halls", "text": "Get past the guardian of the Reliquary Halls, the Bastion's second floor.", "hint": "Go back to the Sunken Bastion ruin, east of town, and go down again.", "rec": 9, "target": {"map": "overworld", "x": 32.0, "y": 21.4}},
+	{"id": "boss2_won", "act": "IV", "title": "The Unlit Throne", "text": "Face Taren at the bottom of the Bastion.", "hint": "Go down the Sunken Bastion once more. Story fights start at full HP, so you're ready when you are.", "rec": 10, "target": {"map": "overworld", "x": 32.0, "y": 21.4}},
+	{"id": "s_ending", "act": "E", "title": "The Heart-Coal", "text": "Decide the fate of the Heart-Coal.", "hint": "Your choice ends the story.", "target": {}},
 ]
 
 ## Side quests: shown in the journal while on (flag `on`) and checked off when `done` is set.
@@ -85,7 +89,7 @@ const SIDE := [
 ## taken over by id through BASE (same rule format); `hide` removes a base NPC.
 const NPCS := {
 	"town": [
-		{"id": "vellin", "art": "vellin", "x": 13.7, "y": 14.7, "cond": "", "talk": [
+		{"id": "vellin", "art": "vellin", "x": 13.2, "y": 15.1, "cond": "", "talk": [
 			["!s_prologue", "prologue", "!"], ["s_kindling", "vellin_after", ""], ["", "vellin_idle", ""]]},
 		{"id": "drosk", "art": "drosk", "x": 9.8, "y": 10.5, "cond": "s_prologue", "talk": [
 			["sq_book_bet&s_kindling&!sq_book_paid", "drosk_payout", "s"], ["s_king&!sq_book_bet&!s_kindling&gold>=50", "drosk_offer", "s"],
@@ -96,6 +100,11 @@ const NPCS := {
 		{"id": "taren_plaza", "art": "taren", "name": "Taren Unlit", "x": 13.2, "y": 7.2, "cond": "s_return&!s_kindling", "talk": [["", "taren_plaza", ""]]},
 		{"id": "selka_plaza", "art": "selka", "name": "Selka", "x": 9.4, "y": 7.6, "cond": "s_return&!s_kindling", "talk": [["", "selka_plaza", ""]]},
 		{"id": "caldric_plaza", "art": "caldric", "name": "Ser Caldric", "x": 14.9, "y": 7.6, "cond": "s_return&!s_kindling", "talk": [["", "caldric_plaza", ""]]},
+		# Townsfolk: ambient chatter that changes with every act (StoryDialog.CHATTER). They bark as you pass.
+		{"id": "liris", "art": "liris", "x": 17.6, "y": 10.7, "cond": "", "chatter": true, "talk": [["", "chat:liris", ""]]},
+		{"id": "tovik", "art": "tovik", "x": 20.0, "y": 14.0, "cond": "", "chatter": true, "talk": [["", "chat:tovik", ""]]},
+		{"id": "ismer", "art": "ismer", "x": 12.6, "y": 13.2, "cond": "", "chatter": true, "talk": [["", "chat:ismer", ""]]},
+		{"id": "twen", "art": "twen", "x": 4.2, "y": 15.4, "cond": "", "chatter": true, "talk": [["", "chat:twen", ""]]},
 		# After the ending the court celebrates on the plaza.
 		{"id": "caldric_end", "art": "caldric", "name": "Ser Caldric", "x": 14.9, "y": 7.6, "cond": "s_ending", "talk": [["", "caldric_end", ""]]},
 	],
@@ -162,17 +171,25 @@ const LINKS := {
 ## Story fights. kinds = slot archetypes (torch melee / barrel heavy / tnt caster), tiers per slot, foe_ids = the
 ## Airron's Fall foe (AfRoster.FOES id) per slot ("" = pick from foes), foes = regular foe art per kind. rec = minimum foe level;
 ## the fight is levelled to the party but clamped to rec..rec+2. win / lose = dialog played back in the kingdom.
+## Foe HP / ATK scale while the party is smaller than five (tools/sim_story.gd --wild tunes these).
+const PARTY_FOE_MULT := {
+	1: {"hp": 0.45, "atk": 0.55},
+	2: {"hp": 0.5, "atk": 0.6},
+	3: {"hp": 0.65, "atk": 0.75},
+	4: {"hp": 0.85, "atk": 0.9},
+}
+
 const BATTLES := {
-	"fight_grieve": {"area": "gallowbough-orchard", "rec": 2, "kinds": ["barrel", "tnt"], "tiers": ["elite", "regular"],
+	"fight_grieve": {"mult": {"hp": 1.05, "atk": 1.02}, "area": "gallowbough-orchard", "rec": 2, "kinds": ["barrel", "tnt"], "tiers": ["elite", "regular"],
 		"foe_ids": ["leaper", ""], "foes": {"tnt": ["moth"]}, "banner": "THE WARDFIRE OF ROOTS", "win": "grieve_after", "lose": "lose_generic"},
-	"fight_halvard": {"area": "coalvein-deeps", "rec": 3, "kinds": ["barrel", "torch", "torch"], "tiers": ["elite", "regular", "regular"],
+	"fight_halvard": {"mult": {"hp": 0.88, "atk": 0.9}, "area": "coalvein-deeps", "rec": 3, "kinds": ["barrel", "torch", "torch"], "tiers": ["elite", "regular", "regular"],
 		"foe_ids": ["elite", "", ""], "foes": {"torch": ["ashling"], "barrel": ["brute"]}, "banner": "THE DEEP FORGE", "win": "halvard_after", "lose": "lose_generic"},
-	"fight_engine": {"area": "starwreck-strand", "rec": 5, "kinds": ["barrel", "torch", "torch"], "tiers": ["elite", "regular", "regular"],
+	"fight_engine": {"mult": {"hp": 0.83, "atk": 0.9}, "area": "starwreck-strand", "rec": 5, "kinds": ["barrel", "torch", "torch"], "tiers": ["elite", "regular", "regular"],
 		"foe_ids": ["engine", "", ""], "foes": {"torch": ["lancer", "mote"]}, "banner": "THE RELIQUARY ENGINE", "win": "corvin_hunt_after", "lose": "lose_generic"},
-	"fight_cardinal": {"area": "saltglass-fen", "rec": 6, "kinds": ["barrel", "torch"], "tiers": ["miniboss", "regular"],
+	"fight_cardinal": {"mult": {"hp": 1.15, "atk": 1.05}, "area": "saltglass-fen", "rec": 6, "kinds": ["barrel", "torch"], "tiers": ["miniboss", "regular"],
 		"foe_ids": ["cardinal", ""], "foes": {"torch": ["mote"], "tnt": ["moth"]}, "boss": true,
 		"banner": "THE DROWNED CARDINAL", "win": "ilsabet_after", "lose": "lose_generic"},
-	"fight_bell": {"area": "stillmoss-cloister", "rec": 4, "kinds": ["barrel", "tnt"], "tiers": ["elite", "regular"],
+	"fight_bell": {"mult": {"hp": 1.1, "atk": 1.05}, "area": "stillmoss-cloister", "rec": 4, "kinds": ["barrel", "tnt"], "tiers": ["elite", "regular"],
 		"foe_ids": ["knell", ""], "foes": {"tnt": ["chanter"]}, "banner": "THE QUIET BELL", "win": "bell_after", "lose": "lose_generic"},
 	"miniboss_matron": {"area": "vespergate-sanctum", "rec": 7, "kinds": ["barrel", "torch"], "tiers": ["miniboss", "regular"],
 		"foe_ids": ["matron", ""], "foes": {"torch": ["ashling"]}, "boss": true,

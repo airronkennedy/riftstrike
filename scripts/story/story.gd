@@ -161,6 +161,17 @@ func sparks() -> int:
 	return n
 
 
+## Foes are tuned for a full party of five (docs/BALANCE.md). While the story party is smaller, every foe (wild
+## and story) is scaled by StoryData.PARTY_FOE_MULT[size] (encounter.foe_mult, applied in game.gd new_battle).
+var mult_override: Dictionary = {} # tools/sim_story.gd tuning
+func party_mult(size: int = -1) -> Dictionary:
+	if size < 0:
+		if not started: return {}
+		size = _recruited.size()
+	if mult_override.has(size): return mult_override[size]
+	return StoryData.PARTY_FOE_MULT.get(size, {})
+
+
 ## Wild fights grow with the party: alone 1 foe, two keepers up to 2, three or more the usual 2-3.
 func max_foes() -> int:
 	if not started: return 3
@@ -225,7 +236,10 @@ func objective() -> Dictionary:
 		if s.id == "s_ending" and not flags.has("boss2_won"): continue
 		var o: Dictionary = s.duplicate(true)
 		o["target_pos"] = target_of(s.get("target", {}))
-		# Act II: point at the nearest unfinished Wardfire in the suggested order (any order works).
+		# Lost the Warden's fight? Say so, and say how to try again.
+		var rid := str(s.id).trim_prefix("got_")
+		if s.has("retry") and _recruited.has(rid):
+			o["hint"] = str(s.retry)
 		return o
 	return {"id": "done", "act": "E", "title": "The End", "text": "Emberhold is safe. Thank you for playing Airron's Quest!", "hint": "Explore, finish side quests, or start a New Game to make other choices.", "target_pos": []}
 
@@ -290,8 +304,8 @@ func on_map_loaded(k: Node) -> void:
 		elif str(u.get("kind", "")) == "spot" and StoryData.SPOT_TALK.has(str(u.get("id", ""))):
 			u["action"] = "story"; u["rules"] = StoryData.SPOT_TALK[str(u.id)]; u["sid"] = str(u.id)
 	_add_story_people(k, mid)
-	if pending_dialog == "" and mid == "town" and not flags.has("s_prologue"):
-		pending_dialog = "" # the guard's "!" invites the player; nothing auto-plays
+	if mid == "town" and not flags.has("s_prologue"):
+		ui.tip("talk") # the guard's "!" invites the player; nothing auto-plays
 	ui.refresh_tracker(false)
 
 
@@ -340,7 +354,8 @@ func marker_for(u: Dictionary) -> String:
 
 # ================================================================ dialog engine
 func start_dialog(id: String, on_done: Callable = Callable()) -> void:
-	if not StoryDialog.D.has(id):
+	if id.begins_with("chat:"): _dyn[id] = _chat_node(id.substr(5))
+	if not _node(id).size():
 		push_warning("Story: no dialog '%s'" % id)
 		if on_done.is_valid(): on_done.call()
 		return
@@ -353,9 +368,29 @@ func start_dialog(id: String, on_done: Callable = Callable()) -> void:
 	_run_node(id)
 
 
+## Dialog nodes: the script (StoryDialog.D) plus nodes built at runtime (townsfolk chatter).
+var _dyn := {}
+func _node(id: String) -> Dictionary:
+	return _dyn.get(id, StoryDialog.D.get(id, {}))
+
+
+## The townsfolk's current chatter (StoryDialog.CHATTER) as a dialog node: the first two lines that fit the act.
+func chatter(sid: String) -> Array:
+	var out: Array = []
+	for l in StoryDialog.CHATTER.get(sid, []):
+		if check(str(l[0])): out.append(fill(str(l[1])))
+	return out
+
+func _chat_node(sid: String) -> Dictionary:
+	var lines: Array = []
+	var spk := sid if StoryData.CAST.has(sid) else "folk_" + sid
+	for t in chatter(sid).slice(0, 2): lines.append([spk, t])
+	return {"lines": lines}
+
+
 func _run_node(id: String) -> void:
 	_dlg_id = id
-	var node: Dictionary = StoryDialog.D.get(id, {})
+	var node: Dictionary = _node(id)
 	var lines: Array = []
 	for l in node.get("lines", []):
 		if l.size() > 2 and not check(str(l[2])): continue
@@ -367,7 +402,7 @@ func _run_node(id: String) -> void:
 
 
 func _after_lines(id: String) -> void:
-	var node: Dictionary = StoryDialog.D.get(id, {})
+	var node: Dictionary = _node(id)
 	var ch: Array = []
 	for c in node.get("choices", []):
 		if check(str(c.get("cond", ""))): ch.append(c)
@@ -410,6 +445,11 @@ func _finish() -> void:
 	await _flush_deferred()
 	dialog_closed.emit(root)
 	if cb.is_valid(): cb.call()
+	# End of Act II: the moment the fourth spark is in the Lantern, the hook into Act III plays.
+	if sparks() >= 4 and not flags.has("hook_four") and not flags.has("s_return") and not ui.is_open() and current_battle == "":
+		flags["hook_four"] = true
+		save_state()
+		start_dialog("four_sparks")
 
 
 func _flush_deferred() -> void:
@@ -421,6 +461,11 @@ func _flush_deferred() -> void:
 			"sparks": await ui.spark_card()
 			"act": await ui.act_card(str(StoryData.ACTS.get(str(d[1]), d[1])))
 			"tip": ui.tip(str(d[1]))
+			"lesson":
+				await ui.lesson(str(d[1]))
+				if ui.want_build:
+					ui.want_build = false
+					open_build(); return
 			"battle": start_battle(str(d[1])); return
 			"dungeon": enter_dungeon(); return
 			"exit_dungeon": exit_dungeon(); return
@@ -443,6 +488,7 @@ func _do(actions: Array) -> void:
 			"item": give_item(arg)
 			"heal": heal(1.0)
 			"hurt": hurt(float(arg))
+			"rally": rally(float(arg))
 			"calm":
 				if is_instance_valid(kingdom) and "meter" in kingdom:
 					kingdom.meter = 0.0
@@ -451,6 +497,7 @@ func _do(actions: Array) -> void:
 			"boss": boss_defeated.emit(arg)
 			"act": _deferred.append(["act", arg])
 			"tip": _deferred.append(["tip", arg])
+			"lesson": _deferred.append(["lesson", arg])
 			"sparks": _deferred.append(["sparks", ""])
 			"crates": ui.toast("Pell's fireworks: %d / 3 crates" % _num("crates"))
 			"battle": _deferred.append(["battle", arg])
@@ -543,6 +590,27 @@ func heal(frac: float) -> void:
 	cf.save(SAVE)
 
 
+## Between the two final-boss phases the Lantern rallies the party (+ RALLY of max HP), but it can't mend the
+## dark-burn from pulling Taren out (SPARE_BURN of the HP, applied after the rally). tools/sim_story.gd uses the same numbers.
+const RALLY := 1.0
+const SPARE_BURN := 0.05
+const SPARE_WEAKEN := 0.9
+func phase2_hp(hp_after_phase1: float, spare: bool) -> float:
+	return minf(1.0, hp_after_phase1 + RALLY) * ((1.0 - SPARE_BURN) if spare else 1.0)
+
+func rally(share: float) -> void:
+	var cur := 1.0
+	var mx := 80
+	if is_instance_valid(kingdom):
+		mx = kingdom.party_hp_max; cur = float(kingdom.party_hp) / maxf(1.0, mx)
+	else:
+		var cf := ConfigFile.new()
+		cf.load(SAVE)
+		mx = int(cf.get_value("kingdom", "hp_max", 80))
+		cur = float(cf.get_value("kingdom", "hp", mx)) / maxf(1.0, mx)
+	heal(minf(1.0, cur + share))
+
+
 ## Lose a share of the CURRENT HP (the burn from pulling Taren out).
 func hurt(share: float) -> void:
 	if is_instance_valid(kingdom):
@@ -571,6 +639,9 @@ func start_battle(id: String) -> void:
 		push_warning("Story: no battle '%s'" % id)
 		return
 	current_battle = id
+	# Story fights start at full HP (the Lantern steadies the party), except phase 2 of the final boss, which
+	# carries on from phase 1 after the rally (see phase2_hp / sovereign_intro).
+	if id != "boss_sovereign": heal(1.0)
 	if battle_stub:
 		on_battle_done(id, stub_win)
 		return
@@ -586,6 +657,17 @@ func start_battle(id: String) -> void:
 	get_tree().change_scene_to_file.call_deferred(MAIN_SCENE)
 
 
+## Journal "Party & Attack Order": open Build in main.tscn; its Back button returns to the same kingdom spot.
+func open_build() -> void:
+	if is_instance_valid(kingdom): kingdom.save_game()
+	save_state()
+	ui.close_all()
+	var qf := get_node_or_null("/root/QuestFlow")
+	if qf == null: return
+	qf.pending_screen = "build"
+	get_tree().change_scene_to_file.call_deferred(MAIN_SCENE)
+
+
 ## Encounter dictionary for game.gd (via QuestFlow.encounter_for("story:<id>", party foe level)).
 func encounter_for(id: String, level: int = -1) -> Dictionary:
 	var b: Dictionary = StoryData.BATTLES.get(id, {})
@@ -595,7 +677,11 @@ func encounter_for(id: String, level: int = -1) -> Dictionary:
 	var lv := clampi(level if level > 0 else rec, rec, rec + 2)
 	lv = clampi(lv, 1, QuestRPG.LEVEL_CAP)
 	var region := "story"
-	return {"area": str(b.area), "kinds": b.kinds.duplicate(), "tiers": b.tiers.duplicate(), "foe_ids": b.get("foe_ids", []).duplicate(),
+	# Party-size scale times the fight's own "mult" (story data; tools/sim_story.gd).
+	var pm := party_mult()
+	var bm: Dictionary = mult_override.get(id, b.get("mult", {})).duplicate()
+	var fm := {"hp": float(pm.get("hp", 1.0)) * float(bm.get("hp", 1.0)), "atk": float(pm.get("atk", 1.0)) * float(bm.get("atk", 1.0))}
+	return {"foe_mult": fm, "area": str(b.area), "kinds": b.kinds.duplicate(), "tiers": b.tiers.duplicate(), "foe_ids": b.get("foe_ids", []).duplicate(),
 		"foes": b.get("foes", {}).duplicate(true), "level": lv, "region": region, "elite": false, "auto": true,
 		"story_id": id, "boss": bool(b.get("boss", false)), "banner": str(b.get("banner", "")),
 		"banner_sub": str(b.get("banner_sub", "Lv.%d" % lv))}

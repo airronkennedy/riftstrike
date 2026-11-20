@@ -119,6 +119,63 @@ into the bag and can be equipped from Build.
   big buttons (also keys 1-3).
 - **First-time tips** (once each): talking, the journal, danger and random battles, recruiting (with a reminder to set
   the Attack Order in Build).
+- **Lesson cards** (blocking, once each, `lesson:<id>` action, `StoryUI.LESSONS`): when Grieve joins, *right before the
+  first Warden fight*, two animated cards teach the **Attack Order** (numbered portraits, "tap Suggest order") and
+  **Sparks** (two hits converging, x1.5). Before each boss stretch a third and fourth card push the Attack Order again:
+  `boss` (after the four sparks come home, before the Matron) and `final` (after Kindling Night, before the Bastion).
+  Both have an **Open Attack Order** button that goes straight to Build (`Story.open_build()`); the tip `order` fires again
+  after Grieve's fight ("tap Suggest order to fit them in").
+- **Journal always says where to go:** every step's hint is a concrete route from the town's south gate (west to Gloamwood,
+  north then the east fork to the Heights/Coalvein/Overlook, south to the Drowned Steps, east to the Bastion ruin). After
+  a lost Warden fight the hint switches to the step's `retry` text ("talk to them again to fight again"). Act II steps add
+  "Before a Warden fight: Attack Order button above, then Suggest order"; steps marked `"boss": true` (Kindling Night, the
+  Sunken Bastion) add a "Boss ahead: set your Attack Order first" line. The journal header has an **Attack Order** button
+  (kingdom only): it saves and opens Build in main.tscn via `QuestFlow.pending_screen = "build"`; Back returns to the
+  kingdom (`menu_return = "kingdom"`).
+- **Act hooks:** each Warden's last line points at the next Warden; four sparks plays `four_sparks` (the Lantern pulls
+  toward the throne, "The Lamplighter will be pleased."); the Matron ends on "Nine kings sat on a lid."
+- **Ambient chatter in Emberhold** (`StoryDialog.CHATTER`, drawn by `StoryWorld._draw_bark`): Liris (innkeeper's
+  daughter), Tovik (smith's apprentice), Old Ismer (chronicler), Twen (drover), plus Joryn, Vellin and Drosk, bark a
+  one-liner when you walk within 4.2 tiles, rotating every 6.5 s, with a different set per act (I, II, III, IV, epilogue;
+  the test checks every chatter NPC has a line in every act). Talking to the townsfolk plays the current lines
+  (`chat:<id>` dialogs built at runtime). Bubbles anchor on the sprite's real head and lift clear of `!`/`?` markers and
+  the "Talk" prompt card.
+- **Map title banner** fades out as soon as a dialog, the journal or a card opens, and toasts sit under it while it shows.
+
+## Small story parties and story-fight balance
+`QuestRPG.foe_scale` assumes a party of five. Story parties are 1-4 keepers until Act III, so before this pass wild fights
+were 0% wins with 1-2 keepers. Story now passes `encounter.foe_mult = {hp, atk}` (wild: `Story.party_mult()`, from
+`StoryData.PARTY_FOE_MULT` by party size; story fights: that times the fight's own `"mult"`). `game.gd new_battle` applies
+it after the auto-level scaling. It is a per-encounter hook, not a formula change: a party of five gets `{}` and the global
+balance is untouched. Boss fights (Matron, floor guardians, Regnant, Sovereign) carry **no** story mult; their stats belong
+to the boss/balance workers. Story fights start at full HP; between the final phases the Lantern rallies the party to
+full, and sparing Taren costs 5% of it.
+
+Measured with `tools/sim_story.gd` (the balance sim approach: fresh party per fight, levels set, BB gauge empty, the
+default Attack Order; 150 fights each, at the recommended level and one above):
+
+| Fight | Party | Lv (rec / rec+1) | Story mult (hp, atk) | Win % | HP left |
+|---|---|---|---|---|---|
+| Grieve's test (Charnel Leaper) | 2 | 2 / 3 | 1.05, 1.02 | 88 / 81 | 35 / 23% |
+| Halvard's test (Ash Elite) | 3 | 3 / 4 | 0.88, 0.90 | 84 / 83 | 33 / 31% |
+| Corvin's test (Reliquary Engine) | 4 | 5 / 6 | 0.83, 0.90 | 81 / 77 | 34 / 30% |
+| Ilsabet's test (Drowned Cardinal) | 5 | 6 / 7 | 1.15, 1.05 | 83 / 77 | 41 / 36% |
+| The Quiet Bell (Knellbearer, side) | 3 | 4 / 5 | 1.10, 1.05 | 88 / 90 | 42 / 45% |
+| Wild, party 1-4 (PARTY_FOE_MULT) | 1-4 | 1-6 | 0.45-0.85, 0.55-0.9 | 90-100 | 56-71% |
+| Wild, party 5 (no mult) | 5 | 7 / 9 | none | 95 / 96 | 64 / 68% |
+
+Bosses keep their own stats (no story mult). Plain-sim numbers, default order, no boss presentation, so the boss
+worker's `tools/sim_bosses.gd` figures (Matron 75-78%, guardians 80-95%, Regnant 80-98%, Sovereign 72% with the suggested
+order) are the reference: Matron 94-96%, guardian F1 25-28%, guardian F2 74-85%, Regnant 72-83%; final chain phase 2
+after a phase-1 win: leave 54-70%, spare 44-62% (the Lantern rallies to full, sparing costs 5%).
+
+```
+G=godot; XDG_DATA_HOME=$(mktemp -d) $G --headless --path . -s res://tools/sim_story.gd -- --n=100 --seed=1 --ids=fight_grieve,fight_halvard
+  --ids=boss_regnant,boss_sovereign  runs the final chain (phase 2 after a phase-1 win, BB carried, spare and leave)
+  --wild=1:1,2:3,3:4             wild fights by party size:level
+  --mult=2:0.5:0.6 / --mult=fight_grieve:1.1:1.0   try a party-size or per-fight mult without editing data
+```
+
 
 ## Pacing (about 4 hours)
 These numbers come from `docs/BALANCE.md` (balance PR #12): about **190 fights take a class from Lv1 to Lv10 in
