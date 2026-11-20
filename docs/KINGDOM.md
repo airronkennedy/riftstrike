@@ -38,11 +38,12 @@ This is a self-contained scene, `scenes/kingdom.tscn`. It doesn't touch `scripts
 - `Encounters.enabled = false` turns random battles off.
 
 ## Look (Airron's Fall UI and finish)
+- **Look update:** the shader ground, post pass (tilt-shift, bloom, god rays, grading), wind sway, parallax occluders and ambient life are described in `docs/art-direction-kingdom.md`.
 - **Shared theme:** `scripts/ui/af_theme.gd` (`AfTheme.get_theme()`) holds the Airron's Fall palette, the Cinzel / Rajdhani / Cormorant fonts and the carved `ui_panel_9` frame. It is also saved as `themes/airrons_fall.tres`; regenerate it with `godot --headless --path . --script res://tools/build_af_theme.gd`.
   - Type variations: `HeaderLabel`, `MutedLabel`, `FlavorLabel`, `PrimaryButton`, `FramedPanel`, `ToastPanel`, `DangerBar`.
   - Helpers: `AfTheme.pop_in` / `pop_out` (tweened panels) and `add_press_juice` (button press scale).
 - **Camera:** smoothed Camera2D with a gentle look-ahead.
-- **Light:** a CanvasModulate tint per map, a warm torch PointLight2D on the hero, flickering brazier and fire lights, and a shader vignette (`shaders/vignette.gdshader`).
+- **Light:** a CanvasModulate tint per map, a warm torch PointLight2D on the hero, flickering brazier and fire lights, and a vignette in the post pass (`shaders/kingdom_post.gdshader`).
 - **Other effects:**
   - soft contact shadows under every character and prop
   - ambient CPUParticles2D per map: embers in town, dust indoors, motes outdoors
@@ -52,14 +53,18 @@ This is a self-contained scene, `scenes/kingdom.tscn`. It doesn't touch `scripts
 - **Reduced motion** (menu toggle, `?calm=1`; saved): no particles, no camera smoothing or look-ahead, no flicker or bobbing, a plain fade instead of the iris, and fade-only panels.
 
 ## Art
-Everything is Airron's Fall art already in `assets/af`. No new files were copied and no credits were added.
-- `gen/`: castle_blue, castle_ruin, house_*, hut, tower_yellow, tower_ruin, watchtower, mine, deco_18, tree, fx_flame, tilemap_flat, ui_panel_9
-- `heroes/`: Bramwell (player), Pell, Wenna, Orlan, Selka; Halvard, Aurel, Idra and Caldric as statues
-- `props/ember-chest.png`
-- `icons/` (shop slot icons)
-- fonts in `fonts/`
-
-Walls, pillars, the throne, the shrine plinth, water and carpet are drawn in code.
+- **New kingdom art** in `assets/kingdom/`:
+  - 53 sprites cut from four Grok-generated sheets: trees, landmarks, buildings, clutter and castle pieces
+  - 10 procedural ground textures
+  - every file is listed in `docs/ASSET_LICENSES.md`
+- **Airron's Fall art still used:** heroes, the flame and chest, the UI frame and fonts.
+- **Raw sheets** are in `art-src/kingdom/raw/` (Godot-ignored, not shipped). Rebuild with:
+  ```
+  python3 tools/art/kingdom_cut.py
+  python3 tools/art/kingdom_tiles.py
+  /path/to/venv/bin/python tools/art/c2pa_attach.py RAW SPRITE
+  ```
+- **Rendering techniques** are covered in `docs/art-direction-kingdom.md`.
 
 ## Tests
 - `godot --headless --path . --script res://tools/test_kingdom.gd` checks:

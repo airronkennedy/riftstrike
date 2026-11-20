@@ -50,6 +50,18 @@ var allow_warps := true # tests switch exits off while walking scripted paths
 # ---- nodes
 var modulate_node: CanvasModulate
 var ground: KingdomView.Ground
+var details_static: KingdomView.Details
+var details_sway: KingdomView.Details
+var markers: KingdomView.Markers
+var fg: KingdomView.Foreground
+var life: KingdomView.Life
+var smoke: Node2D
+var post: ColorRect
+var grade := {}        # current (blended) look
+var grade_target := {}
+var dialog_portrait: TextureRect
+var dialog_portrait_box: PanelContainer
+var _type_tw: Tween
 var ysort: Node2D
 var player: KingdomView.Actor
 var torch: PointLight2D
@@ -85,7 +97,6 @@ var inn_text: Label
 var menu: PanelContainer
 var rm_btn: Button
 var iris: ColorRect
-var vignette: ColorRect
 var _light_tex: GradientTexture2D
 
 
@@ -98,6 +109,7 @@ func _ready() -> void:
 	_parse_params()
 	_build_world_nodes()
 	_build_ui()
+	_apply_motion()
 	var e := _enc()
 	if e:
 		e.random_battle_finished.connect(_on_battle_finished)
@@ -212,15 +224,24 @@ func load_map(id: String, at: Variant = null) -> void:
 		l.queue_free()
 	blocks.clear()
 	usables.clear()
+	for ch3 in smoke.get_children():
+		ch3.queue_free()
+	var trees := ["tree_oak", "tree_pine", "tree_willow"] if map.id == "overworld" else ["tree_oak", "tree_pine", "tree_oak"]
 	for r in H:
 		for c in W:
 			var ch2 := ch_at(c, r)
+			var hsh := _hash(c, r)
 			if ch2 == "T":
-				_add_prop({"img": "tree", "x": c + 0.5, "y": r + 0.9, "s": 0.5, "flip": (c + r) % 2 == 0})
+				_add_prop({"img": trees[hsh % 3], "x": c + 0.5 + float(hsh % 7 - 3) * 0.04, "y": r + 0.85, "s": 1.8 + float(hsh % 5) * 0.08, "flip": hsh % 2 == 0})
 			elif ch2 == "P":
-				_add_prop({"img": "pillar", "x": c + 0.5, "y": r + 0.85, "s": 1.0})
+				_add_prop({"img": "pillar", "x": c + 0.5, "y": r + 0.9, "s": 1.5})
 	for p in map.props:
 		_add_prop(p)
+	_scatter_details()
+	fg.items.clear()
+	for f in map.get("fg", []):
+		fg.items.append({"tex": KingdomView.tex(str(f.img)), "pos": Vector2(f.x, f.y) * TILE, "s": float(f.get("s", 3.0)), "dark": float(f.get("dark", 0.22)), "par": float(f.get("par", 0.35))})
+	life.birds_on = bool(map.get("birds", false))
 	for n in map.npcs:
 		var a := KingdomView.Actor.new()
 		a.k = self
@@ -239,8 +260,10 @@ func load_map(id: String, at: Variant = null) -> void:
 	if blocked_at(player_pos):
 		player_pos = (map.start as Vector2) * TILE
 	player.position = player_pos
-	modulate_node.color = map.tint
-	torch.energy = float(map.torch)
+	grade_target = KingdomMaps.GRADES.get(map.id, KingdomMaps.GRADES.town).duplicate()
+	grade = grade_target.duplicate()
+	_apply_grade()
+	ground.rebuild()
 	_setup_particles(str(map.particles))
 	var pad := int(TILE * 2) if bool(map.encounters) else 0 # a little sea around the island; walls end the town
 	cam.limit_left = -pad
@@ -265,7 +288,26 @@ func _add_prop(p: Dictionary) -> void:
 	pr.ph = int(p.x * 3 + p.y * 7) % 7
 	pr.position = Vector2(p.x, p.y) * TILE
 	ysort.add_child(pr)
+	if not p.has("s") and KingdomView.KDEFS.has(pr.kind):
+		pr.s = KingdomView.SPRITE_SCALE
+	var kd: Dictionary = KingdomView.KDEFS.get(pr.kind, {})
+	if not kd.is_empty():
+		if bool(kd.get("sway", false)):
+			pr.material = KingdomView.sway_mat
+		var fp := KingdomView.footprint(pr.kind, pr.position, pr.s)
+		if fp.size.x > 0.0:
+			blocks.append(fp)
+		var tx := KingdomView.tex(pr.kind)
+		if kd.has("light") and tx:
+			_add_light(pr.position + Vector2(0, tx.get_height() * pr.s * (kd.light as Vector2).y), 1.6 if pr.kind != "window_stained" else 3.0,
+				Color(1.0, 0.62, 0.3) if pr.kind != "window_stained" else Color(1.0, 0.75, 0.45))
+		if kd.has("chim") and tx:
+			var cp: Vector2 = kd.chim
+			_add_smoke(pr.position + Vector2((cp.x - 0.5) * tx.get_width() * pr.s * (-1.0 if pr.flip else 1.0), -tx.get_height() * pr.s * (1.0 - cp.y)))
+		return
 	var d: Dictionary = KingdomView.DEFS.get(pr.kind, {})
+	if pr.kind == "fire":
+		pr.animated = true
 	if not d.is_empty() and float(d.bw) > 0.0:
 		var bw: float = float(d.bw) * pr.s
 		var bh: float = float(d.bh) * pr.s
@@ -273,14 +315,163 @@ func _add_prop(p: Dictionary) -> void:
 	elif pr.kind in ["throne", "shrine"] or pr.kind.begins_with("statue:"):
 		blocks.append(Rect2(pr.position.x - 40, pr.position.y - 20, 80, 24))
 	if bool(p.get("light", false)) or pr.kind == "fire":
-		var l := PointLight2D.new()
-		l.texture = _light_tex
-		l.texture_scale = 2.4
-		l.color = Color(1.0, 0.62, 0.3)
-		l.energy = 0.95
-		l.position = pr.position + Vector2(0, -30)
-		l.add_to_group("k_light")
-		add_child(l)
+		_add_light(pr.position + Vector2(0, -30), 2.4, Color(1.0, 0.62, 0.3))
+
+
+func _add_light(at: Vector2, scale: float, col: Color) -> void:
+	var l := PointLight2D.new()
+	l.texture = _light_tex
+	l.texture_scale = scale
+	l.color = col
+	l.energy = 0.5
+	l.position = at
+	l.add_to_group("k_light")
+	add_child(l)
+
+
+func _add_smoke(at: Vector2) -> void:
+	if reduced_motion:
+		return
+	var sm := CPUParticles2D.new()
+	sm.position = at
+	sm.amount = 10
+	sm.lifetime = 3.2
+	sm.preprocess = 3.0
+	sm.direction = Vector2(0.25, -1)
+	sm.spread = 12.0
+	sm.gravity = Vector2(6, -6)
+	sm.initial_velocity_min = 14.0
+	sm.initial_velocity_max = 22.0
+	sm.scale_amount_min = 3.0
+	sm.scale_amount_max = 6.0
+	var sc := Curve.new()
+	sc.add_point(Vector2(0, 0.5))
+	sc.add_point(Vector2(1, 1.6))
+	sm.scale_amount_curve = sc
+	var g := Gradient.new()
+	g.set_color(0, Color(0.75, 0.72, 0.7, 0.5))
+	g.set_color(1, Color(0.6, 0.58, 0.56, 0.0))
+	sm.color_ramp = g
+	smoke.add_child(sm)
+
+
+func _hash(c: int, r: int) -> int:
+	return absi((c * 73856093) ^ (r * 19349663) ^ 0x5bd1e995) % 1000003
+
+
+## Terrain id for the ground shader (see shaders/kingdom_ground.gdshader).
+func terrain_id(c: int, r: int) -> int:
+	var indoor: bool = map.id in ["castle", "house"]
+	match ch_at(c, r):
+		"~": return 0
+		"f", "T": return 2 if map.id == "overworld" else 1
+		"^": return 3
+		":": return 4
+		",": return 7 if indoor else (6 if map.id == "town" else 5)
+		"c": return 8
+		"P": return 7
+		"#": return 9 if indoor else 10
+	return 1
+
+
+## Hand-placed-looking clutter: grass tufts, flowers, pebbles, mushrooms, reeds and lily pads, seeded per tile.
+func _scatter_details() -> void:
+	details_static.items.clear()
+	details_sway.items.clear()
+	life.flowers.clear()
+	life.glow.clear()
+	for dcl in map.get("decals", []):
+		details_static.items.append({"tex": KingdomView.tex(str(dcl.img)), "pos": Vector2(dcl.x, dcl.y) * TILE, "s": float(dcl.s), "flip": false})
+	if map.id in ["castle", "house"]:
+		details_static.queue_redraw()
+		details_sway.queue_redraw()
+		return
+	for r in H:
+		for c in W:
+			var ch := ch_at(c, r)
+			var h := _hash(c, r)
+			var roll := h % 100
+			var at := Vector2(c + 0.2 + float(h % 61) / 100.0, r + 0.35 + float((h / 61) % 55) / 100.0) * TILE
+			var item := ""
+			var sway := true
+			match ch:
+				".":
+					if roll < 34: item = "tuft_short" if h % 3 else "tuft_tall"
+					elif roll < 46: item = ["flowers_white", "flowers_blue", "flowers_red"][h % 3]
+					elif roll < 50: item = "pebbles"; sway = false
+				"f":
+					if roll < 30: item = "tuft_tall"
+					elif roll < 40: item = "mushrooms"; sway = false
+					elif roll < 46: item = "bush"
+					elif roll < 49: item = "stump"; sway = false
+				"^":
+					if roll < 26: item = "tuft_short"
+					elif roll < 36: item = "pebbles"; sway = false
+					elif roll < 40: item = "boulder"; sway = false
+				":":
+					if roll < 22 and _near_water(c, r): item = "reeds"
+				"~":
+					if roll < 10 and _near_land(c, r): item = "lilypad"; sway = false
+			if item == "":
+				continue
+			var s := 0.55 + float(h % 4) * 0.06
+			if item in ["boulder", "stump"]: s = 0.85
+			if item == "bush": s = 1.0
+			if item in ["reeds", "lilypad", "mushrooms"]: s = 0.75
+			var d := {"tex": KingdomView.tex(item), "pos": at, "s": s, "flip": h % 2 == 0}
+			(details_sway if sway else details_static).items.append(d)
+			if item.begins_with("flowers") and life.flowers.size() < 10 and h % 3 == 0:
+				life.flowers.append(at)
+			if ch == "f" and life.glow.size() < 26 and h % 4 == 0:
+				life.glow.append(at)
+			# a second small tuft for density
+			if ch in [".", "f"] and h % 5 < 2:
+				details_sway.items.append({"tex": KingdomView.tex("tuft_short"), "pos": at + Vector2(float(h % 23) - 11.0, float(h % 13) - 20.0), "s": 0.5, "flip": h % 3 == 0})
+	details_static.queue_redraw()
+	details_sway.queue_redraw()
+
+
+func _near_water(c: int, r: int) -> bool:
+	return ch_at(c - 1, r) == "~" or ch_at(c + 1, r) == "~" or ch_at(c, r - 1) == "~" or ch_at(c, r + 1) == "~"
+
+
+func _near_land(c: int, r: int) -> bool:
+	return ch_at(c - 1, r) != "~" or ch_at(c + 1, r) != "~" or ch_at(c, r - 1) != "~" or ch_at(c, r + 1) != "~"
+
+
+func _apply_grade() -> void:
+	var g := grade
+	modulate_node.color = g.mod
+	torch.energy = float(g.torch)
+	var pm := post.material as ShaderMaterial
+	pm.set_shader_parameter("tint", g.tint)
+	pm.set_shader_parameter("saturation", float(g.sat))
+	pm.set_shader_parameter("contrast", float(g.con))
+	pm.set_shader_parameter("warmth", float(g.warm))
+	pm.set_shader_parameter("rays", float(g.rays))
+	pm.set_shader_parameter("bloom", float(g.bloom))
+
+
+func _blend_grade(delta: float) -> void:
+	if grade_target.is_empty():
+		return
+	var k := clampf(delta * 1.5, 0.0, 1.0)
+	for key in grade_target:
+		var a = grade[key]
+		var b = grade_target[key]
+		if a is Color:
+			grade[key] = (a as Color).lerp(b, k)
+		else:
+			grade[key] = lerpf(float(a), float(b), k)
+	_apply_grade()
+
+
+func _apply_motion() -> void:
+	var m := 0.0 if reduced_motion else 1.0
+	(ground.material as ShaderMaterial).set_shader_parameter("motion", m)
+	KingdomView.sway_mat.set_shader_parameter("motion", m)
+	(post.material as ShaderMaterial).set_shader_parameter("motion", m)
+	smoke.visible = not reduced_motion
 
 
 func ch_at(c: int, r: int) -> String:
@@ -338,13 +529,17 @@ func _process(delta: float) -> void:
 	_update_camera(delta)
 	if moved > 0.0:
 		_after_move(moved)
-	ground.queue_redraw()
 	for n in ysort.get_children():
-		n.queue_redraw()
+		if n is KingdomView.Actor or (n is KingdomView.Prop and n.animated):
+			n.queue_redraw()
+	markers.queue_redraw()
+	fg.queue_redraw()
+	life.queue_redraw()
 	minimap.queue_redraw()
+	_blend_grade(delta)
 	if not reduced_motion:
 		for l in get_tree().get_nodes_in_group("k_light"):
-			(l as PointLight2D).energy = 0.9 + 0.08 * sin(t_now * 9.0 + l.position.x) + 0.05 * sin(t_now * 23.0)
+			(l as PointLight2D).energy = 0.5 + 0.05 * sin(t_now * 9.0 + l.position.x) + 0.03 * sin(t_now * 23.0)
 
 
 func _input_dir() -> Vector2:
@@ -406,6 +601,7 @@ func _after_move(moved: float) -> void:
 		if reg != cur_region:
 			var first := cur_region == ""
 			cur_region = reg
+			grade_target = KingdomMaps.GRADES["forest" if reg == "forest" else "overworld"].duplicate()
 			if not first and reg != "road":
 				_show_banner(KingdomMaps.REGIONS[reg].name, "", true)
 		_tick_danger(moved, reg)
@@ -488,7 +684,10 @@ func use(u: Dictionary) -> void:
 			if bool(u.get("calm", false)) and bool(map.encounters):
 				meter = 0.0
 				danger_bar.value = 0.0
-			_open_dialog(str(u.name), str(u.text))
+			var hero := ""
+			if u.get("kind", "") == "npc" and u.has("node"):
+				hero = (u.node as KingdomView.Actor).hero
+			_open_dialog(str(u.name), str(u.text), hero)
 
 
 func warp_to(id: String, at: Variant) -> void:
@@ -508,7 +707,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo:
 		match e.physical_keycode:
 			KEY_E, KEY_SPACE, KEY_ENTER, KEY_KP_ENTER:
-				if dialog.visible: _close(dialog)
+				if dialog.visible: _dialog_advance()
 				elif not _modal_open(): use(near)
 				get_viewport().set_input_as_handled()
 			KEY_ESCAPE:
@@ -524,7 +723,7 @@ func _unhandled_input(e: InputEvent) -> void:
 				toggle_big_map()
 	elif e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 		if dialog.visible:
-			_close(dialog)
+			_dialog_advance()
 			return
 		if busy or _modal_open():
 			return
@@ -537,6 +736,14 @@ func _unhandled_input(e: InputEvent) -> void:
 				tap_target = u.pos
 				tap_use = u
 				break
+
+
+func _dialog_advance() -> void:
+	if dialog_text.visible_ratio < 1.0:
+		if _type_tw: _type_tw.kill()
+		dialog_text.visible_ratio = 1.0
+	else:
+		_close(dialog)
 
 
 func _modal_open() -> bool:
@@ -814,10 +1021,24 @@ func _toast(s: String) -> void:
 	_toast_tw.tween_callback(func(): AfTheme.pop_out(toast, reduced_motion))
 
 
-func _open_dialog(name: String, text: String) -> void:
+func _open_dialog(name: String, text: String, hero: String = "") -> void:
 	dialog_name.text = name
-	dialog_text.text = text
+	var body := text
+	if body.begins_with(name + ":"):
+		body = body.substr(name.length() + 1).strip_edges()
+	dialog_text.text = body
+	dialog_portrait_box.visible = hero != ""
+	if hero != "":
+		dialog_portrait.texture = KingdomView.hero_tex(hero)
 	AfTheme.pop_in(dialog, reduced_motion)
+	if _type_tw:
+		_type_tw.kill()
+	if reduced_motion:
+		dialog_text.visible_ratio = 1.0
+	else:
+		dialog_text.visible_ratio = 0.0
+		_type_tw = create_tween()
+		_type_tw.tween_property(dialog_text, "visible_ratio", 1.0, clampf(body.length() * 0.022, 0.3, 2.0))
 
 
 func _refresh_hud() -> void:
@@ -832,6 +1053,7 @@ func set_reduced_motion(on: bool) -> void:
 	reduced_motion = on
 	rm_btn.text = "Reduced motion: %s" % ("On" if on else "Off")
 	_setup_particles(str(map.get("particles", "")))
+	_apply_motion()
 	save_game()
 
 
@@ -849,13 +1071,37 @@ func _build_world_nodes() -> void:
 	_light_tex.gradient = lg
 	modulate_node = CanvasModulate.new()
 	add_child(modulate_node)
+	KingdomView.materials()
 	ground = KingdomView.Ground.new()
 	ground.k = self
 	ground.z_index = -10
+	ground.setup()
 	add_child(ground)
+	details_static = KingdomView.Details.new()
+	details_static.z_index = -9
+	add_child(details_static)
+	details_sway = KingdomView.Details.new()
+	details_sway.z_index = -8
+	details_sway.material = KingdomView.sway_mat
+	add_child(details_sway)
+	markers = KingdomView.Markers.new()
+	markers.k = self
+	markers.z_index = -7
+	add_child(markers)
 	ysort = Node2D.new()
 	ysort.y_sort_enabled = true
 	add_child(ysort)
+	smoke = Node2D.new()
+	smoke.z_index = 15
+	add_child(smoke)
+	life = KingdomView.Life.new()
+	life.k = self
+	life.z_index = 25
+	add_child(life)
+	fg = KingdomView.Foreground.new()
+	fg.k = self
+	fg.z_index = 30
+	add_child(fg)
 	player = KingdomView.Actor.new()
 	player.k = self
 	player.hero = PLAYER_HERO
@@ -905,13 +1151,13 @@ func _build_ui() -> void:
 	var fx := CanvasLayer.new()
 	fx.layer = 5
 	add_child(fx)
-	vignette = ColorRect.new()
-	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var vm := ShaderMaterial.new()
-	vm.shader = load("res://shaders/vignette.gdshader")
-	vignette.material = vm
-	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
-	fx.add_child(vignette)
+	post = ColorRect.new()
+	post.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var pmat := ShaderMaterial.new()
+	pmat.shader = load("res://shaders/kingdom_post.gdshader")
+	post.material = pmat
+	post.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fx.add_child(post)
 	var layer := CanvasLayer.new()
 	layer.layer = 10
 	add_child(layer)
@@ -987,6 +1233,10 @@ func _build_ui() -> void:
 	banner_title.theme_type_variation = "HeaderLabel"
 	banner_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	banner.add_child(banner_title)
+	var orn := KingdomView.Ornament.new()
+	orn.custom_minimum_size = Vector2(0, 16)
+	orn.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	banner.add_child(orn)
 	banner_sub = Label.new()
 	banner_sub.theme_type_variation = "FlavorLabel"
 	banner_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -997,8 +1247,21 @@ func _build_ui() -> void:
 	toast.add_child(toast_label)
 	# Dialog
 	dialog = _panel()
+	var dh := HBoxContainer.new()
+	dh.add_theme_constant_override("separation", 14)
+	dialog.add_child(dh)
+	dialog_portrait_box = PanelContainer.new()
+	dialog_portrait_box.custom_minimum_size = Vector2(84, 84)
+	dialog_portrait_box.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	dh.add_child(dialog_portrait_box)
+	dialog_portrait = TextureRect.new()
+	dialog_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	dialog_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	dialog_portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	dialog_portrait_box.add_child(dialog_portrait)
 	var dv := VBoxContainer.new()
-	dialog.add_child(dv)
+	dv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dh.add_child(dv)
 	dialog_name = Label.new()
 	dialog_name.theme_type_variation = "HeaderLabel"
 	dialog_name.add_theme_font_size_override("font_size", 20)
@@ -1007,11 +1270,18 @@ func _build_ui() -> void:
 	dialog_text.theme_type_variation = "FlavorLabel"
 	dialog_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dv.add_child(dialog_text)
+	var mr := HBoxContainer.new()
+	dv.add_child(mr)
 	var more := Label.new()
 	more.theme_type_variation = "MutedLabel"
-	more.text = "Tap or press E to close"
+	more.text = "Tap or press E"
+	more.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	more.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	dv.add_child(more)
+	mr.add_child(more)
+	var arrow := KingdomView.MoreArrow.new()
+	arrow.k = self
+	arrow.custom_minimum_size = Vector2(20, 20)
+	mr.add_child(arrow)
 	# Shop
 	shop = _panel()
 	var sv := VBoxContainer.new()
@@ -1082,6 +1352,11 @@ func _build_ui() -> void:
 	rm_btn.text = "Reduced motion: %s" % ("On" if reduced_motion else "Off")
 	mv.add_child(rm_btn)
 	mv.add_child(_button("Back to title", func(): save_game(); get_tree().change_scene_to_file("res://main.tscn")))
+	var cr := Label.new()
+	cr.theme_type_variation = "MutedLabel"
+	cr.text = "Art created with Grok"
+	cr.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mv.add_child(cr)
 	# Transition overlay
 	var tl := CanvasLayer.new()
 	tl.layer = 20
@@ -1143,5 +1418,5 @@ func _layout() -> void:
 	menu.custom_minimum_size = Vector2(minf(pw, 340.0), 0)
 	menu.size = Vector2.ZERO
 	menu.position = (Vector2(w, h) - menu.size) / 2.0
-	(vignette.material as ShaderMaterial).set_shader_parameter("aspect", vs.x / maxf(1.0, vs.y))
+	(post.material as ShaderMaterial).set_shader_parameter("aspect", vs.x / maxf(1.0, vs.y))
 	(iris.material as ShaderMaterial).set_shader_parameter("aspect", vs.x / maxf(1.0, vs.y))
