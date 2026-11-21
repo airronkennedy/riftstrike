@@ -4493,7 +4493,7 @@ func draw_overworld() -> void:
 	var st := compute_hero_stats(lead)
 	chip(lead + "  ·  Lv." + str(int(st.level)) + "  " + st.cls, VWc - 10, 8 + hh / 2.0, 12.0 if short else 13.0, Color(0.06, 0.14, 0.15, 0.72), Color.WHITE, "right")
 	var wild_now: bool = WORLD.in_wild(ow_x, ow_y)
-	var hint := "Tap the ground to walk" if short else "Tap a spot to walk there  ·  your lead hero explores"
+	var hint := "Drag to walk" if short else "Drag anywhere to walk (or WASD)  ·  your lead hero explores"
 	if wild_now:
 		hint = "Wild grass  ·  monsters may jump out"
 	chip(hint, VWc / 2, VHc - (16 if short else 22), 12.0 if short else 13.0, Color(0.06, 0.14, 0.15, 0.72), Color("#c8ffb0") if wild_now else Color.WHITE, "center")

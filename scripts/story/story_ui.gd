@@ -14,7 +14,7 @@ const TIPS := {
 	"danger": ["Danger outside the walls", "Out on Cinderreach the Danger meter fills as you walk. When it's full, a battle starts. Wild fights get bigger as your party grows."],
 	"order": ["Attack Order", "A new keeper joined. Quests > Attack Order opens Build: tap Suggest order to fit them in, so everyone's hits land on the same foe together and Spark."],
 	"home": ["All four sparks", "The Lantern is full. Take it home to King Orlan in Castle Emberhold. The gold arrow shows the way."],
-	"talk": ["Talking", "Walk up to anyone with a ! or ? and tap them (or press E). Tap to skip the text, tap again to continue."],
+	"talk": ["Talking", "Walk up to anyone with a ! or ? and press Use (or E). Tap anywhere to skip the text, tap again to continue."],
 }
 
 var story
