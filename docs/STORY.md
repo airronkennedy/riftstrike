@@ -105,6 +105,9 @@ into the bag and can be equipped from Build.
   that answers. Reward: a Brook Pendant, and after that Wenna heals the party for free whenever you talk to her.
 - **Drosk's Book** (Drosk the Coinwright, plaza): put 50 gold on yourself at 40 to 1 (paid out at 4 to 1 "for the
   house's health"). After Kindling Night he pays you 200 gold.
+- **The Star-Reader** (Adeyo, back room of the Ember Inn): she arrives after the first recruit (`adeyo_on`, toast + a
+  Liris chatter line). Talking to her (`met_adeyo`) opens the class-change divination (the `divine` action; see
+  docs/CLASSES.md). Warlock opens after Kindling Night, Bard after The Quiet Bell or the Wardens' return.
 
 ## Player guidance
 - **Markers:** a gold **!** over someone who has a new quest or a story beat, and a gold **?** over the person or place
@@ -199,7 +202,6 @@ final boss. Recommended levels are the minimum level of each story fight (foe le
 
 Players on 2x/3x battle speed finish faster. Wild battles scale with the party: while the hero is alone at most one
 foe appears, with two Wardens at most two, then the normal three (`Story.max_foes()`).
-
 ## Story flags (save format)
 Saved in `user://kingdom.cfg`, section `[story]`: `flags` (comma list), `vars` (a JSON dictionary: counters, gold
 bets, loyalty) and `recruited` (comma list of keeper ids). New Game deletes the file, so the story starts over.
@@ -208,7 +210,7 @@ bets, loyalty) and `recruited` (comma list of keeper ids). New Game deletes the 
   `boss2_won`, `s_ending`.
 - Choices: `c1_oath|c1_price`, `c2_burn|c2_keep`, `c3_heart|c3_hunt`, `c4_rest|c4_bind`, `c5_spare|c5_leave`,
   `end_throne|end_hearth`.
-- Side quests: `sq_fire_on`, `crate_1..3`, `sq_fire_done`; `sq_bell_on`, `sq_bell_done`; `sq_book_bet`, `sq_book_paid`.
+- Side quests: `sq_fire_on`, `crate_1..3`, `sq_fire_done`; `sq_bell_on`, `sq_bell_done`; `sq_book_bet`, `sq_book_paid`; `adeyo_on`, `met_adeyo`.
 - Loyalty: `loyal_grieve`, `loyal_halvard`, `loyal_corvin`, `loyal_ilsabet`.
 
 ## API for other scenes (the dungeon and boss work)
@@ -258,3 +260,7 @@ recommended level. Losing is fine: the lose dialog heals the party and the fight
 - Until `scenes/dungeon.tscn` exists, `enter_dungeon()` plays a built-in fallback: the floor dialogs, the guardian
   fights and the final sequence run straight from the Sunken Bastion spot on the overworld. That way the story can
   be finished end to end and tested today. Once the scene exists, `enter_dungeon()` loads it automatically.
+
+**The inn interior.** The town inn spot warps to map `inn` ("The Ember Inn", `scripts/classes/inn_map.gd`): the counter
+rests the party, and Adeyo sits at the back. Dialog conditions also accept `a|b` (either flag), and text may use
+`{party}` (the recruited keepers' names). The `divine` action opens the Star-Reader screen after the dialog closes.

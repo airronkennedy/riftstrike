@@ -27,8 +27,8 @@ func key(g: Object, k: int) -> void:
 
 func draw(g: Object, vw: float, vh: float) -> void:
 	var short: bool = vh <= 430
-	var area: Rect2 = g.menu_sheet("bld_back", "Build", "Class, abilities, the AUTO plan and the party's attack order.",
-		func(): g.menu_back(), ["Class", "Subclass", "Sequence", "Attack Order"], tab, func(i): tab = i, "bld_tab")
+	var area: Rect2 = g.menu_sheet("bld_back", "Build", "Class, abilities, auto-cast tactics and the party's attack order.",
+		func(): g.menu_back(), ["Class", "Subclass", "Tactics", "Attack Order"], tab, func(i): tab = i, "bld_tab")
 	if tab == 3:
 		_draw_order(g, area, short)
 		return
@@ -61,9 +61,9 @@ func _summary(g: Object, name: String, d: Rect2) -> float:
 	var et := ("EXP %d / %d" % [cur, nxt]) if nxt > 0 else "MAX LEVEL"
 	g.text(et, br.position.x - 8.0, y, 11.0, g.UI_MUTED, "right")
 	y += 16.0
-	var ids: Array = g.class_ability_ids(name) + g.sub_ability_ids(sub)
+	var ids: Array = g._sig_list(name) + g.class_ability_ids(name) + g.sub_ability_ids(sub)
 	var gap := 6.0
-	var cw: float = (d.size.x - gap * 3.0) / 4.0
+	var cw: float = (d.size.x - gap * float(ids.size() - 1)) / float(maxi(1, ids.size()))
 	for i in ids.size():
 		var id: String = str(ids[i])
 		var ab: Dictionary = g.ABILITY_DEFS[id]
@@ -72,7 +72,9 @@ func _summary(g: Object, name: String, d: Rect2) -> float:
 		g.rbox(r, 10.0, g.UI_GOLD_L if ok else g.UI_CARD, g.UI_GOLD if ok else g.UI_LINE, 1.2)
 		var nm: String = str(ab.name)
 		g.text(nm, r.position.x + 8.0, r.position.y + 11.0, g.fit_size(nm, 13.0, cw - 60.0, 8.0), g.UI_INK if ok else g.UI_MUTED, "left")
-		var tag: String = ("CLASS" if str(ab.src) == "class" else "SUB") if ok else ("%s Lv.%d" % ["class" if str(ab.src) == "class" else "sub", int(ab.lv)])
+		var sg: bool = str(ab.src) == "sig"
+		var tag: String = ("SIGNATURE" if sg else ("CLASS" if str(ab.src) == "class" else "SUB")) if ok else ("%s Lv.%d" % ["class" if str(ab.src) == "class" else "sub", int(ab.lv)])
+		if sg and Signatures.class_match(name, cls): tag = "SIG+"
 		g.text(tag, r.end.x - 6.0, r.position.y + 11.0, 9.0, g.UI_GOLD if ok else g.UI_LOCK, "right")
 		var ef: String = g.ab_effect_line(id)
 		g.text(ef, r.position.x + 8.0, r.position.y + 25.0, g.fit_size(ef, 10.0, cw - 14.0, 7.0), g.ab_color(id) if ok else g.UI_MUTED, "left")
@@ -154,11 +156,24 @@ func _move(name: String, g: Object, i: int, dir: int) -> void:
 	var t = s[i]; s[i] = s[j]; s[j] = t
 	g.AB_SEQ[name] = s; g.save_cfg()
 
+## Tactics (docs/CLASSES.md): the keeper's auto-cast rules, set up out of battle. Each row: ability (tap to cycle,
+## incl. "Save Brave Burst"), its condition (tap to cycle), an Auto ON/OFF toggle, move up/down, remove.
+## Phone portrait stacks each rule on two lines.
+const Tactics = preload("res://scripts/classes/tactics.gd")
+const Signatures = preload("res://scripts/classes/signatures.gd")
+func _rule_choices(g: Object, name: String) -> Array:
+	return g._sig_list(name) + g.loadout_of(name) + [Tactics.HOLD]
+
+func _rule_name(g: Object, id: String) -> String:
+	if id == Tactics.HOLD: return "Save Brave Burst"
+	return str(g.ABILITY_DEFS[id].name) if g.ABILITY_DEFS.has(id) else id
+
 func _draw_seq(g: Object, name: String, d: Rect2, short: bool) -> void:
 	var seq: Array = g.seq_of(name)
 	var lo: Array = g.loadout_of(name)
-	g.text("When MP is full, AUTO fires the FIRST rule that passes (top to bottom). None pass: basic attack, MP is kept.",
-		d.position.x + 2.0, d.position.y + 8.0, g.fit_size("x".repeat(110), 12.0, d.size.x, 8.0), g.UI_MUTED, "left")
+	var narrow: bool = d.size.x < 560.0
+	var help := "Gauge full: the FIRST rule that passes auto-casts (top to bottom). None pass: a normal attack, gauge kept."
+	g.text(help, d.position.x + 2.0, d.position.y + 8.0, g.fit_size(help, 12.0, d.size.x, 8.0), g.UI_MUTED, "left")
 	var y: float = d.position.y + 22.0
 	var rh: float = 38.0 if short else 46.0
 	var gap: float = 6.0
@@ -167,39 +182,51 @@ func _draw_seq(g: Object, name: String, d: Rect2, short: bool) -> void:
 		var rr: Array = seq[i]
 		var id: String = str(rr[0])
 		var cond: String = str(rr[1])
-		var r := Rect2(d.position.x, y, d.size.x, rh)
-		var live: bool = lo.find(id) >= 0
-		g.rbox(r, 14.0, g.UI_CARD, g.UI_GOLD if i == 0 else g.UI_LINE, 1.5)
-		g.text("#%d" % (i + 1), r.position.x + 20.0, r.get_center().y, 15.0, g.UI_GOLD)
-		var aw: float = minf(220.0, (r.size.x - 4.0 * (sb + 6.0) - 60.0) * 0.48)
-		var ar := Rect2(r.position.x + 40.0, r.position.y + 4.0, aw, rh - 8.0)
-		var an: String = str(g.ABILITY_DEFS[id].name) + ("" if live else "  (locked)")
+		var hold: bool = id == Tactics.HOLD
+		var sig: bool = not hold and g.ABILITY_DEFS.has(id) and str(g.ABILITY_DEFS[id].get("src", "")) == "sig"
+		var live: bool = hold or lo.find(id) >= 0 or (sig and g.ab_unlocked(name, id))
+		var off: bool = not hold and Tactics.is_off(g, name, id)
+		var tall: float = rh * 2.0 + 4.0 if narrow else rh
+		var r := Rect2(d.position.x, y, d.size.x, tall)
+		if r.end.y > d.end.y - rh: break
+		g.rbox(r, 14.0, g.UI_CARD, g.UI_GOLD if (sig and not off) else (g.UI_TEAL_D if i == 0 else g.UI_LINE), 1.5)
+		g.text("#%d" % (i + 1), r.position.x + 20.0, r.position.y + rh / 2.0, 15.0, g.UI_GOLD)
 		var ii: int = i
-		g.pill("bld_sa_%d" % i, ar, an, "primary" if live else "soft", 13.0, func():
+		var row_w: float = r.size.x - 40.0 - 4.0
+		var aw: float = (row_w - (sb + 6.0) * 1.0 - 70.0) if narrow else minf(230.0, (r.size.x - 5.0 * (sb + 6.0) - 120.0) * 0.5)
+		var ar := Rect2(r.position.x + 40.0, r.position.y + 4.0, aw, rh - 8.0)
+		var an: String = ("SIG · " if sig else "") + _rule_name(g, id) + ("" if live else "  (locked)")
+		g.pill("bld_sa_%d" % i, ar, an, ("gold" if sig else "primary") if (live and not off) else "soft", 13.0, func():
 			var s: Array = g.seq_of(name).duplicate(true)
-			s[ii][0] = _cycle(g.loadout_of(name), str(s[ii][0])); g.AB_SEQ[name] = s; g.save_cfg())
-		g.text("if", ar.end.x + 14.0, r.get_center().y, 13.0, g.UI_MUTED)
-		var cr := Rect2(ar.end.x + 28.0, r.position.y + 4.0, aw, rh - 8.0)
-		g.pill("bld_sc_%d" % i, cr, str(QuestRPG.CONDITIONS[cond]), "gold" if cond != "always" else "soft", 12.0, func():
+			s[ii][0] = _cycle(_rule_choices(g, name), str(s[ii][0])); g.AB_SEQ[name] = s; g.save_cfg())
+		# auto-cast toggle
+		var tr := Rect2(ar.end.x + 6.0, r.position.y + 4.0, 64.0, rh - 8.0)
+		if not hold:
+			g.pill("bld_st_%d" % i, tr, "OFF" if off else "AUTO", "soft" if off else "tealsoft", 12.0, func():
+				Tactics.set_off(g, name, id, not Tactics.is_off(g, name, id)); g.save_cfg())
+		var cy: float = r.position.y + (rh + 4.0 if narrow else 0.0)
+		var cx: float = r.position.x + 40.0 if narrow else tr.end.x + 8.0
+		var cw: float = (r.size.x - 40.0 - 3.0 * (sb + 6.0) - 22.0) if narrow else aw
+		if not narrow: g.text("if", cx + 6.0, r.position.y + rh / 2.0, 13.0, g.UI_MUTED); cx += 18.0
+		var cr := Rect2(cx, cy + 4.0, cw, rh - 8.0)
+		g.pill("bld_sc_%d" % i, cr, Tactics.label(cond), "gold" if cond != "always" else "soft", 12.0, func():
 			var s2: Array = g.seq_of(name).duplicate(true)
-			s2[ii][1] = _cycle(QuestRPG.COND_ORDER, str(s2[ii][1])); g.AB_SEQ[name] = s2; g.save_cfg())
+			s2[ii][1] = _cycle(Tactics.COND_ORDER, str(s2[ii][1])); g.AB_SEQ[name] = s2; g.save_cfg())
 		var bx: float = r.end.x - 3.0 * (sb + 6.0)
-		g.pill("bld_su_%d" % i, Rect2(bx, r.position.y + 4.0, sb, sb), "", "soft", 13.0, func(): _move(name, g, ii, -1), false, i == 0, false, "", "up")
-		g.pill("bld_sd_%d" % i, Rect2(bx + sb + 6.0, r.position.y + 4.0, sb, sb), "", "soft", 13.0, func(): _move(name, g, ii, 1), false, i == seq.size() - 1, false, "", "down")
-		g.pill("bld_sx_%d" % i, Rect2(bx + 2.0 * (sb + 6.0), r.position.y + 4.0, sb, sb), "X", "danger", 13.0, func():
+		g.pill("bld_su_%d" % i, Rect2(bx, cy + 4.0, sb, sb), "", "soft", 13.0, func(): _move(name, g, ii, -1), false, i == 0, false, "", "up")
+		g.pill("bld_sd_%d" % i, Rect2(bx + sb + 6.0, cy + 4.0, sb, sb), "", "soft", 13.0, func(): _move(name, g, ii, 1), false, i == seq.size() - 1, false, "", "down")
+		g.pill("bld_sx_%d" % i, Rect2(bx + 2.0 * (sb + 6.0), cy + 4.0, sb, sb), "X", "danger", 13.0, func():
 			var s3: Array = g.seq_of(name).duplicate(true)
-			s3.remove_at(ii); g.AB_SEQ[name] = s3; g.save_cfg())
-		y += rh + gap
-	var bw: float = 150.0
+			s3.remove_at(ii); g.AB_SEQ[name] = s3; g.save_cfg(), false, sig)
+		y += tall + gap
+	var bw: float = minf(150.0, (d.size.x - 10.0) / 2.0)
 	var by: float = minf(y + 4.0, d.end.y - rh)
 	g.pill("bld_add", Rect2(d.position.x, by, bw, rh - 6.0), "+ Add rule", "primary", 14.0, func():
 		var s4: Array = g.seq_of(name).duplicate(true)
 		var l2: Array = g.loadout_of(name)
-		s4.append([str(l2[0]) if l2.size() > 0 else "", "always"]); g.AB_SEQ[name] = s4; g.save_cfg(), seq.size() >= QuestRPG.MAX_RULES)
+		s4.append([str(l2[0]) if l2.size() > 0 else Tactics.HOLD, "always"]); g.AB_SEQ[name] = s4; g.save_cfg(), seq.size() >= QuestRPG.MAX_RULES)
 	g.pill("bld_reset", Rect2(d.position.x + bw + 10.0, by, bw, rh - 6.0), "Reset to default", "soft", 13.0, func():
-		g.AB_SEQ.erase(name); g.seq_of(name); g.save_cfg())
-	g.text("Tap an ability to cycle your unlocked ones · tap the rule to cycle checks", d.position.x + 2.0 * bw + 26.0, by + (rh - 6.0) / 2.0,
-		g.fit_size("Tap an ability to cycle your unlocked ones · tap the rule to cycle checks", 11.0, d.size.x - 2.0 * bw - 30.0, 7.0), g.UI_MUTED, "left")
+		g.AB_SEQ.erase(name); g.AB_OFF.erase(name); g.seq_of(name); g.save_cfg())
 
 # ------------------------------------------------------------------ attack order (docs/COMBO.md)
 const Combo = preload("res://scripts/combo.gd")

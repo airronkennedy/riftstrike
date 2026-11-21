@@ -3,7 +3,7 @@ extends RefCounted
 ## story fights and heirloom items. The dialog text lives in story_dialog.gd. The engine is story.gd (autoload "Story").
 ##
 ## Conditions (cond / talk rules) are strings: flags joined by "&", "!" negates, plus a few counters:
-##   "s_king&!got_grieve"   "sparks>=4"   "loyal>=3"   "gold>=50"   "party>=2"   "" (always)
+##   "s_king&!got_grieve"   "a|b" (either)   "sparks>=4"   "loyal>=3"   "gold>=50"   "party>=2"   "" (always)
 ## Talk rules: [cond, dialog id, marker] checked top-down, first match wins. Marker: "!" story beat, "?" objective
 ## target, "s" side quest offer / turn-in (pale blue), "" none.
 
@@ -28,6 +28,7 @@ const CAST := {
 	"halvard": {"name": "Halvard", "art": "halvard", "title": "Warden of the Forge"},
 	"corvin": {"name": "Corvin", "art": "corvin", "title": "Warden of the Star"},
 	"ilsabet": {"name": "Ilsabet", "art": "ilsabet", "title": "Warden of the Tide"},
+	"adeyo": {"name": "Adeyo", "art": "adeyo", "title": "The Star-Reader"},
 	"folk_liris": {"name": "Liris", "art": "liris", "title": "Innkeeper's daughter"},
 	"folk_tovik": {"name": "Tovik", "art": "tovik", "title": "Smith's apprentice"},
 	"folk_ismer": {"name": "Old Ismer", "art": "ismer", "title": "Town chronicler"},
@@ -80,6 +81,9 @@ const SIDE := [
 	{"id": "book", "on": "sq_book_bet", "done": "sq_book_paid", "title": "Drosk's Book", "giver": "drosk",
 		"text": "You bet 50 gold on yourself to become Hearth-Champion. Collect after Kindling Night.", "count": ["s_kindling"],
 		"back": "Collect your winnings from Drosk at the plaza."},
+	{"id": "adeyo", "on": "adeyo_on", "done": "met_adeyo", "title": "The Star-Reader", "giver": "adeyo",
+		"text": "A diviner has taken the candle-lit corner of the Ember Inn (north-east of the square). She can change a keeper's class.", "count": [],
+		"back": ""},
 	{"id": "reliquary", "on": "c2_keep", "done": "reliquary_given", "title": "The Black Reliquary", "giver": "grieve",
 		"text": "Carry the cultists' reliquary to Selka in the castle before you bring the sparks home.", "count": [],
 		"back": ""},
@@ -112,6 +116,10 @@ const NPCS := {
 		{"id": "taren", "art": "taren", "x": 12.4, "y": 3.5, "cond": "s_prologue&!s_return", "talk": [["", "taren_idle", ""]]},
 		{"id": "caldric", "art": "caldric", "x": 12.2, "y": 12.3, "cond": "s_king&!s_return", "talk": [["", "caldric_castle", ""]]},
 		{"id": "caldric_gate", "art": "caldric", "name": "Ser Caldric", "x": 10.0, "y": 19.6, "cond": "s_kindling&!s_ending", "talk": [["", "caldric_gate", ""]]},
+	],
+	"inn": [
+		{"id": "adeyo", "art": "adeyo", "x": 9.4, "y": 3.0, "cond": "", "talk": [
+			["!got_grieve", "adeyo_early", ""], ["!met_adeyo", "adeyo_intro", "s"], ["", "adeyo_idle", ""]]},
 	],
 	"house": [
 		{"id": "maera", "art": "maera", "x": 5.0, "y": 3.0, "cond": "", "talk": [
@@ -162,7 +170,8 @@ const SPOTS := {
 
 ## Where each map's exits lead (tile positions), so the objective arrow can point at the right door.
 const LINKS := {
-	"town": {"castle": Vector2(12.0, 5.3), "overworld": Vector2(12.0, 17.0), "house": Vector2(7.5, 13.3)},
+	"town": {"castle": Vector2(12.0, 5.3), "overworld": Vector2(12.0, 17.0), "house": Vector2(7.5, 13.3), "inn": Vector2(16.5, 9.3)},
+	"inn": {"town": Vector2(6.0, 7.2)},
 	"castle": {"town": Vector2(10.0, 21.0)},
 	"house": {"town": Vector2(4.0, 6.4)},
 	"overworld": {"town": Vector2(22.0, 20.3)},
