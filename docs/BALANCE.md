@@ -128,3 +128,24 @@ shop, castle and Build time. Tapping a foe or turning AUTO on skips the 2.6 s wi
 What the party hits when you do not tap a foe in target select (Emberhold menu > "Auto target";
 `scripts/target_select.gd`). Win rate over the same sweep (n=40 per level, one seed): Finish Off 93.8%,
 Backline First 92.8%, Biggest Threat 88.2%, Elites First 88.0%. All four stay in the band; Finish Off is the default.
+
+### Signatures and tactics (class-diviner PR)
+Every keeper's signature ability (docs/CLASSES.md) is a strong move used **once per battle**, from Lv3, and it comes
+first in the default Tactics list. The first version had no per-battle cap and pushed wins to 96% and the time to
+Lv10 down to 3.4 h, so it got capped and tuned in three passes. The weakest pass (x2.0-2.3) cost the bosses: a
+signature on "boss" replaced a stronger class move (Lance Charge x3.2). The final numbers sit between the two:
+Barrow Watch x2.4, Second Burial x3.0, Anvil Oath x1.25 (all foes), Called Shot x2.5, Tidal Decree 17% party heal,
+and about +25% more when the twist empowers them.
+
+| Run (`sim_balance.gd -- --n=60`, 600 fights each) | Overall AUTO | Lv1 → Lv10 |
+|---|---|---|
+| main before (seeds 1-3) | 89.8% / 90.5% / 89.5% | 3.85-3.91 h |
+| with signatures (seeds 1-3) | 91.8% / 93.7% / 94.0% | 3.71-3.81 h |
+
+Bosses (`sim_bosses.gd -- --n=60 --modes=default`, seeds 9 and 10, main → this branch): Matron Lv7 83/78 → 87/73,
+Tithe Collector Lv8 82/78 → 80/80, Knellbearer Lv9 83/78 → 88/83, Regnant Lv9 72/82 → 88/83, Regnant Lv10
+83/90 → 85/82, Sovereign Lv10 78/72 → 63/75 (n=200: 74-76% → 68-74%; target 60-70). All of these are within the n=60
+noise (about ±8 points).
+
+A class change itself doesn't move these numbers. A new class starts at half the keeper's best level, so a switch
+costs some EXP but never a full reset. Re-check with the same commands after changing `scripts/classes/signatures.gd`.

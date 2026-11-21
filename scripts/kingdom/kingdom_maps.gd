@@ -141,6 +141,7 @@ const GRADES := {
 	"overworld": {"tint": Color(1.0, 1.0, 1.02), "sat": 1.05, "con": 1.05, "warm": 0.04, "rays": 0.08, "bloom": 0.2, "mod": Color(0.96, 0.95, 1.0), "torch": 0.3},
 	"forest": {"tint": Color(0.95, 1.02, 0.95), "sat": 1.02, "con": 1.08, "warm": -0.04, "rays": 0.16, "bloom": 0.3, "mod": Color(0.66, 0.74, 0.66), "torch": 0.7},
 	"castle": {"tint": Color(1.02, 0.97, 0.92), "sat": 0.98, "con": 1.1, "warm": 0.1, "rays": 0.18, "bloom": 0.32, "mod": Color(0.42, 0.38, 0.42), "torch": 0.55},
+	"inn": {"tint": Color(1.04, 0.96, 0.9), "sat": 1.0, "con": 1.06, "warm": 0.14, "rays": 0.06, "bloom": 0.34, "mod": Color(0.48, 0.42, 0.44), "torch": 0.6},
 	"house": {"tint": Color(1.02, 0.97, 0.92), "sat": 1.0, "con": 1.06, "warm": 0.1, "rays": 0.08, "bloom": 0.3, "mod": Color(0.5, 0.45, 0.45), "torch": 0.55},
 }
 
@@ -189,7 +190,7 @@ static func get_map(id: String) -> Dictionary:
 				],
 				"spots": [
 					{"id": "store", "x": 7.5, "y": 9.3, "name": "General Store", "prompt": "Shop", "action": "shop"},
-					{"id": "inn", "x": 16.5, "y": 9.3, "name": "The Ember Inn", "prompt": "Rest", "action": "inn"},
+					{"id": "inn", "x": 16.5, "y": 9.3, "name": "The Ember Inn", "prompt": "Enter", "action": "warp", "to": "inn", "at": Vector2(6.0, 6.4)},
 					{"id": "gate", "x": 12.0, "y": 5.3, "name": "Castle Gate", "prompt": "Enter", "action": "warp", "to": "castle", "at": Vector2(10.0, 20.5)},
 					{"id": "house", "x": 7.5, "y": 13.3, "name": "Bramwell's House", "prompt": "Enter", "action": "warp", "to": "house", "at": Vector2(4.0, 6.5)},
 				],
@@ -240,6 +241,8 @@ static func get_map(id: String) -> Dictionary:
 					{"rect": Rect2(8, 14, 4, 8), "name": "Entrance Hall"},
 				],
 			}
+		"inn": # inside the Ember Inn: rest at the counter, Adeyo's divination corner (scripts/classes/inn_map.gd)
+			return preload("res://scripts/classes/inn_map.gd").map()
 		"house":
 			return {
 				"id": "house", "name": "Bramwell's House", "sub": "A placeholder interior", "rows": [

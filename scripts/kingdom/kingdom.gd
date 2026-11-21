@@ -397,7 +397,7 @@ func _hash(c: int, r: int) -> int:
 
 ## Terrain id for the ground shader (see shaders/kingdom_ground.gdshader).
 func terrain_id(c: int, r: int) -> int:
-	var indoor: bool = map.id in ["castle", "house"]
+	var indoor: bool = map.id in ["castle", "house"] or bool(map.get("indoor", false))
 	match ch_at(c, r):
 		"~": return 0
 		"f", "T": return 2 if map.id == "overworld" else 1
@@ -418,7 +418,7 @@ func _scatter_details() -> void:
 	life.glow.clear()
 	for dcl in map.get("decals", []):
 		details_static.items.append({"tex": KingdomView.tex(str(dcl.img)), "pos": Vector2(dcl.x, dcl.y) * TILE, "s": float(dcl.s), "flip": false})
-	if map.id in ["castle", "house"]:
+	if map.id in ["castle", "house"] or bool(map.get("indoor", false)):
 		details_static.queue_redraw()
 		details_sway.queue_redraw()
 		return

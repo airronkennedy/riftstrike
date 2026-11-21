@@ -174,7 +174,7 @@ const D := {
 	"grieve_spark": {"lines": [
 		["narr", "You raise the Kindling Lantern. A green-gold spark leaps inside: the Wardfire of Roots. One of four."],
 		["grieve", "I'll come. Someone has to keep you from getting buried. Next is the old baron in the cave. He'll hate you. He hates everyone. Bring something to hit."],
-	], "do": ["set:got_grieve", "sparks", "tip:order"]},
+	], "do": ["set:got_grieve", "sparks", "tip:order", "set:adeyo_on", "toast:New side quest: The Star-Reader"]},
 
 	# ------------------------------------------------------------------ Halvard, Wardfire of the Forge
 	"halvard_meet": {"lines": [
@@ -270,6 +270,39 @@ const D := {
 		["halvard", "Crowns. Always crowns.", "r_halvard"],
 		["bramwell", "Home, then. The king's waiting. And I'd like to see who's happy to see us."],
 	], "do": ["tip:home"]},
+
+	# ------------------------------------------------------------------ Adeyo, the Star-Reader (Ember Inn; docs/CLASSES.md)
+	"adeyo_early": {"lines": [
+		["adeyo", "A party of one? Sweet. The stars don't read solos, love. They get shy."],
+		["adeyo", "Come back when someone else is willing to share your luck. Then we'll talk about who you could be."],
+	]},
+	"adeyo_intro": {"lines": [
+		["narr", "In the candle-lit corner of the Ember Inn a woman in star-stitched blue is reading the ceiling as if it were a letter."],
+		["adeyo", "Ah. The Hearth-Champion, and a dead man who walks like he's late for his own funeral. Sit."],
+		["grieve", "I'm not late. I'm early. For the second one.", "r_grieve"],
+		["adeyo", "Adeyo. I read stars. Not your fortune: your calling. Warrior, Mage, Cleric, the lot. Ten of them, written over every head."],
+		["adeyo", "Change one, and the old one waits for you, every lesson kept. The sky is a very patient bookkeeper."],
+		["adeyo", "One thing the stars won't change: who you are. Each of you carries a move that's yours alone. I can only make it shine brighter in the right coat."],
+		["bramwell", "And the price?"],
+		["adeyo", "The stars are free. The candles are two copper, and I'm not counting. Much."],
+	], "choices": [
+		{"t": "Read our stars.", "do": ["set:met_adeyo", "divine"], "next": ""},
+		{"t": "Another time.", "do": ["set:met_adeyo"], "next": "adeyo_later"},
+	]},
+	"adeyo_later": {"lines": [["adeyo", "The stars will keep. They're good at that. It's practically all they do."]]},
+	"adeyo_idle": {"lines": [
+		["adeyo", "{party} keepers, {party} skies. Whose calling shall we turn over tonight?"],
+	], "choices": [
+		{"t": "Read our stars.", "do": ["divine"], "next": ""},
+		{"t": "What's new up there?", "next": "adeyo_news"},
+		{"t": "Not tonight.", "next": ""},
+	]},
+	"adeyo_news": {"lines": [
+		["adeyo", "The Warlock's star is still dark. Something on Kindling Night will light it. Or burn it. One of those.", "!s_kindling"],
+		["adeyo", "The Warlock's star is lit. Ash teaches, if you let it. Bad teacher. Very thorough.", "s_kindling"],
+		["adeyo", "And the Bard's star hums when the shrine bell is quiet. Ask Sister Wenna about that bell.", "!sq_bell_done&!s_return"],
+		["adeyo", "The Bard's star is singing. Badly. They always do at first.", "sq_bell_done|s_return"],
+	]},
 
 	# ------------------------------------------------------------------ Spots
 	"forest_look": {"lines": [["narr", "Gloamwood Heart. The oldest tree on the isle hums with a low ember light, and the ground at its roots looks freshly turned."]]},
@@ -463,6 +496,7 @@ const CHATTER := {
 	"liris": [
 		["!s_maera", "All four Wardfires? At once? My gran says it's an omen. My gran says everything's an omen."],
 		["s_maera&!s_return&sparks<2", "Ser Caldric rode out at dawn. Then rode back for his other cape. Then rode out again."],
+		["got_grieve&!met_adeyo", "There's a star-reader in our back room. She paid in advance. Mum's never been so suspicious."],
 		["s_maera&!s_return&sparks>=2", "{sparks} sparks! The inn's started a song about you. It doesn't rhyme. They tried."],
 		["s_return&!s_kindling", "Kindling Night! I've been saving this dress for a hundred years. Well. My gran has."],
 		["s_kindling&!s_ending", "The Lamplighter? He lit our street every night for thirty years. I used to wave."],

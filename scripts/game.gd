@@ -425,6 +425,7 @@ func build_rpg() -> void:
 		var cl: String = str(QuestRPG.FROM_KIT_CLASS.get(str(h.cls), "Warrior"))
 		CHAR[nm].cls = cl
 		CHAR[nm].sub = str(QuestRPG.DEFAULT_SUB.get(cl, "Knight"))
+	Signatures.register(self) # docs/CLASSES.md: one character-tied signature ability per keeper
 
 func rpg_rows(rows: Array, src: String, cls: String) -> Array:
 	var ids: Array = []
@@ -451,11 +452,20 @@ func default_loadout(name: String) -> Array:
 func default_seq(name: String) -> Array:
 	var first: Array = []
 	var last: Array = []
-	for id in class_ability_ids(name) + sub_ability_ids(str(CHAR[name].sub)):
+	for id in _sig_list(name) + class_ability_ids(name) + sub_ability_ids(str(CHAR[name].sub)):
 		var cond: String = str(ABILITY_DEFS[id].get("cond", "always"))
 		if cond == "always": last.append([id, cond])
 		else: first.append([id, cond])
 	return first + last
+
+## Classes, signatures and auto-cast tactics (docs/CLASSES.md).
+const Signatures = preload("res://scripts/classes/signatures.gd")
+const Tactics = preload("res://scripts/classes/tactics.gd")
+var AB_OFF: Dictionary = {} # keeper -> [ability ids with auto-cast switched off]
+var SIG_SEEN: Dictionary = {} # keeper -> true once their plan has had its signature rule (migration of old saves)
+func _sig_list(name: String) -> Array:
+	var s := Signatures.id_for(self, name)
+	return [s] if s != "" else []
 
 func loadout_of(name: String) -> Array:
 	if not CHAR.has(name): return []
@@ -472,7 +482,9 @@ func seq_of(name: String) -> Array:
 	if not AB_SEQ.has(name): AB_SEQ[name] = default_seq(name)
 	var out: Array = []
 	for rr in AB_SEQ[name]:
-		if ABILITY_DEFS.has(str(rr[0])) and QuestRPG.CONDITIONS.has(str(rr[1])): out.append([str(rr[0]), str(rr[1])])
+		if (ABILITY_DEFS.has(str(rr[0])) or str(rr[0]) == Tactics.HOLD) and Tactics.CONDITIONS.has(str(rr[1])): out.append([str(rr[0]), str(rr[1])])
+	var sg := Signatures.id_for(self, name)
+	if sg != "": SIG_SEEN[name] = true
 	AB_SEQ[name] = out
 	return out
 
@@ -491,6 +503,7 @@ func set_sub(name: String, sub: String) -> void:
 	save_cfg()
 
 func seq_condition_ok(u, cond: String) -> bool:
+	if Tactics.handles(cond): return Tactics.check(self, u, cond)
 	var allies: Array = alive(u.team)
 	var foes: Array = alive(enemy_of(u))
 	match cond:
@@ -517,14 +530,7 @@ func seq_condition_ok(u, cond: String) -> bool:
 ## The ability a full MP bar fires in AUTO: first rule (top-down) whose ability is slotted and whose check passes.
 ## No rule passes -> basic attack and the bar stays full for next turn.
 func seq_pick(u) -> String:
-	var lo: Array = loadout_of(u.name)
-	for rr in seq_of(u.name):
-		var id: String = str(rr[0])
-		if lo.find(id) < 0 or not ab_unlocked(u.name, id): continue
-		# Heals never fire into a full-HP party, even on an "always" rule.
-		if seq_condition_ok(u, str(rr[1])) and auto_wants(u, id):
-			return id
-	return ""
+	return Tactics.pick(self, u) # rule list, auto-cast toggles, "Save Brave Burst" holds, empowered signatures
 
 ## Per-unit look: the base kind's combat kit drawn with one static Airron's Fall sprite.
 const FOE_NATIVE_FACING := {"f_brute": -1}
@@ -3524,6 +3530,7 @@ func save_cfg() -> void:
 		cf.set_value("ab_seq", name, ",".join(sq))
 	cf.set_value("rs", "auto_go", AUTO)
 	cf.set_value("combo", "order", ",".join(HERO_ORDER))
+	Tactics.save(self, cf)
 	for nm in HERO_DELAY: cf.set_value("combo_delay", str(nm), int(HERO_DELAY[nm]))
 	cf.set_value("rs", "rpg_v", 2)
 	cf.set_value("party", "squad", ",".join(SQUAD))
@@ -3549,6 +3556,7 @@ func load_cfg() -> void:
 	AUTO = bool(cf.get_value("rs", "auto_go", false))
 	var ho: String = str(cf.get_value("combo", "order", ""))
 	HERO_ORDER = Array(ho.split(",", false)) if ho != "" else []
+	Tactics.load_from(self, cf)
 	HERO_DELAY = {}
 	if cf.has_section("combo_delay"):
 		for nm in cf.get_section_keys("combo_delay"): HERO_DELAY[nm] = clampf(float(cf.get_value("combo_delay", nm, 0)), 0.0, Combo.DELAY_MAX)
@@ -3597,6 +3605,7 @@ func load_cfg() -> void:
 				var kv: PackedStringArray = part.split(":")
 				if kv.size() == 2: rules.append([kv[0], kv[1]])
 			AB_SEQ[name] = rules
+			Tactics.migrate(self, name) # a plan saved before signatures existed gets the signature rule on top
 		validate_ab_equip(name)
 	if cf.has_section_key("party", "squad"):
 		var sq = cf.get_value("party", "squad", "")
@@ -3700,6 +3709,20 @@ func resume_overworld() -> void:
 	WORLD.last_x = ow_x
 	WORLD.last_y = ow_y
 
+
+## Class divination screen (scripts/classes/diviner_ui.gd). Leaving saves and goes back to the kingdom (the inn).
+var diviner_ui: CanvasLayer = null
+func open_diviner(fast: bool = false) -> void:
+	diviner_ui = preload("res://scripts/classes/diviner_ui.gd").new()
+	diviner_ui.g = self
+	diviner_ui.fast = fast
+	add_child(diviner_ui)
+	diviner_ui.closed.connect(func():
+		save_cfg()
+		diviner_ui.queue_free(); diviner_ui = null
+		var qf := get_node_or_null("/root/QuestFlow")
+		if qf != null and qf.has_method("open_kingdom"): qf.open_kingdom()
+		else: to_title())
 
 func menu_back() -> void:
 	if menu_return == "kingdom":
@@ -4162,6 +4185,8 @@ func draw_party() -> void:
 		var tx: float = rr.position.x + 108.0
 		text(hn, tx, bcy - (7.0 if short else 9.0), 15.0 if short else 18.0, UI_INK, "left")
 		var line: String = "Lv." + str(int(hs.level)) + "  " + str(hs.cls) + " · " + str(hs.sub)
+		var sgi := Signatures.id_for(self, hn) # the keeper's own signature (docs/CLASSES.md)
+		if sgi != "": line += "  ·  Sig: " + str(ABILITY_DEFS[sgi].name) + ("+" if Signatures.class_match(hn, str(hs.cls)) else "")
 		var aw: float = minf(prow - 8.0, 38.0)
 		text(line, tx, bcy + (9.0 if short else 11.0), fit_size(line, 11.0 if short else 12.0, rr.end.x - tx - aw * 2.0 - 24.0, 8.0), UI_MUTED, "left")
 		var ay: float = bcy - aw / 2.0
@@ -5377,6 +5402,7 @@ var touch_idx := -1
 var last_fire := {}
 
 func _input(event: InputEvent) -> void:
+	if diviner_ui != null: return # the divination screen (Controls) takes all input
 	var st_ui = get_node_or_null("/root/Story")
 	if st_ui != null and st_ui.get("ui") != null and st_ui.ui.wants_taps():
 		return # a story card / dialog over a battle owns the tap
@@ -5599,6 +5625,10 @@ func _ready() -> void:
 		start_boss_battle(str(bs.pending), true)
 	elif qf != null and qf.in_kingdom_battle and qf.pending_region != "":
 		start_kingdom_battle(qf.pending_region)
+	elif qf != null and str(qf.get("pending_screen")) == "diviner": # Adeyo at the Ember Inn (docs/CLASSES.md)
+		qf.pending_screen = ""
+		new_battle(); phase = "title"
+		open_diviner()
 	elif qf != null and str(qf.get("pending_screen")) == "build": # Story journal: "Party & Attack Order"
 		qf.pending_screen = ""
 		new_battle(); phase = "title"

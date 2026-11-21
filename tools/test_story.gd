@@ -54,7 +54,7 @@ func check_data() -> void:
 		for f in bt.get("foe_ids", []): if str(f) != "" and not preload("res://scripts/af_roster.gd").FOES.has(str(f)): bad.append("foe " + str(f))
 		for tr in bt.tiers: if not preload("res://scripts/quest_rpg.gd").FOE_TIER.has(str(tr)): bad.append("tier " + str(tr))
 		ok(bt.kinds.size() == bt.tiers.size(), "fight %s: kinds and tiers line up" % b)
-	var acts := ["set", "clear", "recruit", "loyal", "battle", "gold", "item", "heal", "hurt", "act", "tip", "toast", "dungeon", "exit_dungeon", "ending", "boss", "sparks", "crates", "calm", "lesson", "rally"]
+	var acts := ["set", "clear", "recruit", "loyal", "battle", "gold", "item", "heal", "hurt", "act", "tip", "toast", "dungeon", "exit_dungeon", "ending", "boss", "sparks", "crates", "calm", "lesson", "rally", "divine"]
 	var items: Dictionary = SD.ITEMS.duplicate()
 	for i in ["warden_mail", "brook_pendant"]: items[i] = true
 	for id in D:
@@ -107,7 +107,7 @@ func check_reach() -> void:
 	await process_frame
 	# Turn on every story flag group that places people, map by map.
 	for f in ["s_prologue", "s_king"]: st.flags[f] = true
-	for id in ["town", "castle", "house", "overworld"]:
+	for id in ["town", "castle", "house", "overworld", "inn"]:
 		for f in ["sq_fire_on"]: st.flags[f] = true
 		k.load_map(id)
 		var reach := _reach()
@@ -207,6 +207,7 @@ func walk(tag: String, pol: Dictionary) -> void:
 	preload("res://tools/test_save.gd").fresh()
 	st.reset()
 	st.battle_stub = true
+	st.divine_stub = true; st.divined = 0
 	st.use_dungeon_scene = false # the overworld fallback; the dungeon scene has its own test (tools/test_dungeon.gd)
 	st.ui.fast = true
 	k = load("res://scenes/kingdom.tscn").instantiate()
@@ -239,6 +240,19 @@ func walk(tag: String, pol: Dictionary) -> void:
 	var seen: Array = st.vars.get("tips", [])
 	ok(seen.has("lesson_order") and seen.has("lesson_spark"), "%s: Attack Order + Sparks lessons shown before the first Warden fight" % tag)
 	ok(not st.party_mult().is_empty() and float(st.party_mult().hp) < 1.0, "%s: foes scaled for a party of two" % tag)
+	# Adeyo, the Star-Reader (docs/CLASSES.md): introduced after the first Warden, inside the Ember Inn
+	ok(st.get_flag("adeyo_on") and not st.get_flag("met_adeyo"), "%s: The Star-Reader side quest opens after Grieve" % tag)
+	k.load_map("town"); await process_frame
+	for u in k.usables:
+		if str(u.get("id", "")) == "inn": k.busy = false; k.use(u)
+	for i in 200:
+		await process_frame
+		if str(k.map.get("id", "")) == "inn" and not k.busy: break
+	ok(str(k.map.get("id", "")) == "inn", "%s: the inn door leads inside" % tag)
+	await talk("inn", "adeyo")
+	ok(st.get_flag("met_adeyo") and st.divined == 1, "%s: Adeyo's intro opens the divination (%d)" % [tag, st.divined])
+	await talk("inn", "adeyo")
+	ok(st.divined == 2, "%s: Adeyo divines again any time" % tag)
 	ok(st.max_foes() == 2, "%s: two keepers = up to 2 wild foes" % tag)
 	ok(st.get_flag("loyal_grieve") == (tag == "A"), "%s: Grieve loyalty follows choice 2" % tag)
 	if tag == "B": await talk("castle", "selka")

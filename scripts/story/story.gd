@@ -55,6 +55,8 @@ var stub_win := true           # another scene (the dungeon) can ask for the tra
 ## Tests: false = play the built-in Sunken Bastion fallback (dialogs + fights from the ruin) instead of loading
 ## scenes/dungeon.tscn (test_story walks the whole story on the overworld; tools/test_dungeon.gd covers the scene).
 var use_dungeon_scene := true
+var divine_stub := false # tests: count "divine" actions instead of changing scene
+var divined := 0
 
 
 func _ready() -> void:
@@ -191,6 +193,10 @@ func check(c: String) -> bool:
 
 
 func _atom(a: String) -> bool:
+	if a.contains("|"): # "a|b": either flag (binds tighter than &)
+		for o in a.split("|", false):
+			if _atom(o.strip_edges()): return true
+		return false
 	for op in [">=", "<=", ">", "<"]:
 		if a.contains(op):
 			var kv := a.split(op)
@@ -219,7 +225,7 @@ func _num(n: String) -> int:
 
 
 func fill(t: String) -> String:
-	return t.replace("{sparks}", str(sparks())).replace("{loyal}", str(loyal_count())).replace("{gold}", str(gold()))
+	return t.replace("{sparks}", str(sparks())).replace("{loyal}", str(loyal_count())).replace("{gold}", str(gold())).replace("{party}", str(maxi(1, _recruited.size())))
 
 
 func pick_rule(rules: Array) -> Array:
@@ -467,6 +473,9 @@ func _flush_deferred() -> void:
 					ui.want_build = false
 					open_build(); return
 			"battle": start_battle(str(d[1])); return
+			"divine": # Adeyo: the class-change screen in main.tscn, back to the inn after (docs/CLASSES.md)
+				if divine_stub: divined += 1; continue
+				preload("res://scripts/classes/diviner.gd").open_from_kingdom(get_tree(), kingdom); return
 			"dungeon": enter_dungeon(); return
 			"exit_dungeon": exit_dungeon(); return
 			"ending": await _ending(); return
@@ -504,6 +513,7 @@ func _do(actions: Array) -> void:
 			"dungeon": _deferred.append(["dungeon", ""])
 			"exit_dungeon": _deferred.append(["exit_dungeon", ""])
 			"ending": _deferred.append(["ending", ""])
+			"divine": _deferred.append(["divine", ""])
 	save_state()
 
 
