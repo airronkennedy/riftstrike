@@ -27,7 +27,7 @@ var walking := false
 var t_now := 0.0
 var busy := false
 var stair_grace := 0.0
-var path: Array = []
+var stick: Control # floating touch joystick (KingdomView.FloatStick)
 var drag_from = null
 var drag_vec := Vector2.ZERO
 var near: Dictionary = {}
@@ -72,7 +72,16 @@ var end_card: PanelContainer
 var fade: ColorRect
 var vignette: TextureRect
 
+var _prev_emulate := false
+
+func _exit_tree() -> void:
+	Input.emulate_mouse_from_touch = _prev_emulate
+
 func _ready() -> void:
+	# Touch: emulate the mouse so Use / Menu / dialog buttons take a finger; the field reads the real touch
+	# below and drops the emulated copy, so one tap is one action.
+	_prev_emulate = Input.emulate_mouse_from_touch
+	Input.emulate_mouse_from_touch = true
 	for a in OS.get_cmdline_user_args():
 		if a == "--shots": shots_mode = true
 	_load_tex()
@@ -82,6 +91,7 @@ func _ready() -> void:
 			floor_i = clampi(int(a.substr(9)) - 1, 0, DungeonMaps.FLOORS.size() - 1); pos = Vector2.ZERO
 	_build_world()
 	_build_ui()
+	ui.move_child(stick, -1) # stick on top of the HUD art
 	load_floor(floor_i, pos if pos != Vector2.ZERO else Vector2(-1, -1))
 	var bs := get_node_or_null("/root/Bosses")
 	if bs != null:
@@ -261,6 +271,8 @@ func _process(delta: float) -> void:
 	var moved := 0.0
 	if not busy and not _modal_open():
 		moved = _move(delta)
+	elif drag_from != null:
+		_drop_drag() # a finger held when a dialog / fight opened must not keep walking afterwards
 	walking = moved > 0.1
 	if moved > 0.0 and bool(_encounters_here()):
 		meter += moved / (TILE * float(fdef.get("rate", 30.0)))
@@ -300,14 +312,6 @@ func _input_dir() -> Vector2:
 
 func _move(delta: float) -> float:
 	var dir := _input_dir()
-	if dir != Vector2.ZERO: path = []
-	elif not path.is_empty():
-		var nxt: Vector2 = path[0]
-		if pos.distance_to(nxt) < 6.0:
-			path.pop_front()
-			if path.is_empty(): return 0.0
-			nxt = path[0]
-		dir = (nxt - pos).normalized()
 	if dir == Vector2.ZERO: return 0.0
 	if absf(dir.x) > 0.1: facing = signf(dir.x)
 	var step := dir * SPEED * delta
@@ -317,25 +321,6 @@ func _move(delta: float) -> float:
 	np = pos + Vector2(0, step.y)
 	if walkable_px(np): pos = np
 	return start.distance_to(pos)
-
-func walk_to(world: Vector2) -> void:
-	var from := cell_of(pos)
-	var to := cell_of(world)
-	if not astar.region.has_point(to): return
-	if astar.is_point_solid(to):
-		# tapped a usable thing: walk next to it
-		var best := Vector2i(-1, -1)
-		for d in [Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 0), Vector2i(-1, 0)]:
-			var c: Vector2i = to + d
-			if astar.region.has_point(c) and not astar.is_point_solid(c):
-				if best.x < 0 or Vector2(c).distance_to(Vector2(from)) < Vector2(best).distance_to(Vector2(from)): best = c
-		if best.x < 0: return
-		to = best
-	var cells: Array = astar.get_id_path(from, to)
-	path = []
-	for c in cells.slice(1): path.append(cell_center(c))
-	if not path.is_empty() and astar.is_point_solid(cell_of(world)) == false:
-		path[path.size() - 1] = world
 
 # ---------------------------------------------------------------- interactables
 func usables() -> Array:
@@ -585,22 +570,29 @@ func _unhandled_input(e: InputEvent) -> void:
 	var ppos := Vector2.ZERO
 	if e is InputEventScreenTouch:
 		press = e.pressed; release = not e.pressed; ppos = e.position
-	elif e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT:
+	elif e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT and e.device != InputEvent.DEVICE_ID_EMULATION:
 		press = e.pressed; release = not e.pressed; ppos = e.position
+	# Movement is the floating stick only (no tap-to-walk): a finger that lands on the field spawns the stick
+	# there and drags it; interacting is the context Use button (or E / Space / gamepad A).
 	if press:
 		if dialog.visible: _dialog_advance(); return
 		if _modal_open() or busy: return
 		drag_from = ppos; drag_vec = Vector2.ZERO
+		if stick != null: stick.show_at(ppos / ui.scale.x)
 	elif release and drag_from != null:
-		if drag_vec.length() < 18.0:
-			var wp := get_canvas_transform().affine_inverse() * ppos
-			# tap a usable thing you're next to: use it; else walk there
-			var c := cell_of(wp)
-			if not near.is_empty() and (near.cell == c or (near.kind == "boss" and DungeonMaps.at(floor_i, c) == "B")): use(near)
-			else: walk_to(wp)
-		drag_from = null; drag_vec = Vector2.ZERO
+		_drop_drag()
 	if (e is InputEventScreenDrag or e is InputEventMouseMotion) and drag_from != null:
 		drag_vec = e.position - drag_from
+		if stick != null:
+			var r: float = stick_size() * 0.31
+			stick.set_knob(drag_vec.limit_length(r * ui.scale.x) / ui.scale.x)
+
+func _drop_drag() -> void:
+	drag_from = null; drag_vec = Vector2.ZERO
+	if stick != null and stick.on: stick.release()
+
+func stick_size() -> float:
+	return 118.0
 
 # ---------------------------------------------------------------- drawing
 func _draw() -> void:
@@ -658,10 +650,6 @@ func _draw() -> void:
 		for j in 8:
 			var a := TAU * float(j) / 8.0 + float(f.t)
 			draw_circle(f.p + Vector2(cos(a), sin(a) * 0.6) * (14.0 + 46.0 * k) + Vector2(0, -16), 2.5 * (1.0 - k), Color(col.r, col.g, col.b, 1.0 - k))
-	# tap-to-walk target
-	if not path.is_empty():
-		var tp: Vector2 = path[path.size() - 1]
-		draw_arc(tp, 10.0 + sin(t_now * 8.0) * 2.0, 0, TAU, 24, Color(AfTheme.GOLD.r, AfTheme.GOLD.g, AfTheme.GOLD.b, 0.6), 2.0)
 
 func _draw_lava(r: Rect2, c: Vector2i) -> void:
 	var t := t_now if not reduced_motion else 0.0
@@ -902,6 +890,11 @@ func _build_ui() -> void:
 	ui.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layer.add_child(ui)
+	stick = KingdomView.FloatStick.new()
+	stick.k = self
+	stick.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stick.visible = false
+	ui.add_child(stick)
 	# vignette
 	vignette = TextureRect.new()
 	var vg := GradientTexture2D.new()
@@ -1020,7 +1013,7 @@ func _layout() -> void:
 	hint.position = Vector2(vs.x / 2.0 - 120.0, vs.y - (150.0 if port else 70.0))
 	toast.custom_minimum_size = Vector2(minf(vs.x - 40.0, 420.0), 0)
 	toast.position = Vector2((vs.x - toast.custom_minimum_size.x) / 2.0, vs.y * (0.62 if port else 0.66))
-	banner.position = Vector2(0, vs.y * (0.24 if port else 0.2)); banner.size = Vector2(vs.x, 80)
+	banner.position = Vector2(0, vs.y * (0.3 if port else 0.28)); banner.size = Vector2(vs.x, 80) # below the story toasts
 	var dw: float = minf(vs.x - 24.0, 560.0)
 	dialog.custom_minimum_size = Vector2(dw, 0)
 	dialog.size = Vector2(dw, 0)

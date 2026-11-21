@@ -796,6 +796,9 @@ var party_sel := 0
 var ow_x := 0.0
 var ow_y := 0.0
 var ow_tx := 0.0
+var ow_stick_on := false # Act I Map: floating stick (no tap-to-walk)
+var ow_stick_from := Vector2.ZERO
+var ow_stick_vec := Vector2.ZERO
 var ow_ty := 0.0
 var ow_facing := 1
 var ow_anim := "idle"
@@ -4329,22 +4332,27 @@ func build_overworld() -> void:
 	ow_ready = true
 
 
-func ow_tap(p: Vector2) -> void:
-	var world := Vector2((p.x - VWc / 2.0) / ow_scale + ow_camx, (p.y - VHc / 2.0) / ow_scale + ow_camy)
-	# If the exact spot is blocked, walk as close as we can on the way there.
-	ow_tx = world.x
-	ow_ty = world.y
-	# Clamp destination to the walkable island, even if it's inside a building (movement will slide/stop).
-	var wr := ow_walk_rect()
-	ow_tx = clampf(ow_tx, wr.position.x, wr.position.x + wr.size.x)
-	ow_ty = clampf(ow_ty, wr.position.y, wr.position.y + wr.size.y)
-	sfx.tone(440, 0.03, "square", 0.015)
-
+## Tap-to-walk is gone: the Act I Map moves with the floating stick (drag from wherever the finger lands)
+## or WASD / arrows. Kept as a no-op for old callers.
+func ow_tap(_p: Vector2) -> void:
+	pass
 
 func tick_overworld(dt: float) -> void:
 	if screen != "overworld":
 		return
 	ow_at += dt
+	var od := Vector2.ZERO
+	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): od.x -= 1
+	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT): od.x += 1
+	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): od.y -= 1
+	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): od.y += 1
+	if ow_stick_on and ow_stick_vec.length() > 12.0: od = ow_stick_vec.normalized()
+	if od != Vector2.ZERO:
+		ow_tx = ow_x + od.normalized().x * 24.0
+		ow_ty = ow_y + od.normalized().y * 24.0
+	else:
+		ow_tx = ow_x
+		ow_ty = ow_y
 	if ow_menu_open:
 		ow_tx = ow_x
 		ow_ty = ow_y
@@ -4441,11 +4449,6 @@ func draw_overworld() -> void:
 	for d in OW_DECO:
 		var im: Texture2D = IMG["deco" + str(d[0])]
 		img(im, 0, 0, 64, 64, float(d[1]) - 32, float(d[2]) - 54, 64, 64)
-	# Destination marker
-	if ow_moving or absf(ow_tx - ow_x) + absf(ow_ty - ow_y) > 2:
-		save(); _alpha *= 0.45 + 0.2 * sin(now / 160.0)
-		stroke_ellipse(ow_tx, ow_ty - 2, 12, 6, Color("#ffe27a"), 2)
-		restore()
 	# Y-sort props, sheep, and the lead
 	var list := []
 	for p in OW_PROPS:
@@ -4833,7 +4836,11 @@ func draw_cast_banner() -> void:
 		var inn: float = clampf(bt / 160.0, 0.0, 1.0)
 		var outk: float = clampf((bt - (life - 220.0)) / 220.0, 0.0, 1.0)
 		var bh := 56.0
-		var by: float = SAFE_T + 34.0 + (boss.hud_h(self) + 4.0 if boss != null else 0.0)
+		# Sit below the boss bar and the combo counter (top right), so neither gets covered.
+		var hk: float = HUD.k if HUD != null else 1.0
+		var port_bb: bool = VHc > VWc
+		var combo_bot: float = SAFE_T + (64.0 if port_bb else 96.0) * hk + (boss.hud_h(self) if boss != null and port_bb else 0.0) + 52.0 * hk
+		var by: float = maxf(SAFE_T + 34.0 + (boss.hud_h(self) + 4.0 if boss != null else 0.0), combo_bot) + bh / 2.0 + 6.0
 		var open_h: float = bh * (1.0 - pow(1.0 - inn, 3.0)) * (1.0 - outk)
 		if open_h < 1.0: return
 		draw_rect(Rect2(0, by - open_h / 2.0, VWc, open_h), Color(0.04, 0.03, 0.025, 0.82))
@@ -5087,6 +5094,11 @@ func _draw() -> void:
 	set_xf(base)
 	if screen == "overworld":
 		draw_overworld()
+		if ow_stick_on: # floating stick, screen space
+			set_xf(base)
+			draw_circle(ow_stick_from, 56.0, Color(0.04, 0.035, 0.03, 0.3))
+			draw_arc(ow_stick_from, 55.0, 0, TAU, 40, Color(0.85, 0.68, 0.38, 0.45), 2.0)
+			draw_circle(ow_stick_from + ow_stick_vec, 22.0, Color(1.0, 0.66, 0.38, 0.55))
 		return
 	if screen == "map":
 		draw_overworld()
@@ -5365,6 +5377,9 @@ var touch_idx := -1
 var last_fire := {}
 
 func _input(event: InputEvent) -> void:
+	var st_ui = get_node_or_null("/root/Story")
+	if st_ui != null and st_ui.get("ui") != null and st_ui.ui.wants_taps():
+		return # a story card / dialog over a battle owns the tap
 	if event is InputEventScreenTouch:
 		last_touch = Time.get_ticks_msec()
 		if event.pressed:
@@ -5383,6 +5398,8 @@ func _input(event: InputEvent) -> void:
 		on_key(event.physical_keycode)
 	if event is InputEventMouseMotion:
 		mouse_pos = event.position / dpr; mouse_moved = true
+	if (event is InputEventScreenDrag or event is InputEventMouseMotion) and ow_stick_on:
+		ow_stick_vec = (event.position / dpr - ow_stick_from).limit_length(40.0)
 	if (event is InputEventScreenDrag or event is InputEventMouseMotion) and drag_on:
 		var mp2: Vector2 = event.position / dpr
 		if mp2.distance_to(drag_from) > 8.0:
@@ -5415,11 +5432,14 @@ func on_press(p: Vector2) -> void:
 		if ow_menu_open:
 			ow_menu_open = false
 			return
-		ow_tap(p)
+		ow_stick_on = true; ow_stick_from = p; ow_stick_vec = Vector2.ZERO
 		return
 	canvas_tap(p.x, p.y)
 
 func on_release(p: Vector2) -> void:
+	if ow_stick_on:
+		ow_stick_on = false; ow_stick_vec = Vector2.ZERO
+		ow_tx = ow_x; ow_ty = ow_y
 	if drag_on:
 		drag_on = false
 		if not drag_moved and screen == "map":
