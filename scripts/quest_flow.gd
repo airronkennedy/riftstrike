@@ -73,6 +73,9 @@ func new_game() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(KINGDOM_SAVE))
 	var story := get_node_or_null("/root/Story")
 	if story != null: story.reset()
+	DungeonGate.reset() # dungeon floor, doors, chests and keys start over too
+	var bs := get_node_or_null("/root/Bosses")
+	if bs != null: bs.reset()
 	open_kingdom()
 
 func open_kingdom() -> void:
