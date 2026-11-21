@@ -238,12 +238,18 @@ func _run() -> void:
 	ok(inn != null, "the Ember Inn is there")
 	if inn != null:
 		k.player_pos = (inn.pos as Vector2) + Vector2(0, 40); k.busy = false
-		k.use(inn); await wait(500)
+		k.use(inn); await wait(900) # the inn is a room now (class-diviner): the door warps inside
+		ok(str(k.map.get("id", "")) == "inn", "the inn door leads into the Ember Inn")
+		var counter = find("inn_counter")
+		if counter != null:
+			k.player_pos = (counter.pos as Vector2) + Vector2(0, 40); k.busy = false
+			k.use(counter); await wait(500)
 		await shot("inn")
 		await k.rest_at_inn()
 		await wait(300)
 		var cf := ConfigFile.new(); cf.load("user://kingdom.cfg")
-		ok(int(cf.get_value("kingdom", "hp", 0)) == int(k.party_hp_max) and str(cf.get_value("kingdom", "map", "")) == "town", "inn: party healed and journey saved")
+		ok(int(cf.get_value("kingdom", "hp", 0)) == int(k.party_hp_max) and str(cf.get_value("kingdom", "map", "")) in ["town", "inn"], "inn: party healed and journey saved")
+		k.load_map("town"); await wait(300) # back out to the plaza
 	# ---------------------------------------------------------------- the joystick does not block dialog
 	var pu = find("pell")
 	if pu != null:
