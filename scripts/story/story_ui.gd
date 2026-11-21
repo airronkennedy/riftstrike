@@ -61,6 +61,9 @@ var _hud := false
 var _toasts: Array = []
 var _toast_t := 0.0
 var _tip_t := 0.0
+var _wd_t := 0.0 # watchdog: how long the dialog has looked stuck
+var _block_t := 0.0 # watchdog: how long a blocking card has run with nothing on screen
+var _tip_held := false # a tip hidden while a dialog / journal / card is open
 var _pulse := 0.0
 var fast := false
 var _dlg_tw: Tween
@@ -70,6 +73,8 @@ var j_build: Button # tests: cards and typewriter finish at once
 
 func _ready() -> void:
 	layer = 30
+	# Dialogs keep typing / taking taps even if the tree is paused (a paused tree must never strand a dialog).
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	root = Control.new()
 	root.theme = AfTheme.get_theme()
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -289,17 +294,35 @@ func _label(t: String, variation: String, fs: int) -> Label:
 # ================================================================ frame
 func _process(delta: float) -> void:
 	_layout()
+	_watchdog(delta)
 	if dlg.visible and dlg_text.visible_ratio < 1.0:
 		_chars += delta * TYPE_CPS
 		dlg_text.visible_characters = int(_chars)
 		if dlg_text.visible_characters >= dlg_text.get_total_character_count(): dlg_text.visible_ratio = 1.0
 	if dlg.visible: dlg_more.queue_redraw()
+	# Tips and toasts belong to the field (kingdom / dungeon): hide them over the title, Build and battles
+	# (main.tscn); queued toasts wait for the field.
+	var cs := get_tree().current_scene
+	if cs != null and cs.scene_file_path == "res://main.tscn":
+		if tip_panel.visible: tip_panel.visible = false
+		_tip_held = false
+		if toast_panel.visible: toast_panel.visible = false
+		arrow.queue_redraw()
+		return
 	if toast_panel.visible:
 		_toast_t -= delta
 		if _toast_t <= 0.0:
 			if _toasts.is_empty(): AfTheme.pop_out(toast_panel, _rm())
 			else: _show_next_toast()
 	elif not _toasts.is_empty(): _show_next_toast()
+	# Hold a tip while a dialog, the journal or a story card is up: hide it and keep its time, then bring it back.
+	var busy: bool = dlg.visible or journal.visible or card.visible
+	if busy and tip_panel.visible:
+		tip_panel.visible = false
+		_tip_held = true
+	elif not busy and _tip_held:
+		_tip_held = false
+		if _tip_t > 0.0: AfTheme.pop_in(tip_panel, _rm())
 	if tip_panel.visible:
 		_tip_t -= delta
 		if _tip_t <= 0.0: AfTheme.pop_out(tip_panel, _rm())
@@ -352,7 +375,7 @@ func _layout() -> void:
 	dlg.position = Vector2((w - dw) / 2.0, h - dlg.size.y - m)
 	var cw := minf(dw, 460.0)
 	choices_box.size = Vector2(cw, 0)
-	choices_box.position = Vector2((w - cw) / 2.0, dlg.position.y - choices_box.size.y - 10.0)
+	choices_box.position = Vector2((w - cw) / 2.0, maxf(8.0, dlg.position.y - choices_box.size.y - 10.0))
 	var jw := minf(w - 2 * m, 620.0)
 	journal.size = Vector2(jw, minf(h - 2 * m, 540.0))
 	journal.position = (Vector2(w, h) - journal.size) / 2.0
@@ -520,7 +543,49 @@ func close_dialog() -> void:
 	_dlg_tw.chain().tween_callback(func(): dlg.visible = false)
 
 
+## A story dialog, choice list or blocking card is on screen and owns every tap.
+func wants_taps() -> bool:
+	return dlg.visible or _blocking or not choices_box.get_children().is_empty()
+
+
+## Touch never depends on mouse emulation (the kingdom only turns it on while a panel is open; the dungeon
+## and battle screens drive touch themselves): any finger anywhere on screen advances the dialog, taps a
+## choice / card button under it, or skips a card. Emulated mouse clicks are dropped meanwhile so one tap is
+## one step.
+func _touch_tap(pos: Vector2) -> void:
+	var hit := _button_at(pos)
+	if hit != null:
+		hit.pressed.emit()
+		return
+	if not choices_box.get_children().is_empty(): return # with choices up, only a choice moves on
+	if dlg.visible: advance()
+	else: _tap = true
+
+
+func _button_at(pos: Vector2) -> Button:
+	var pools: Array = []
+	pools.append_array(choices_box.get_children())
+	if card.visible: pools.append_array(card_box.get_children())
+	for c in pools:
+		var b := c as Button
+		if b == null or not b.is_visible_in_tree() or b.disabled or b.is_queued_for_deletion(): continue
+		var local: Vector2 = b.get_global_transform_with_canvas().affine_inverse() * pos
+		if Rect2(Vector2.ZERO, b.size).grow(6.0).has_point(local): return b
+	return null
+
+
 func _input(e: InputEvent) -> void:
+	if wants_taps() and not journal.visible:
+		if e is InputEventScreenTouch:
+			if e.pressed: _touch_tap(e.position)
+			get_viewport().set_input_as_handled()
+			return
+		if e is InputEventScreenDrag:
+			get_viewport().set_input_as_handled()
+			return
+		if e is InputEventMouseButton and e.device == InputEvent.DEVICE_ID_EMULATION:
+			get_viewport().set_input_as_handled() # the finger already acted through _touch_tap
+			return
 	if e is InputEventKey and e.pressed and not e.echo:
 		var kc: int = e.physical_keycode
 		if dlg.visible or not choices_box.get_children().is_empty():
@@ -540,6 +605,45 @@ func _input(e: InputEvent) -> void:
 		elif kc == KEY_J and _hud and not _kingdom_modal():
 			open_journal()
 			get_viewport().set_input_as_handled()
+
+
+## Recovers a dialog that is on screen but can't take input: faded / shrunk by a killed tween, the tap catcher
+## off, lines finished with nobody closing it, choices left invisible, or a blocking card with nothing showing.
+func _watchdog(delta: float) -> void:
+	var closing: bool = _dlg_tw != null and _dlg_tw.is_valid() and _dlg_tw.is_running()
+	var has_choices: bool = not choices_box.get_children().is_empty()
+	if dlg.visible and not closing:
+		if not catcher.visible: catcher.visible = true
+		var off: bool = dlg.modulate.a < 0.95 or dlg.scale.x < 0.97
+		var done: bool = _line_i >= _lines.size() and not _lines_cb.is_valid() and not has_choices
+		if off or done: _wd_t += delta
+		else: _wd_t = 0.0
+		if _wd_t > 0.8 and off:
+			dlg.modulate.a = 1.0
+			dlg.scale = Vector2.ONE
+		if _wd_t > 2.5 and done:
+			push_warning("story_ui watchdog: closing a finished dialog nobody closed")
+			_wd_t = 0.0
+			close_dialog()
+	else:
+		_wd_t = 0.0
+	if has_choices:
+		if not catcher.visible: catcher.visible = true
+		for c in choices_box.get_children():
+			var b := c as Control
+			if b != null and b.modulate.a < 0.5 and b.get_tree() != null and not b.is_queued_for_deletion():
+				b.set_meta("wd", float(b.get_meta("wd", 0.0)) + delta)
+				if float(b.get_meta("wd")) > 0.8: b.modulate.a = 1.0
+	if not has_choices and not dlg.visible and catcher.visible and not closing:
+		catcher.visible = false # a stray catcher would swallow every tap on the field
+	if _blocking and not card.visible and not overlay.visible:
+		_block_t += delta
+		if _block_t > 3.0:
+			push_warning("story_ui watchdog: blocking with no card on screen")
+			_tap = true
+			_block_t = 0.0
+	else:
+		_block_t = 0.0
 
 
 func _kingdom_modal() -> bool:

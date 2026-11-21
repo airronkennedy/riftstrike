@@ -619,15 +619,6 @@ func _move(delta: float) -> float:
 	if dir != Vector2.ZERO:
 		tap_target = null
 		tap_use = {}
-	elif tap_target is Vector2:
-		var to: Vector2 = tap_target - player_pos
-		if to.length() < 6.0 or (not tap_use.is_empty() and to.length() < 60.0):
-			tap_target = null
-			if not tap_use.is_empty() and near == tap_use:
-				use(near)
-			tap_use = {}
-			return 0.0
-		dir = to.normalized()
 	if dir == Vector2.ZERO:
 		return 0.0
 	face_dir = dir.normalized()
@@ -824,32 +815,19 @@ func _unhandled_input(e: InputEvent) -> void:
 		if dialog.visible:
 			_dialog_advance()
 			return
-		if busy or _modal_open():
-			return
-		tap_at((e as InputEventMouseButton).position)
+		return # no click-to-walk: keyboard / gamepad / the touch stick move, Use / E interacts
 
 
-## Tap / click on the field (screen px). Tapping a door, person or sign walks there and uses it;
-## if it is already in reach it is used at once. Public for tests.
+## Tap-to-walk is gone (it could leave a stale walk target that re-used a door / person the moment a
+## dialog closed). Kept for tests: uses the thing under the point only if it is already in reach.
 func tap_at(screen_pos: Vector2) -> void:
 	var wp: Vector2 = get_canvas_transform().affine_inverse() * screen_pos
-	tap_target = wp
+	tap_target = null
 	tap_use = {}
-	var best := 56.0
-	for u in usables:
-		var d := (u.pos as Vector2).distance_to(wp)
-		if u.get("kind", "") == "npc":
-			d = minf(d, (u.pos as Vector2 + Vector2(0, -40)).distance_to(wp)) # tap the body, not the feet
-		if d < best:
-			best = d
-			tap_target = u.pos
-			tap_use = u
-	if not tap_use.is_empty() and near == tap_use:
-		tap_target = null
-		var u2 := tap_use
-		tap_use = {}
-		use(u2)
-
+	if near.is_empty(): return
+	var np: Vector2 = near.pos
+	var d := minf(np.distance_to(wp), (np + Vector2(0, -40)).distance_to(wp))
+	if d < 56.0: use(near)
 
 # ================================================================ touch (multitouch, no mouse emulation)
 func _input(e: InputEvent) -> void:
@@ -879,8 +857,8 @@ func _touch_actions(acts: Array) -> void:
 			"stick_end":
 				stick.release()
 			"tap":
+				# No tap-to-walk / tap-to-use on the field: the stick moves, the Use button interacts.
 				if dialog.visible: _dialog_advance()
-				elif not busy: tap_at(a.pos)
 			"ui_down":
 				if a.name == "use": use_btn.press(true)
 				elif a.name == "journal" and _story_ui(): _story_ui().quests_btn.button_pressed = true
@@ -1138,8 +1116,6 @@ func _update_camera(delta: float) -> void:
 	var want := Vector2.ZERO
 	if player.walking and not reduced_motion:
 		var dir := _input_dir()
-		if dir == Vector2.ZERO and tap_target is Vector2:
-			dir = ((tap_target as Vector2) - player_pos).normalized()
 		want = dir * 70.0
 	_cam_ahead = _cam_ahead.lerp(want, clampf(delta * 2.5, 0.0, 1.0))
 	cam.position = player_pos + _cam_ahead + Vector2(0, -24)
