@@ -1,6 +1,6 @@
 extends Node2D
 ## The Sunken Bastion (scenes/dungeon.tscn, docs/DUNGEON.md, docs/STORY.md Act IV): three floors under the ruin.
-## Walk (WASD / arrows, tap or click to walk, drag to steer), E / Space / Enter or the Use button to interact.
+## Walk (WASD / arrows, gamepad, or the floating touch stick), E / Space / Enter or the Use button to interact.
 ## A danger meter fills as you walk and starts a random battle through the Encounters autoload (the same hook as the
 ## overworld); the fight runs in main.tscn and comes back here. Beats: chests, a lever and portcullis (floor 1), a locked
 ## door and its key (floor 2), an ember shrine save point and the sealed door of the final boss (floor 3).
